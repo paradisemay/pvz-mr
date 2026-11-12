@@ -80,6 +80,12 @@ namespace Pvz.Editor
                 feature.enabled = enabled;
                 EditorUtility.SetDirty(feature);
             }
+            if (feature.enabled != enabled)
+            {
+                // The setter can be vetoed (e.g. a required feature cannot be disabled).
+                Debug.LogError($"[PvzProjectSetup] Could not set OpenXR feature '{featureId}' to {enabled}.");
+                return;
+            }
             log.AppendLine($"  openxr: {featureId} = {enabled}");
         }
 
