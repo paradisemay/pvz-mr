@@ -30,8 +30,6 @@ namespace Pvz.Runtime
         private readonly BoxRegistry _registry = new BoxRegistry();
         private ShiftPresenter _presenter;
         private int _customersSpawned;
-        private int _customersServed;
-        private bool _supplyDelivered;
         private int _supplySeed;
 
         public Shift Shift { get; private set; }
@@ -73,9 +71,9 @@ namespace Pvz.Runtime
                 catalog.Add(new BoxRecord(box.Id, orderNumber));
             }
 
-            Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules());
+            Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules(), settings.CreateSupplyPlan());
             _presenter = new ShiftPresenter(Shift, board, scanner, feedback);
-            _supplySeed = settings.RandomSeed != 0 ? settings.RandomSeed : Environment.TickCount;
+            _supplySeed = settings.CreateRandomSource().Range(1, int.MaxValue);
         }
 
         private void OnEnable()
@@ -120,44 +118,39 @@ namespace Pvz.Runtime
         private IEnumerator RunShift()
         {
             yield return new WaitForSeconds(settings.FirstCustomerDelay);
-            while (!Shift.IsOver || SupplyIsDue)
+            while (!Shift.IsOver)
             {
-                if (SupplyIsDue)
+                if (Shift.TryTakeDueDelivery(out var delivery))
                 {
-                    DeliverSupply();
+                    SpawnDelivery(delivery);
                     yield return new WaitForSeconds(settings.DelayBetweenCustomers);
                 }
-
-                if (Shift.HasOrdersLeft)
+                else if (Shift.HasOrdersLeft)
                 {
                     yield return ServeCustomer(Shift.NextOrder());
-                    _customersServed++;
-                    if (Shift.IsOver && !SupplyIsDue) break;
+                    if (Shift.IsOver) break;
                     _presenter.ShowWaitingForCustomer();
                     yield return new WaitForSeconds(settings.DelayBetweenCustomers);
                 }
-                else if (Shift.HasPendingIntake)
+                else
                 {
                     // Nothing to sell until the player accepts the delivery.
                     _presenter.ShowReceiveSupplyHint();
-                    yield return new WaitUntil(() => Shift.HasOrdersLeft || !Shift.HasPendingIntake);
+                    yield return new WaitUntil(() => Shift.HasOrdersLeft || Shift.IsOver);
                 }
             }
             EndShift();
         }
 
-        private bool SupplyIsDue => !_supplyDelivered && supplyDrop != null && settings.HasSupply
-                                    && _customersServed >= settings.SupplyAfterOrders;
-
-        private void DeliverSupply()
+        private void SpawnDelivery(IReadOnlyList<BoxRecord> delivery)
         {
-            _supplyDelivered = true;
-            var definitions = settings.SupplyBoxes;
-            Shift.ExpectDelivery(definitions.Select(d => new BoxRecord(new BoxId(d.boxId), d.orderNumber)));
-            foreach (var box in supplyDrop.Drop(definitions.Select(d => d.boxId).ToArray(), _supplySeed))
+            if (supplyDrop == null)
             {
-                _registry.Register(box);
+                Debug.LogError("[ShiftDirector] A delivery arrived but there is no SupplyDrop in the scene.", this);
+                return;
             }
+            var ids = delivery.Select(b => b.Id.Value).ToArray();
+            foreach (var box in supplyDrop.Drop(ids, _supplySeed, settings.DefaultCeilingHeight)) _registry.Register(box);
         }
 
         private IEnumerator ServeCustomer(Order order)

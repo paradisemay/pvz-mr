@@ -33,8 +33,6 @@ namespace Pvz.Runtime
             _shift.BoxReceived += OnBoxReceived;
         }
 
-        private int _deliverySize;
-
         /// <summary>Customer standing at the counter (lines are spoken through them). Set by the director.</summary>
         public Customer Customer { get; set; }
 
@@ -57,19 +55,18 @@ namespace Pvz.Runtime
 
         private void OnDeliveryExpected(System.Collections.Generic.IReadOnlyList<BoxRecord> delivery)
         {
-            _deliverySize = delivery.Count;
             PlaySound(FeedbackAudio.Sound.Beep);
             _board.ShowHeadline("ПОСТАВКА!", CounterBoard.Accent);
-            _board.ShowStatus($"Отсканируйте новые коробки: 0/{_deliverySize}", CounterBoard.Neutral);
+            _board.ShowStatus($"Отсканируйте новые коробки: {_shift.DeliveryReceived}/{_shift.DeliverySize}", CounterBoard.Neutral);
+            RefreshScore(); // the orders total grew
         }
 
         private void OnBoxReceived(BoxRecord box)
         {
             PlaySound(FeedbackAudio.Sound.Success);
             _scanner.ShowResult($"Заказ №{box.OrderNumber}\nПРИНЯТО НА СКЛАД", CounterBoard.Good);
-            var received = _deliverySize - _shift.PendingIntakeCount;
             if (!_shift.Desk.HasActiveOrder)
-                _board.ShowStatus($"Принято коробок: {received}/{_deliverySize}", CounterBoard.Good);
+                _board.ShowStatus($"Принято коробок: {_shift.DeliveryReceived}/{_shift.DeliverySize}", CounterBoard.Good);
         }
 
         public void ShowShiftStarting()

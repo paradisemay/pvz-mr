@@ -26,14 +26,14 @@ namespace Pvz.Runtime
                 pixels[py * size + px] = isDark ? dark : light;
             }
 
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true)
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
             {
                 name = $"QR_{id}",
                 filterMode = FilterMode.Point,
                 wrapMode = TextureWrapMode.Clamp,
             };
             texture.SetPixels32(pixels);
-            texture.Apply(true);
+            texture.Apply(false);
             return texture;
         }
     }

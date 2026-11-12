@@ -95,12 +95,109 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void ExpectDelivery_RejectsDuplicatesWithinTheBatch_WithoutHalfApplying()
+        {
+            var dup = new BoxId("BOX-200");
+            Assert.Throws<ArgumentException>(() =>
+                _shift.ExpectDelivery(new[] { new BoxRecord(dup, "7001"), new BoxRecord(dup, "7002") }));
+            Assert.IsFalse(_shift.IsPendingIntake(dup));
+        }
+
+        [Test]
+        public void ExpectDelivery_RejectsExistingOrderNumbers()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                _shift.ExpectDelivery(new[] { new BoxRecord(new BoxId("BOX-300"), "1435") }));
+        }
+
+        [Test]
         public void DeliveryExpected_IsRaised()
         {
             IReadOnlyList<BoxRecord> announced = null;
             _shift.DeliveryExpected += d => announced = d;
             _shift.ExpectDelivery(new[] { new BoxRecord(new BoxId("BOX-103"), "6021") });
             Assert.AreEqual(1, announced.Count);
+        }
+    }
+
+    public class SupplyPlanTests
+    {
+        private static readonly BoxRecord[] Delivery =
+        {
+            new BoxRecord(new BoxId("BOX-101"), "3307"),
+            new BoxRecord(new BoxId("BOX-102"), "4410"),
+        };
+
+        private static Shift NewShift(int afterOrders) =>
+            new Shift(TestData.MvpCatalog(), new FakeRandom(0, 0, 0, 0, 0), null, new SupplyPlan(afterOrders, Delivery));
+
+        private static void ServeOne(Shift shift, double now)
+        {
+            var order = shift.NextOrder();
+            shift.Desk.OpenOrder(order, now);
+            shift.Desk.Handover(order.Boxes[0], now + 1);
+        }
+
+        [Test]
+        public void DeliveryIsDue_AfterPlannedNumberOfOrders()
+        {
+            using (var shift = NewShift(1))
+            {
+                Assert.IsFalse(shift.IsDeliveryDue);
+                ServeOne(shift, 0);
+                Assert.IsTrue(shift.IsDeliveryDue);
+
+                Assert.IsTrue(shift.TryTakeDueDelivery(out var boxes));
+                Assert.AreEqual(2, boxes.Count);
+                Assert.AreEqual(2, shift.PendingIntakeCount);
+                Assert.AreEqual(0, shift.DeliveryReceived);
+                Assert.AreEqual(2, shift.DeliverySize);
+                Assert.IsFalse(shift.TryTakeDueDelivery(out _), "a delivery arrives only once");
+            }
+        }
+
+        [Test]
+        public void DeliveryIsNotDue_WhileACustomerIsServed()
+        {
+            using (var shift = NewShift(0))
+            {
+                shift.Desk.OpenOrder(shift.NextOrder(), 0);
+                Assert.IsFalse(shift.IsDeliveryDue);
+            }
+        }
+
+        [Test]
+        public void DeliveryComes_WhenWarehouseRunsEmpty_EvenIfPlannedLater()
+        {
+            using (var shift = NewShift(10))
+            {
+                for (var i = 0; i < 3; i++) ServeOne(shift, i * 10);
+                Assert.IsFalse(shift.IsOver, "a scheduled delivery keeps the shift going");
+                Assert.IsTrue(shift.TryTakeDueDelivery(out _));
+            }
+        }
+
+        [Test]
+        public void ReceivingScoresIntakePoints_FromRules()
+        {
+            var rules = new ScoringRules { IntakeBox = 7 };
+            using (var shift = new Shift(TestData.MvpCatalog(), new FakeRandom(0), rules, new SupplyPlan(0, Delivery)))
+            {
+                shift.TryTakeDueDelivery(out _);
+                shift.Scan(new BoxId("BOX-101"));
+                Assert.AreEqual(7, shift.Stats.Score);
+                Assert.AreEqual(1, shift.DeliveryReceived);
+            }
+        }
+
+        [Test]
+        public void NoPlan_NeverDelivers()
+        {
+            using (var shift = new Shift(TestData.MvpCatalog(), new FakeRandom()))
+            {
+                Assert.IsFalse(shift.HasScheduledDelivery);
+                Assert.IsFalse(shift.TryTakeDueDelivery(out _));
+            }
         }
     }
 

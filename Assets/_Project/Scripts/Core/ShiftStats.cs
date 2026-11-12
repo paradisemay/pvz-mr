@@ -33,8 +33,8 @@ namespace Pvz.Core
         public int LastOrderPoints { get; private set; }
         public int BoxesReceived { get; private set; }
 
-        /// <summary>A supply box was accepted into the warehouse.</summary>
-        public void RecordIntake()
+        /// <summary>Handler for <see cref="Shift.BoxReceived"/>: a supply box was accepted into the warehouse.</summary>
+        internal void OnBoxReceived(BoxRecord box)
         {
             BoxesReceived++;
             Score += _rules.IntakeBox;

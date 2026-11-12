@@ -49,7 +49,7 @@ namespace Pvz.Editor
 
             // Supply delivery: boxes just appeared under the ceiling.
             var supply = Object.FindFirstObjectByType<SupplyDrop>();
-            var dropped = supply.Drop(new[] { "BOX-101", "BOX-102", "BOX-103" }, 7);
+            var dropped = supply.Drop(new[] { "BOX-101", "BOX-102", "BOX-103" }, 7, 2.4f);
             board.ShowHeadline("ПОСТАВКА!", CounterBoard.Accent);
             board.ShowStatus("Отсканируйте новые коробки: 0/3", CounterBoard.Neutral);
             Capture("07_supply", new Vector3(-2.9f, 1.9f, -3.1f), new Vector3(0f, 1.3f, 0f), 62f);

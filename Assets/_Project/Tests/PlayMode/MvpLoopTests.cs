@@ -162,6 +162,32 @@ namespace Pvz.Runtime.Tests
             Assert.Less(Vector3.Distance(start, box.transform.position), 0.3f);
         }
 
+        [UnityTest, Timeout(30000)]
+        public IEnumerator SupplyDrop_PlacesBoxesWhereThePlayerCanReachThem()
+        {
+            var drop = Object.FindFirstObjectByType<SupplyDrop>();
+            var counter = Object.FindFirstObjectByType<HandoverZone>().transform.parent;
+            yield return null;
+
+            for (var seed = 1; seed <= 5; seed++)
+            {
+                var ids = Enumerable.Range(0, 5).Select(i => $"BOX-T{seed}{i}").ToArray();
+                var boxes = drop.Drop(ids, seed, 2.4f);
+                foreach (var box in boxes)
+                {
+                    var p = box.transform.position;
+                    Assert.Less(Mathf.Abs(p.x), 3.3f, $"{box.RawId} outside the mock room");
+                    Assert.Less(Mathf.Abs(p.z), 3.3f, $"{box.RawId} outside the mock room");
+                    var toCounter = new Vector2(p.x - counter.position.x, p.z - counter.position.z).magnitude;
+                    Assert.Greater(toCounter, 1.0f, $"{box.RawId} dropped onto the counter");
+                    Assert.IsFalse(Mathf.Abs(p.x) < 0.6f && p.z > 1.0f, $"{box.RawId} dropped onto the customers' walkway");
+                    Assert.Greater(p.y, 1.5f, "boxes start under the ceiling");
+                }
+                foreach (var box in boxes) Object.Destroy(box.gameObject);
+                yield return null;
+            }
+        }
+
         private static IEnumerator PlaceInZone(ShiftDirector director, QrBox box)
         {
             yield return MoveTo(box, director.Zone.transform.position + Vector3.up * 0.05f);

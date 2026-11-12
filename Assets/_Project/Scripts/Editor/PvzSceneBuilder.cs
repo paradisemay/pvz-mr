@@ -94,7 +94,7 @@ namespace Pvz.Editor
 
             var supplyDrop = new GameObject("Supply Drop").AddComponent<SupplyDrop>();
             supplyDrop.transform.SetParent(playArea, false);
-            supplyDrop.Configure(supplyBoxPrefab, camera.transform, counter.transform, Object.FindFirstObjectByType<ARPlaneManager>());
+            supplyDrop.Configure(supplyBoxPrefab, camera.transform, counter.transform, spawn, Object.FindFirstObjectByType<ARPlaneManager>());
 
             var director = new GameObject("Shift Director").AddComponent<ShiftDirector>();
             director.Configure(settings, boxes.ToArray(), scanner,

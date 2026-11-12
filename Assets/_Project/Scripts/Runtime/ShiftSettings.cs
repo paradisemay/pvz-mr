@@ -66,12 +66,21 @@ namespace Pvz.Runtime
         [SerializeField] private float okThresholdSeconds = 60f;
         [SerializeField] private int okBonus = 25;
         [SerializeField] private int wrongHandoverPenalty = 25;
+        [SerializeField] private int intakePoints = 10;
+
+        [Header("Room")]
+        [Tooltip("Used for the supply drop when the headset has not found the ceiling.")]
+        [SerializeField, Min(1.5f)] private float defaultCeilingHeight = 2.4f;
 
         public BoxDefinition[] Boxes => boxes;
         public int SupplyAfterOrders => supplyAfterOrders;
         public BoxDefinition[] SupplyBoxes => supplyBoxes;
         public bool HasSupply => supplyAfterOrders > 0 && supplyBoxes != null && supplyBoxes.Length > 0;
-        public int RandomSeed => randomSeed;
+        public float DefaultCeilingHeight => defaultCeilingHeight;
+
+        public SupplyPlan CreateSupplyPlan() => !HasSupply
+            ? SupplyPlan.None
+            : new SupplyPlan(supplyAfterOrders, System.Linq.Enumerable.Select(supplyBoxes, d => new BoxRecord(new BoxId(d.boxId), d.orderNumber)));
         public float FirstCustomerDelay => firstCustomerDelay;
         public float DelayBetweenCustomers => delayBetweenCustomers;
         public float ThanksDuration => thanksDuration;
@@ -89,6 +98,7 @@ namespace Pvz.Runtime
             OkThresholdSeconds = okThresholdSeconds,
             OkBonus = okBonus,
             WrongHandoverPenalty = wrongHandoverPenalty,
+            IntakeBox = intakePoints,
         };
 
         public bool TryGetOrderNumber(BoxId id, out string orderNumber)

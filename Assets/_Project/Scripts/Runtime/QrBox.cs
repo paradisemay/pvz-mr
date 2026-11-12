@@ -24,6 +24,7 @@ namespace Pvz.Runtime
         private Vector3 _startLocalPosition;
         private Quaternion _startLocalRotation;
         private Transform _startParent;
+        private Texture2D _runtimeTexture;
 
         public BoxId Id => new BoxId(boxId);
 
@@ -65,6 +66,8 @@ namespace Pvz.Runtime
         {
             boxId = new BoxId(id).Value;
             if (qrTexture == null) return;
+            ReleaseRuntimeTexture();
+            _runtimeTexture = qrTexture;
             var block = new MaterialPropertyBlock();
             foreach (var label in labelRenderers)
             {
@@ -90,6 +93,17 @@ namespace Pvz.Runtime
             transform.SetParent(carrier, worldPositionStays: false);
             transform.localPosition = Vector3.zero;
             transform.localRotation = Quaternion.identity;
+        }
+
+        private void OnDestroy() => ReleaseRuntimeTexture();
+
+        /// <summary>The QR texture created for this box at runtime is owned by the box.</summary>
+        private void ReleaseRuntimeTexture()
+        {
+            if (_runtimeTexture == null) return;
+            if (Application.isPlaying) Destroy(_runtimeTexture);
+            else DestroyImmediate(_runtimeTexture);
+            _runtimeTexture = null;
         }
 
         private void RememberStartPose()

@@ -97,6 +97,19 @@ namespace Pvz.Editor.Tests
         }
 
         [Test]
+        public void ShiftSettings_DeliveryIsValidForTheWarehouse()
+        {
+            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(PvzSceneBuilder.SettingsPath);
+            var catalog = new Core.BoxCatalog(settings.Boxes.Select(b => new Core.BoxRecord(new Core.BoxId(b.boxId), b.orderNumber)));
+            var plan = settings.CreateSupplyPlan();
+            using (var shift = new Core.Shift(catalog, new Core.SystemRandomSource(1), settings.CreateScoringRules(), plan))
+            {
+                Assert.DoesNotThrow(() => shift.ExpectDelivery(plan.Boxes),
+                    "supply boxes must have unique ids and new order numbers");
+            }
+        }
+
+        [Test]
         public void BoxesHaveGrabAndPhysics()
         {
             foreach (var box in Object.FindObjectsByType<QrBox>(FindObjectsSortMode.None))
