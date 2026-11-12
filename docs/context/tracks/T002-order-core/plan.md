@@ -1,8 +1,20 @@
 # T002 — План
 
-- [ ] `BoxId`, `BoxRecord`, `BoxCatalog`
-- [ ] `Order`, `IRandomSource`, `OrderGenerator`
-- [ ] `PickupDesk` + исходы + события
-- [ ] `ShiftStats` (очки, статистика)
-- [ ] EditMode-тесты на всё перечисленное
-- [ ] Прогон тестов в batchmode, ревью, PR в `dev`
+- [x] `BoxId`, `BoxRecord`, `BoxCatalog`
+- [x] `Order`, `IRandomSource`, `OrderGenerator`
+- [x] `PickupDesk` + исходы + события
+- [x] `ShiftStats` (очки, статистика), `ShiftRating`
+- [x] EditMode-тесты на всё перечисленное
+- [x] Ревью (код + архитектура) чистым агентом → исправлено:
+  - состояние фиксируется до событий; обработчики могут вызывать стойку
+  - `Order` неизменяемый, прогресс — в `ServiceSession`
+  - `OpenOrder` проверяет соответствие коробок номеру заказа
+  - read-only коллекции, `FakeRandom` падает на выходе за диапазон, +тесты на границы и порядок событий
+- [x] Прогон тестов в batchmode: 46/46
+- [x] PR в `dev`
+
+## Отложено (по итогам архитектурного ревью, при появлении фич)
+- Очередь: `OrderGenerator` должен исключать заказы, которые уже обслуживаются.
+- Поставка: события `BoxAdded`/`BoxRemoved` у `BoxCatalog`.
+- Ушедший клиент: `CancelOrder`.
+- Пакеты/возвраты — отдельные потоки, а не новые значения `HandoverStatus`.
