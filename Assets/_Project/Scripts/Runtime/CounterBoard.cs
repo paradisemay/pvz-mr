@@ -1,0 +1,47 @@
+using TMPro;
+using UnityEngine;
+
+namespace Pvz.Runtime
+{
+    /// <summary>Big display above the counter: current order, hints and score.</summary>
+    public sealed class CounterBoard : MonoBehaviour
+    {
+        public static readonly Color Neutral = new Color(0.92f, 0.94f, 0.97f);
+        public static readonly Color Good = new Color(0.35f, 0.9f, 0.45f);
+        public static readonly Color Bad = new Color(1f, 0.42f, 0.35f);
+        public static readonly Color Accent = new Color(1f, 0.8f, 0.3f);
+
+        [SerializeField] private TMP_Text headline;
+        [SerializeField] private TMP_Text status;
+        [SerializeField] private TMP_Text score;
+
+        public string Headline => headline != null ? headline.text : string.Empty;
+        public string Status => status != null ? status.text : string.Empty;
+
+        public void ShowHeadline(string text, Color color)
+        {
+            if (headline == null) return;
+            headline.text = text;
+            headline.color = color;
+        }
+
+        public void ShowStatus(string text, Color color)
+        {
+            if (status == null) return;
+            status.text = text;
+            status.color = color;
+        }
+
+        public void ShowScore(int points, int served, int total)
+        {
+            if (score != null) score.text = $"Очки: {points}    Выдано: {served}/{total}";
+        }
+
+        internal void Configure(TMP_Text headlineText, TMP_Text statusText, TMP_Text scoreText)
+        {
+            headline = headlineText;
+            status = statusText;
+            score = scoreText;
+        }
+    }
+}
