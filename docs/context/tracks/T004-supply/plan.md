@@ -1,8 +1,9 @@
 # T004 — План
 
-- [ ] Core: `QrPattern` (+ перевести редактор на него), `Shift.ExpectDelivery/Scan/BoxReceived`, `ScanStatus.Received`, очки за приёмку
-- [ ] EditMode-тесты на приёмку и конец смены
-- [ ] Runtime: `QrBox.AssignId` + рантайм-текстура, `SupplyDrop`, расписание поставки в `ShiftDirector`, тексты в `ShiftPresenter`
-- [ ] Editor: префаб `Box_Supply`, точки/высота поставки в сцене
-- [ ] PlayMode: смена с поставкой
-- [ ] Скриншот, ревью, PR в `dev`
+- [x] Core: `QrPattern` (+ редактор на него), `Shift.ExpectDelivery/Scan/BoxReceived/DeliveryExpected`, `ScanStatus.Received`, очки за приёмку
+- [x] EditMode-тесты на приёмку, конец смены, узор QR (75/75 всего)
+- [x] Runtime: `QrBox.AssignId` + рантайм-текстура, `SupplyDrop`, расписание поставки в `ShiftDirector`, тексты в `ShiftPresenter`
+- [x] Editor: префаб `Box_Supply`, `Supply Drop` в `Play Area`
+- [x] PlayMode: смена с поставкой (6 заказов)
+- [x] Скриншот `07_supply.png`
+- [ ] Ревью, PR в `dev`
