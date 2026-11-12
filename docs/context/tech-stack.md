@@ -27,8 +27,12 @@
 Unity.exe -batchmode -quit -projectPath . -buildTarget Android -logFile Logs/batch.log
 # пересобрать сцену и ассеты прототипа
 Unity.exe -batchmode -quit -projectPath . -executeMethod Pvz.Editor.PvzSceneBuilder.BuildAll -logFile Logs/build_scene.log
-# тесты
-Unity.exe -batchmode -projectPath . -runTests -testPlatform EditMode -testResults Logs/editmode.xml
-Unity.exe -batchmode -projectPath . -runTests -testPlatform PlayMode -testResults Logs/playmode.xml
+# применить настройки проекта (OpenXR-фичи Meta, Player Settings, URP)
+Unity.exe -batchmode -quit -projectPath . -executeMethod Pvz.Editor.PvzProjectSetup.Apply -logFile Logs/setup.log
+# тесты (без -quit: редактор сам завершится с кодом 0/1)
+Unity.exe -batchmode -projectPath . -executeMethod Pvz.Editor.PvzTestRunner.RunEditMode -pvzResults Logs/editmode.xml -logFile Logs/editmode.log
+Unity.exe -batchmode -projectPath . -executeMethod Pvz.Editor.PvzTestRunner.RunPlayMode -pvzResults Logs/playmode.xml -logFile Logs/playmode.log
 ```
+Стандартный `-runTests` на машине разработчика не стартует без headless-лицензии, поэтому тесты запускаются
+через `PvzTestRunner` (обёртка над `TestRunnerApi`).
 `Unity.exe` = `C:\Program Files\Unity\Hub\Editor\6000.2.2f1\Editor\Unity.exe`. Редактор с этим проектом должен быть закрыт.
