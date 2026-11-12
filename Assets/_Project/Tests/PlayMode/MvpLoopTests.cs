@@ -132,6 +132,19 @@ namespace Pvz.Runtime.Tests
             StringAssert.Contains("Нет кода", scanner.ScreenText);
         }
 
+        [UnityTest, Timeout(30000)]
+        public IEnumerator LostBox_ReturnsToItsStartPlace()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            var box = director.RemainingBoxes.First();
+            var start = box.transform.position;
+
+            yield return MoveTo(box, new Vector3(0f, -5f, 0f)); // fell through the floor
+            yield return null;
+
+            Assert.Less(Vector3.Distance(start, box.transform.position), 0.3f);
+        }
+
         private static IEnumerator PlaceInZone(ShiftDirector director, QrBox box)
         {
             yield return MoveTo(box, director.Zone.transform.position + Vector3.up * 0.05f);

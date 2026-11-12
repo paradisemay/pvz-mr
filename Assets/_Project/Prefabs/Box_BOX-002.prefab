@@ -855,3 +855,5 @@ MonoBehaviour:
   boxId: BOX-002
   grabInteractable: {fileID: 7234695349928314265}
   body: {fileID: 7644364766579783110}
+  lostBelowY: -1
+  lostBeyondMeters: 6

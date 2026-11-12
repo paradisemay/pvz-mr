@@ -33,6 +33,7 @@ namespace Pvz.Editor
         [MenuItem("PVZ/Build Scene And Assets")]
         public static void BuildAll()
         {
+            if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
             // Create the scene first: NewScene(Single) unloads unused assets and would invalidate loaded prefabs.
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -57,21 +58,25 @@ namespace Pvz.Editor
             var planePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(planePath);
 
             CreateLighting();
-            var (camera, simulator) = CreateMrRig(planePrefab);
+            var (camera, simulator, locomotion) = CreateMrRig(planePrefab);
             var mockRoom = CreateMockRoom();
             CreateFloorCollider();
 
+            // Everything the game places in the room lives under the play area, which is aligned to the player on the headset.
+            var playArea = new GameObject("Play Area").transform;
+
             var mrSetup = new GameObject("MR Session Setup").AddComponent<MrSessionSetup>();
-            mrSetup.Configure(camera, mockRoom, simulator);
+            mrSetup.Configure(camera, mockRoom, simulator, locomotion, playArea);
 
-            var counter = (GameObject)PrefabUtility.InstantiatePrefab(counterPrefab);
-            counter.transform.position = CounterPosition;
+            var counter = (GameObject)PrefabUtility.InstantiatePrefab(counterPrefab, playArea);
+            counter.transform.localPosition = CounterPosition;
 
-            var scanner = ((GameObject)PrefabUtility.InstantiatePrefab(scannerPrefab.gameObject)).GetComponent<HandScanner>();
+            var scanner = ((GameObject)PrefabUtility.InstantiatePrefab(scannerPrefab.gameObject, playArea)).GetComponent<HandScanner>();
             scanner.transform.SetPositionAndRotation(CounterPosition + new Vector3(-0.48f, PvzPrefabBuilder.CounterHeight + 0.04f, -0.05f),
                 Quaternion.Euler(0f, -90f, 90f));
 
             var boxesRoot = new GameObject("Boxes").transform;
+            boxesRoot.SetParent(playArea, false);
             var boxes = new List<QrBox>();
             for (var i = 0; i < layout.Length; i++)
             {
@@ -81,6 +86,7 @@ namespace Pvz.Editor
             }
 
             var points = new GameObject("Customer Points").transform;
+            points.SetParent(playArea, false);
             var spawn = Marker("CustomerSpawn", points, CustomerSpawnPosition, 180f);
             var service = Marker("CustomerService", points, CustomerServicePosition, 180f);
 
@@ -127,7 +133,7 @@ namespace Pvz.Editor
             RenderSettings.ambientLight = new Color(0.55f, 0.57f, 0.62f);
         }
 
-        private static (Camera camera, GameObject simulator) CreateMrRig(GameObject planePrefab)
+        private static (Camera camera, GameObject simulator, GameObject locomotion) CreateMrRig(GameObject planePrefab)
         {
             new GameObject("AR Session").AddComponent<ARSession>();
 
@@ -147,10 +153,23 @@ namespace Pvz.Editor
 
             GameObject simulator = null;
             var simulatorPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(SimulatorPrefabPath);
-            if (simulatorPrefab != null) simulator = (GameObject)PrefabUtility.InstantiatePrefab(simulatorPrefab);
-            else Debug.LogWarning("[PvzSceneBuilder] XR Interaction Simulator sample not found.");
+            if (simulatorPrefab != null)
+            {
+                simulator = (GameObject)PrefabUtility.InstantiatePrefab(simulatorPrefab);
+                // Stripped from device builds; saved inactive because once enabled it replaces the real HMD.
+                // MrSessionSetup enables it only in the editor without a headset.
+                simulator.tag = "EditorOnly";
+                simulator.SetActive(false);
+            }
+            else
+            {
+                Debug.LogWarning("[PvzSceneBuilder] XR Interaction Simulator sample not found.");
+            }
 
-            return (camera, simulator);
+            var locomotion = origin.transform.Find("Locomotion");
+            if (locomotion == null) Debug.LogWarning("[PvzSceneBuilder] 'Locomotion' not found in the XR Origin prefab.");
+
+            return (camera, simulator, locomotion != null ? locomotion.gameObject : null);
         }
 
         /// <summary>Stand-in for the player's real room, active only in the editor (see MrSessionSetup).</summary>
@@ -161,7 +180,7 @@ namespace Pvz.Editor
             var woodMat = Lit("MockWood", new Color(0.55f, 0.38f, 0.25f));
             var bedMat = Lit("MockBed", new Color(0.36f, 0.48f, 0.66f));
 
-            var room = new GameObject("Editor Mock Room").transform;
+            var room = new GameObject("Editor Mock Room") { tag = "EditorOnly" }.transform;
             const float half = 3.5f;
             const float height = 2.6f;
             Primitive(PrimitiveType.Cube, "Floor", room, new Vector3(0, -0.01f, 0), new Vector3(half * 2, 0.02f, half * 2), floorMat, true);

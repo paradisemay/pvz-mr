@@ -73,6 +73,29 @@ namespace Pvz.Editor.Tests
         }
 
         [Test]
+        public void EditorOnlyHelpers_AreStrippedFromBuilds_AndSimulatorStartsInactive()
+        {
+            var setup = new SerializedObject(Object.FindFirstObjectByType<MrSessionSetup>());
+            var simulator = (GameObject)setup.FindProperty("editorSimulator").objectReferenceValue;
+            var mockRoom = (GameObject)setup.FindProperty("editorMockRoom").objectReferenceValue;
+
+            Assert.AreEqual("EditorOnly", simulator.tag);
+            Assert.IsFalse(simulator.activeSelf, "an active simulator would replace the real HMD on the headset");
+            Assert.AreEqual("EditorOnly", mockRoom.tag);
+        }
+
+        [Test]
+        public void GameplayObjects_LiveUnderThePlayArea()
+        {
+            var playArea = (Transform)new SerializedObject(Object.FindFirstObjectByType<MrSessionSetup>())
+                .FindProperty("playArea").objectReferenceValue;
+            foreach (var box in Object.FindObjectsByType<QrBox>(FindObjectsSortMode.None))
+                Assert.IsTrue(box.transform.IsChildOf(playArea), box.name);
+            Assert.IsTrue(Object.FindFirstObjectByType<HandScanner>().transform.IsChildOf(playArea));
+            Assert.IsTrue(Object.FindFirstObjectByType<HandoverZone>().transform.IsChildOf(playArea));
+        }
+
+        [Test]
         public void BoxesHaveGrabAndPhysics()
         {
             foreach (var box in Object.FindObjectsByType<QrBox>(FindObjectsSortMode.None))

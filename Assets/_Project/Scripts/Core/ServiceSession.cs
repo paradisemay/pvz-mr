@@ -10,6 +10,7 @@ namespace Pvz.Core
     public sealed class ServiceSession
     {
         private readonly HashSet<BoxId> _delivered = new HashSet<BoxId>();
+        private readonly HashSet<BoxId> _rejected = new HashSet<BoxId>();
 
         internal ServiceSession(Order order, double openedAt)
         {
@@ -34,6 +35,12 @@ namespace Pvz.Core
             _delivered.Add(id);
         }
 
-        internal void AddMistake() => Mistakes++;
+        /// <summary>Records a wrong box; returns false if this box was already rejected by this customer.</summary>
+        internal bool Reject(BoxId id)
+        {
+            if (!_rejected.Add(id)) return false;
+            Mistakes++;
+            return true;
+        }
     }
 }

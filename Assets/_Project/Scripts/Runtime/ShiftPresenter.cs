@@ -107,10 +107,13 @@ namespace Pvz.Runtime
                 case HandoverStatus.WrongBox:
                     PlaySound(FeedbackAudio.Sound.Error);
                     Say($"Это не мой заказ!\nМне нужен №{_shift.Desk.ActiveOrder.Number}");
-                    _board.ShowStatus("Неверная коробка: штраф", CounterBoard.Bad);
+                    _board.ShowStatus(outcome.IsRepeat ? "Эту коробку клиент уже вернул" : "Неверная коробка: штраф", CounterBoard.Bad);
                     break;
                 case HandoverStatus.NoActiveOrder:
                     _board.ShowStatus("Дождитесь клиента", CounterBoard.Neutral);
+                    break;
+                case HandoverStatus.UnknownBox:
+                    _board.ShowStatus("Этой коробки нет на складе", CounterBoard.Bad);
                     break;
             }
         }

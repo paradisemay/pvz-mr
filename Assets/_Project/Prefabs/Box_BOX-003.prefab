@@ -588,6 +588,8 @@ MonoBehaviour:
   boxId: BOX-003
   grabInteractable: {fileID: 4163130722018077985}
   body: {fileID: 6815631548061258904}
+  lostBelowY: -1
+  lostBeyondMeters: 6
 --- !u!1 &7269762313806996342
 GameObject:
   m_ObjectHideFlags: 0

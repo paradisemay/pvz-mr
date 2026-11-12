@@ -7,9 +7,9 @@
 - [x] Editor: `PvzSceneBuilder.BuildAll` — сцена `Game.unity`, Build Settings
 - [x] Editor: `PvzScreenshots.CaptureAll` — скриншоты в `docs/screenshots`
 - [x] `tools/run-unity.ps1` — запуск методов Unity в batchmode без зависания на дочерних процессах
-- [x] PlayMode-тесты полного цикла (2/2)
-- [ ] Ревью (код + архитектура), исправления
-- [ ] PR в `dev`
+- [x] PlayMode-тесты (4/4): полная смена, коробки заранее в зоне, raycast сканера, возврат потерянной коробки
+- [x] Ревью (код + архитектура), исправления — см. PR
+- [x] PR в `dev`
 
 ## Заметки по реализации
 - `NewScene(Single)` выгружает «неиспользуемые» ассеты → сцена создаётся до генерации префабов,

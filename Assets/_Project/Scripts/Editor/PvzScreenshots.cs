@@ -21,6 +21,7 @@ namespace Pvz.Editor
         [MenuItem("PVZ/Capture Screenshots")]
         public static void CaptureAll()
         {
+            if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
             Directory.CreateDirectory(OutputDir);
             var scene = EditorSceneManager.OpenScene(PvzSceneBuilder.ScenePath, OpenSceneMode.Single);
 

@@ -151,7 +151,10 @@ namespace Pvz.Runtime
             ShiftEnded?.Invoke();
         }
 
-        private void OnBoxScanned(QrBox box) => Desk.Scan(box.Id);
+        private void OnBoxScanned(QrBox box)
+        {
+            if (box != null) Desk.Scan(box.Id);
+        }
 
         private void OnScanMissed() => _presenter.ShowScanMissed();
 
