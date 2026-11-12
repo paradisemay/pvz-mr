@@ -19,7 +19,7 @@ namespace Pvz.Core.Tests
         public static Order OrderFor(BoxId box, string number) => new Order(number, new[] { box });
     }
 
-    /// <summary>Returns a scripted sequence of values (wrapping), clamped into the requested range.</summary>
+    /// <summary>Returns a scripted sequence of values; fails the test if a value is outside the requested range.</summary>
     internal sealed class FakeRandom : IRandomSource
     {
         private readonly Queue<int> _values;
@@ -29,8 +29,8 @@ namespace Pvz.Core.Tests
         public int Range(int minInclusive, int maxExclusive)
         {
             var value = _values.Count > 0 ? _values.Dequeue() : minInclusive;
-            if (value < minInclusive) return minInclusive;
-            if (value >= maxExclusive) return maxExclusive - 1;
+            if (value < minInclusive || value >= maxExclusive)
+                throw new System.ArgumentOutOfRangeException(nameof(value), $"Scripted {value} outside [{minInclusive},{maxExclusive}).");
             return value;
         }
     }

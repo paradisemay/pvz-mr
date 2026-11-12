@@ -12,9 +12,12 @@ namespace Pvz.Core
         private readonly Dictionary<BoxId, BoxRecord> _byId = new Dictionary<BoxId, BoxRecord>();
         private readonly List<BoxRecord> _ordered = new List<BoxRecord>();
 
-        public BoxCatalog() { }
+        public BoxCatalog()
+        {
+            Boxes = _ordered.AsReadOnly();
+        }
 
-        public BoxCatalog(IEnumerable<BoxRecord> boxes)
+        public BoxCatalog(IEnumerable<BoxRecord> boxes) : this()
         {
             if (boxes == null) throw new ArgumentNullException(nameof(boxes));
             foreach (var box in boxes) Add(box);
@@ -23,7 +26,7 @@ namespace Pvz.Core
         public int Count => _ordered.Count;
 
         /// <summary>Boxes in insertion order.</summary>
-        public IReadOnlyList<BoxRecord> Boxes => _ordered;
+        public IReadOnlyList<BoxRecord> Boxes { get; }
 
         public void Add(BoxRecord box)
         {

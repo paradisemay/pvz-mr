@@ -49,6 +49,17 @@ namespace Pvz.Core.Tests
             Assert.AreEqual(100 + 50 + 25, _stats.Score);
         }
 
+        [TestCase(30.0, 100 + 50 + 50)]
+        [TestCase(30.001, 100 + 50 + 25)]
+        [TestCase(60.0, 100 + 50 + 25)]
+        [TestCase(60.001, 100 + 50)]
+        public void SpeedBonus_Boundaries(double seconds, int expected)
+        {
+            _desk.OpenOrder(TestData.OrderFor(TestData.Box1, "1435"), 0);
+            _desk.Handover(TestData.Box1, seconds);
+            Assert.AreEqual(expected, _stats.Score);
+        }
+
         [Test]
         public void Penalty_IsAppliedAfterPositiveScore()
         {

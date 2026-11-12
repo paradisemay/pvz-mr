@@ -88,14 +88,14 @@ namespace Pvz.Core.Tests
             Assert.AreEqual(HandoverStatus.WrongBox, outcome.Status);
             Assert.IsTrue(_desk.HasActiveOrder);
             Assert.IsTrue(_catalog.Contains(TestData.Box2));
-            Assert.AreEqual(1, _desk.ActiveOrderMistakes);
+            Assert.AreEqual(1, _desk.ActiveSession.Mistakes);
             Assert.AreEqual(1, wrongEvents);
 
             OrderResult? completed = null;
             _desk.OrderCompleted += r => completed = r;
             _desk.Handover(TestData.Box1, 9);
             Assert.AreEqual(1, completed.Value.Mistakes);
-            Assert.AreEqual(0, _desk.ActiveOrderMistakes);
+            Assert.IsNull(_desk.ActiveSession);
         }
 
         [Test]
@@ -110,7 +110,82 @@ namespace Pvz.Core.Tests
         {
             _desk.OpenOrder(TestData.OrderFor(TestData.Box1, "1435"), 0);
             Assert.AreEqual(HandoverStatus.UnknownBox, _desk.Handover(new BoxId("BOX-777"), 0).Status);
-            Assert.AreEqual(0, _desk.ActiveOrderMistakes);
+            Assert.AreEqual(0, _desk.ActiveSession.Mistakes);
+        }
+
+        [Test]
+        public void OpenOrder_WithBoxOfAnotherOrder_Throws()
+        {
+            Assert.Throws<ArgumentException>(() => _desk.OpenOrder(TestData.OrderFor(TestData.Box2, "1435"), 0));
+            Assert.IsFalse(_desk.HasActiveOrder);
+        }
+
+        [Test]
+        public void WrongHandover_NotRaised_ForUnknownOrNoCustomer()
+        {
+            var wrong = 0;
+            _desk.WrongHandover += _ => wrong++;
+            _desk.Handover(TestData.Box1, 0);                 // no customer
+            _desk.OpenOrder(TestData.OrderFor(TestData.Box1, "1435"), 0);
+            _desk.Handover(new BoxId("BOX-999"), 0);          // unknown box
+            Assert.AreEqual(0, wrong);
+        }
+
+        [Test]
+        public void WrongBox_RaisesHandedOverThenWrongHandover_Once()
+        {
+            var log = new List<string>();
+            _desk.BoxHandedOver += h => log.Add("handover " + h.Status);
+            _desk.WrongHandover += h => log.Add("wrong");
+            _desk.OpenOrder(TestData.OrderFor(TestData.Box1, "1435"), 0);
+            _desk.Handover(TestData.Box2, 1);
+            CollectionAssert.AreEqual(new[] { "handover WrongBox", "wrong" }, log);
+        }
+
+        [Test]
+        public void PartialHandover_DoesNotComplete()
+        {
+            _catalog.Add(new BoxRecord(new BoxId("BOX-004"), "1435"));
+            var completed = 0;
+            _desk.OrderCompleted += _ => completed++;
+            _desk.OpenOrder(new Order("1435", new[] { TestData.Box1, new BoxId("BOX-004") }), 0);
+            _desk.Handover(TestData.Box1, 1);
+            Assert.AreEqual(0, completed);
+            Assert.AreEqual(1, _desk.ActiveSession.RemainingCount);
+        }
+
+        [Test]
+        public void TwoOrdersInARow()
+        {
+            _desk.OpenOrder(TestData.OrderFor(TestData.Box1, "1435"), 0);
+            _desk.Handover(TestData.Box1, 5);
+            _desk.OpenOrder(TestData.OrderFor(TestData.Box3, "5812"), 6);
+            Assert.AreEqual(ScanStatus.Matches, _desk.Scan(TestData.Box3).Status);
+            Assert.IsTrue(_desk.Handover(TestData.Box3, 9).OrderCompleted);
+            Assert.AreEqual(1, _catalog.Count);
+        }
+
+        [Test]
+        public void Handlers_CanOpenNextOrder_FromCompletionEvents()
+        {
+            _desk.OrderCompleted += r =>
+            {
+                if (r.Order.Number == "1435") _desk.OpenOrder(TestData.OrderFor(TestData.Box2, "2781"), 10);
+            };
+            _desk.OpenOrder(TestData.OrderFor(TestData.Box1, "1435"), 0);
+
+            Assert.DoesNotThrow(() => _desk.Handover(TestData.Box1, 5));
+            Assert.AreEqual("2781", _desk.ActiveOrder.Number);
+        }
+
+        [Test]
+        public void HandedOverHandler_SeesCommittedState()
+        {
+            bool? hadActiveOrder = null;
+            _desk.BoxHandedOver += _ => hadActiveOrder = _desk.HasActiveOrder;
+            _desk.OpenOrder(TestData.OrderFor(TestData.Box1, "1435"), 0);
+            _desk.Handover(TestData.Box1, 1);
+            Assert.AreEqual(false, hadActiveOrder);
         }
 
         [Test]

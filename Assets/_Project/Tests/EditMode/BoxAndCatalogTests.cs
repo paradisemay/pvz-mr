@@ -84,6 +84,22 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void BoxId_NormalisedVariants_ShareHash_AndDefaultIsUsableAsKey()
+        {
+            Assert.AreEqual(new BoxId("box-002").GetHashCode(), new BoxId(" BOX-002").GetHashCode());
+            var map = new System.Collections.Generic.Dictionary<BoxId, int> { [default(BoxId)] = 1 };
+            Assert.AreEqual(1, map[default(BoxId)]);
+        }
+
+        [Test]
+        public void Order_BoxesAreReadOnly()
+        {
+            var order = new Order("1435", new[] { TestData.Box1 });
+            Assert.IsFalse(order.Boxes is System.Collections.Generic.List<BoxId>);
+            Assert.Throws<NotSupportedException>(() => ((System.Collections.Generic.IList<BoxId>)order.Boxes).Add(TestData.Box2));
+        }
+
+        [Test]
         public void Generator_NeverPicksOutsideCatalog()
         {
             var generator = new OrderGenerator(new SystemRandomSource(42));
