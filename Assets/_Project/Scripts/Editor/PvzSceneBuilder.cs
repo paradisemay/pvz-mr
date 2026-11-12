@@ -48,6 +48,7 @@ namespace Pvz.Editor
             var counterPath = prefabs.Counter();
             var customerPath = prefabs.Customer();
             var planePath = prefabs.ArPlane();
+            var supplyBoxPath = prefabs.SupplyBox();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
@@ -56,6 +57,7 @@ namespace Pvz.Editor
             var counterPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(counterPath);
             var customerPrefab = Load<Customer>(customerPath);
             var planePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(planePath);
+            var supplyBoxPrefab = Load<QrBox>(supplyBoxPath);
 
             CreateLighting();
             var (camera, simulator, locomotion) = CreateMrRig(planePrefab);
@@ -90,6 +92,10 @@ namespace Pvz.Editor
             var spawn = Marker("CustomerSpawn", points, CustomerSpawnPosition, 180f);
             var service = Marker("CustomerService", points, CustomerServicePosition, 180f);
 
+            var supplyDrop = new GameObject("Supply Drop").AddComponent<SupplyDrop>();
+            supplyDrop.transform.SetParent(playArea, false);
+            supplyDrop.Configure(supplyBoxPrefab, camera.transform, counter.transform, Object.FindFirstObjectByType<ARPlaneManager>());
+
             var director = new GameObject("Shift Director").AddComponent<ShiftDirector>();
             director.Configure(settings, boxes.ToArray(), scanner,
                 counter.GetComponentInChildren<HandoverZone>(true),
@@ -97,7 +103,8 @@ namespace Pvz.Editor
                 counter.GetComponentInChildren<CounterBoard>(true),
                 counter.GetComponentInChildren<ShiftSummaryPanel>(true),
                 counter.GetComponentInChildren<RestartButton>(true).gameObject,
-                counter.GetComponentInChildren<FeedbackAudio>(true));
+                counter.GetComponentInChildren<FeedbackAudio>(true),
+                supplyDrop);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };

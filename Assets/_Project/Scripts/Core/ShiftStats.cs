@@ -31,6 +31,15 @@ namespace Pvz.Core
         public int FlawlessOrders { get; private set; }
         public double AverageServiceSeconds => OrdersCompleted == 0 ? 0 : _totalServiceSeconds / OrdersCompleted;
         public int LastOrderPoints { get; private set; }
+        public int BoxesReceived { get; private set; }
+
+        /// <summary>A supply box was accepted into the warehouse.</summary>
+        public void RecordIntake()
+        {
+            BoxesReceived++;
+            Score += _rules.IntakeBox;
+            Changed?.Invoke();
+        }
 
         public void Dispose()
         {

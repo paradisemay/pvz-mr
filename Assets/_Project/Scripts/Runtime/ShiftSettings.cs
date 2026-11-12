@@ -37,6 +37,17 @@ namespace Pvz.Runtime
             new BoxDefinition("BOX-003", "5812", new Vector3(-1.55f, 0.61f, -1.45f), 40f),  // bed, behind-left
         };
 
+        [Header("Supply delivery")]
+        [Tooltip("The delivery arrives after this many customers were served; 0 = no delivery this shift.")]
+        [SerializeField, Min(0)] private int supplyAfterOrders = 1;
+        [Tooltip("Boxes of the delivery (start position is ignored: they fall from the ceiling).")]
+        [SerializeField] private BoxDefinition[] supplyBoxes =
+        {
+            new BoxDefinition("BOX-101", "3307", Vector3.zero, 0f),
+            new BoxDefinition("BOX-102", "4410", Vector3.zero, 0f),
+            new BoxDefinition("BOX-103", "6021", Vector3.zero, 0f),
+        };
+
         [Header("Pacing (seconds, m/s)")]
         [SerializeField, Min(0)] private float firstCustomerDelay = 2f;
         [SerializeField, Min(0)] private float delayBetweenCustomers = 2f;
@@ -57,6 +68,10 @@ namespace Pvz.Runtime
         [SerializeField] private int wrongHandoverPenalty = 25;
 
         public BoxDefinition[] Boxes => boxes;
+        public int SupplyAfterOrders => supplyAfterOrders;
+        public BoxDefinition[] SupplyBoxes => supplyBoxes;
+        public bool HasSupply => supplyAfterOrders > 0 && supplyBoxes != null && supplyBoxes.Length > 0;
+        public int RandomSeed => randomSeed;
         public float FirstCustomerDelay => firstCustomerDelay;
         public float DelayBetweenCustomers => delayBetweenCustomers;
         public float ThanksDuration => thanksDuration;

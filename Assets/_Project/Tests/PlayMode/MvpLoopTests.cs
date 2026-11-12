@@ -43,10 +43,23 @@ namespace Pvz.Runtime.Tests
             Assert.AreEqual(3, director.OrdersTotal);
 
             var wrongBoxTried = false;
+            var received = 0;
+            bool HasUnreceivedBoxes() => director.RemainingBoxes.Any(b => director.Shift.IsPendingIntake(b.Id));
+
             while (!director.IsShiftOver)
             {
-                yield return WaitUntil(() => director.Desk.HasActiveOrder || director.IsShiftOver, 40f, "customer at the desk");
+                yield return WaitUntil(() => director.Desk.HasActiveOrder || director.IsShiftOver || HasUnreceivedBoxes(),
+                    60f, "customer at the desk or a supply delivery");
                 if (director.IsShiftOver) break;
+
+                // Supply delivery: boxes fell from the ceiling; accept each one with the scanner.
+                foreach (var supplyBox in director.RemainingBoxes.Where(b => director.Shift.IsPendingIntake(b.Id)).ToArray())
+                {
+                    director.Scanner.ScanDirect(supplyBox);
+                    StringAssert.Contains("ПРИНЯТО", director.Scanner.ScreenText);
+                    received++;
+                }
+                if (!director.Desk.HasActiveOrder) continue;
 
                 var wanted = director.Desk.ActiveOrder.Boxes[0];
                 Assert.IsTrue(director.TryGetBox(wanted, out var box), $"box {wanted} not found in the scene");
@@ -54,7 +67,7 @@ namespace Pvz.Runtime.Tests
                 director.Scanner.ScanDirect(box);
                 StringAssert.Contains("НУЖНАЯ", director.Scanner.ScreenText);
 
-                var other = director.RemainingBoxes.FirstOrDefault(b => b.Id != wanted);
+                var other = director.RemainingBoxes.FirstOrDefault(b => b.Id != wanted && !director.Shift.IsPendingIntake(b.Id));
                 if (!wrongBoxTried && other != null)
                 {
                     director.Scanner.ScanDirect(other);
@@ -77,13 +90,17 @@ namespace Pvz.Runtime.Tests
             }
 
             Assert.IsTrue(wrongBoxTried);
-            Assert.AreEqual(3, director.Stats.OrdersCompleted);
+            Assert.AreEqual(3, received, "the supply delivery has 3 boxes");
+            Assert.AreEqual(6, director.OrdersTotal);
+            Assert.AreEqual(6, director.Stats.OrdersCompleted);
+            Assert.AreEqual(3, director.Stats.BoxesReceived);
             Assert.Greater(director.Stats.Score, 0);
             Assert.AreEqual(0, director.Desk.Catalog.Count);
 
             var summary = Object.FindFirstObjectByType<ShiftSummaryPanel>(FindObjectsInactive.Include);
             Assert.IsTrue(summary.IsVisible, "shift summary should be visible");
-            StringAssert.Contains("Обслужено клиентов: 3/3", summary.Text);
+            StringAssert.Contains("Обслужено клиентов: 6/6", summary.Text);
+            StringAssert.Contains("Принято из поставки: 3", summary.Text);
         }
 
         [UnityTest, Timeout(60000)]

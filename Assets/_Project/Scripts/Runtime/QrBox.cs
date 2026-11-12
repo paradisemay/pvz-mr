@@ -15,8 +15,11 @@ namespace Pvz.Runtime
         [SerializeField] private string boxId = "BOX-001";
         [SerializeField] private XRGrabInteractable grabInteractable;
         [SerializeField] private Rigidbody body;
+        [SerializeField] private Renderer[] labelRenderers = System.Array.Empty<Renderer>();
         [SerializeField] private float lostBelowY = -1f;
         [SerializeField] private float lostBeyondMeters = 6f;
+
+        private static readonly int BaseMap = Shader.PropertyToID("_BaseMap");
 
         private Vector3 _startLocalPosition;
         private Quaternion _startLocalRotation;
@@ -57,6 +60,21 @@ namespace Pvz.Runtime
             }
         }
 
+        /// <summary>Gives a generic (supply) box its identity and QR picture at runtime.</summary>
+        public void AssignId(string id, Texture2D qrTexture)
+        {
+            boxId = new BoxId(id).Value;
+            if (qrTexture == null) return;
+            var block = new MaterialPropertyBlock();
+            foreach (var label in labelRenderers)
+            {
+                if (label == null) continue;
+                label.GetPropertyBlock(block);
+                block.SetTexture(BaseMap, qrTexture);
+                label.SetPropertyBlock(block);
+            }
+        }
+
         /// <summary>Releases the box from the player's hand and attaches it to the customer.</summary>
         public void HandTo(Transform carrier)
         {
@@ -81,11 +99,12 @@ namespace Pvz.Runtime
             _startLocalRotation = transform.localRotation;
         }
 
-        internal void Configure(string id, XRGrabInteractable grab, Rigidbody rigidbody)
+        internal void Configure(string id, XRGrabInteractable grab, Rigidbody rigidbody, Renderer[] labels)
         {
             boxId = id;
             grabInteractable = grab;
             body = rigidbody;
+            labelRenderers = labels;
         }
     }
 }

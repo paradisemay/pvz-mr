@@ -47,6 +47,14 @@ namespace Pvz.Editor
             Capture("04_box_qr", box.transform.position + new Vector3(0.35f, 0.35f, -0.45f), box.transform.position, 45f);
             Capture("05_scanner", scanner.transform.position + new Vector3(-0.18f, 0.22f, -0.25f), scanner.transform.position, 40f);
 
+            // Supply delivery: boxes just appeared under the ceiling.
+            var supply = Object.FindFirstObjectByType<SupplyDrop>();
+            var dropped = supply.Drop(new[] { "BOX-101", "BOX-102", "BOX-103" }, 7);
+            board.ShowHeadline("ПОСТАВКА!", CounterBoard.Accent);
+            board.ShowStatus("Отсканируйте новые коробки: 0/3", CounterBoard.Neutral);
+            Capture("07_supply", new Vector3(-2.9f, 1.9f, -3.1f), new Vector3(0f, 1.3f, 0f), 62f);
+            foreach (var droppedBox in dropped) Object.DestroyImmediate(droppedBox.gameObject);
+
             customer.Say("Спасибо!\nХорошего дня!");
             var summary = Object.FindFirstObjectByType<ShiftSummaryPanel>();
             var desk = new Pvz.Core.PickupDesk(new Pvz.Core.BoxCatalog());

@@ -46,10 +46,14 @@ namespace Pvz.Editor
             _button = Lit("RestartButton", new Color(0.95f, 0.45f, 0.15f));
         }
 
-        public string Box(string boxId)
+        /// <summary>Generic box for supply deliveries: its id and QR texture are assigned at runtime.</summary>
+        public string SupplyBox() => Box("BOX-SUPPLY", Unlit("QR_Supply", Color.white), "Box_Supply");
+
+        public string Box(string boxId) => Box(boxId, Unlit($"QR_{boxId}", Color.white, QrTexture(boxId)), $"Box_{boxId}");
+
+        private string Box(string boxId, Material qrMat, string prefabName)
         {
-            var qrMat = Unlit($"QR_{boxId}", Color.white, QrTexture(boxId));
-            var root = new GameObject($"Box_{boxId}");
+            var root = new GameObject(prefabName);
             var rb = root.AddComponent<Rigidbody>();
             rb.mass = 1.2f;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
@@ -64,15 +68,16 @@ namespace Pvz.Editor
             var hx = BoxSize.x / 2f + 0.002f;
             var hy = BoxSize.y / 2f + 0.003f;
             var hz = BoxSize.z / 2f + 0.002f;
-            Primitive(PrimitiveType.Quad, "QR_Top", root.transform, new Vector3(0.09f, hy, 0.06f), Vector3.one * label * 0.8f, qrMat,
-                localRot: Quaternion.Euler(90, 0, 0));
-            Primitive(PrimitiveType.Quad, "QR_Front", root.transform, new Vector3(0, 0, -hz), Vector3.one * label, qrMat);
-            Primitive(PrimitiveType.Quad, "QR_Back", root.transform, new Vector3(0, 0, hz), Vector3.one * label, qrMat,
-                localRot: Quaternion.Euler(0, 180, 0));
-            Primitive(PrimitiveType.Quad, "QR_Left", root.transform, new Vector3(-hx, 0, 0), Vector3.one * label, qrMat,
-                localRot: Quaternion.Euler(0, 90, 0));
-            Primitive(PrimitiveType.Quad, "QR_Right", root.transform, new Vector3(hx, 0, 0), Vector3.one * label, qrMat,
-                localRot: Quaternion.Euler(0, -90, 0));
+            var labels = new System.Collections.Generic.List<Renderer>();
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Top", root.transform, new Vector3(0.09f, hy, 0.06f), Vector3.one * label * 0.8f, qrMat,
+                localRot: Quaternion.Euler(90, 0, 0)).GetComponent<Renderer>());
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Front", root.transform, new Vector3(0, 0, -hz), Vector3.one * label, qrMat).GetComponent<Renderer>());
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Back", root.transform, new Vector3(0, 0, hz), Vector3.one * label, qrMat,
+                localRot: Quaternion.Euler(0, 180, 0)).GetComponent<Renderer>());
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Left", root.transform, new Vector3(-hx, 0, 0), Vector3.one * label, qrMat,
+                localRot: Quaternion.Euler(0, 90, 0)).GetComponent<Renderer>());
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Right", root.transform, new Vector3(hx, 0, 0), Vector3.one * label, qrMat,
+                localRot: Quaternion.Euler(0, -90, 0)).GetComponent<Renderer>());
 
             var grab = root.AddComponent<XRGrabInteractable>();
             grab.useDynamicAttach = true;
@@ -80,8 +85,8 @@ namespace Pvz.Editor
             grab.throwOnDetach = false;
 
             var box = root.AddComponent<QrBox>();
-            box.Configure(boxId, grab, rb);
-            return SavePrefab(root, $"Box_{boxId}");
+            box.Configure(boxId, grab, rb, labels.ToArray());
+            return SavePrefab(root, prefabName);
         }
 
         public string Scanner()

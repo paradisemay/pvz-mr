@@ -10,6 +10,8 @@ namespace Pvz.Core
         UnknownBox,
         /// <summary>The box is known but no customer is waiting at the desk.</summary>
         NoActiveOrder,
+        /// <summary>A box from a supply delivery was scanned for the first time and is now in the warehouse.</summary>
+        Received,
     }
 
     public readonly struct ScanOutcome
