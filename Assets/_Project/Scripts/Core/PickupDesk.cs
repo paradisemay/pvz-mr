@@ -72,10 +72,11 @@ namespace Pvz.Core
             var session = ActiveSession;
             if (!session.Requires(box))
             {
-                session.AddMistake();
-                var wrong = new HandoverOutcome(HandoverStatus.WrongBox, box, false);
+                // Offering the same wrong box again (e.g. it slipped out of the zone and back) is not a new mistake.
+                var firstTime = session.Reject(box);
+                var wrong = new HandoverOutcome(HandoverStatus.WrongBox, box, false, isRepeat: !firstTime);
                 BoxHandedOver?.Invoke(wrong);
-                WrongHandover?.Invoke(wrong);
+                if (firstTime) WrongHandover?.Invoke(wrong);
                 return wrong;
             }
 

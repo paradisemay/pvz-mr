@@ -54,3 +54,6 @@ sysinfo.txt
 game_logs.txt
 .DS_Store
 Thumbs.db
+
+# Temp scenes left by the test runner when the editor exits in play mode
+/[Aa]ssets/InitTestScene*

@@ -30,10 +30,10 @@ namespace Pvz.Editor
             EditorApplication.update += Watchdog;
         }
 
-        public static void RunEditMode() => Run(TestMode.EditMode, "Pvz.Core.Tests");
+        public static void RunEditMode() => Run(TestMode.EditMode, "Pvz.Core.Tests", "Pvz.Editor.Tests");
         public static void RunPlayMode() => Run(TestMode.PlayMode, "Pvz.Runtime.Tests");
 
-        private static void Run(TestMode mode, string assembly)
+        private static void Run(TestMode mode, params string[] assemblies)
         {
             if (EditorUtility.scriptCompilationFailed)
             {
@@ -50,7 +50,7 @@ namespace Pvz.Editor
             EditorApplication.update += Watchdog;
 
             var api = ScriptableObject.CreateInstance<TestRunnerApi>();
-            var filter = new Filter { testMode = mode, assemblyNames = new[] { assembly } };
+            var filter = new Filter { testMode = mode, assemblyNames = assemblies };
             api.Execute(new ExecutionSettings(filter) { runSynchronously = false });
         }
 

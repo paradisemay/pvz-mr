@@ -143,6 +143,24 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void SameWrongBoxTwice_IsPenalisedOnce()
+        {
+            var wrong = 0;
+            _desk.WrongHandover += _ => wrong++;
+            _desk.OpenOrder(TestData.OrderFor(TestData.Box1, "1435"), 0);
+
+            var first = _desk.Handover(TestData.Box2, 1);
+            var second = _desk.Handover(TestData.Box2, 2);
+            _desk.Handover(TestData.Box3, 3);
+
+            Assert.IsFalse(first.IsRepeat);
+            Assert.IsTrue(second.IsRepeat);
+            Assert.AreEqual(HandoverStatus.WrongBox, second.Status);
+            Assert.AreEqual(2, wrong);
+            Assert.AreEqual(2, _desk.ActiveSession.Mistakes);
+        }
+
+        [Test]
         public void PartialHandover_DoesNotComplete()
         {
             _catalog.Add(new BoxRecord(new BoxId("BOX-004"), "1435"));
