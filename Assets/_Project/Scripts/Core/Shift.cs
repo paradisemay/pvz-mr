@@ -111,6 +111,19 @@ namespace Pvz.Core
             if (waited >= PatienceSeconds) Desk.Abandon();
         }
 
+        /// <summary>
+        /// Share of patience the customer at the counter has left (1 = just arrived, 0 = leaving), or null when
+        /// patience is not ticking: no customer, infinite patience, or the order is already being handed over.
+        /// </summary>
+        public double? PatienceRemaining(double now)
+        {
+            if (PatienceSeconds <= 0 || !Desk.HasActiveOrder) return null;
+            var session = Desk.ActiveSession;
+            if (session.DeliveredCount > 0) return null;
+            var left = 1.0 - (now - session.OpenedAt) / PatienceSeconds;
+            return Math.Max(0.0, Math.Min(1.0, left));
+        }
+
         /// <summary>Probability (0..100) that a customer also asks for a bag.</summary>
         public int BagChancePercent
         {
