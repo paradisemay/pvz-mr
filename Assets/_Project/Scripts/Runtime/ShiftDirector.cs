@@ -26,21 +26,27 @@ namespace Pvz.Runtime
         [SerializeField] private GameObject restartButton;
         [SerializeField] private FeedbackAudio feedback;
         [SerializeField] private SupplyDrop supplyDrop;
+        [Tooltip("Optional: buttons to pick the difficulty. Without them the shift starts at once with the default settings.")]
+        [SerializeField] private DifficultyButton[] difficultyButtons = Array.Empty<DifficultyButton>();
 
         private readonly BoxRegistry _registry = new BoxRegistry();
         private ShiftPresenter _presenter;
         private int _customersSpawned;
         private int _supplySeed;
+        private bool _subscribed;
 
         public Shift Shift { get; private set; }
         public PickupDesk Desk => Shift.Desk;
         public ShiftStats Stats => Shift.Stats;
         public int OrdersTotal => Shift.OrdersTotal;
+        public ShiftSettings ActiveSettings => settings;
+        public bool IsStarted => Shift != null;
         public Customer CurrentCustomer { get; private set; }
         public bool IsShiftOver { get; private set; }
         public HandScanner Scanner => scanner;
         public HandoverZone Zone => handoverZone;
         public IEnumerable<QrBox> RemainingBoxes => _registry.All;
+        public IReadOnlyList<DifficultyButton> DifficultyButtons => difficultyButtons;
 
         public event Action ShiftEnded;
 
@@ -48,11 +54,47 @@ namespace Pvz.Runtime
 
         private void Awake()
         {
-            if (!ValidateReferences())
-            {
-                enabled = false;
-                return;
-            }
+            if (!ValidateReferences()) enabled = false;
+        }
+
+        private void OnEnable()
+        {
+            foreach (var button in difficultyButtons) if (button != null) button.Chosen += Begin;
+            if (Shift != null) Subscribe();
+        }
+
+        private void OnDisable()
+        {
+            foreach (var button in difficultyButtons) if (button != null) button.Chosen -= Begin;
+            Unsubscribe();
+        }
+
+        private void OnDestroy()
+        {
+            _presenter?.Dispose();
+            Shift?.Dispose();
+        }
+
+        private void Start()
+        {
+            summaryPanel.Hide();
+            restartButton.SetActive(false);
+            if (HasDifficultyMenu) ShiftPresenter.ShowDifficultyMenu(board);
+            else Begin();
+        }
+
+        private void Update() => Shift?.Tick(Now);
+
+        private bool HasDifficultyMenu => difficultyButtons.Any(b => b != null);
+
+        /// <summary>Starts the shift with the default settings.</summary>
+        public void Begin() => Begin(settings);
+
+        /// <summary>Starts the shift with the chosen difficulty. Ignored once a shift is running.</summary>
+        public void Begin(ShiftSettings chosen)
+        {
+            if (Shift != null || !enabled) return;
+            if (chosen != null) settings = chosen;
 
             var catalog = new BoxCatalog();
             foreach (var box in boxes)
@@ -72,14 +114,20 @@ namespace Pvz.Runtime
             }
 
             Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules(), settings.CreateSupplyPlan(),
-                settings.BagChancePercent);
+                settings.BagChancePercent) { PatienceSeconds = settings.PatienceSeconds };
             _presenter = new ShiftPresenter(Shift, board, scanner, feedback);
             _supplySeed = settings.CreateRandomSource().Range(1, int.MaxValue);
+            Subscribe();
+
+            foreach (var button in difficultyButtons) if (button != null) button.gameObject.SetActive(false);
+            _presenter.ShowShiftStarting(settings.DisplayName);
+            StartCoroutine(RunShift());
         }
 
-        private void OnEnable()
+        private void Subscribe()
         {
-            if (Shift == null) return;
+            if (_subscribed) return;
+            _subscribed = true;
             scanner.BoxScanned += OnBoxScanned;
             scanner.Missed += OnScanMissed;
             handoverZone.BoxEntered += OnBoxEnteredZone;
@@ -87,28 +135,15 @@ namespace Pvz.Runtime
             Desk.BagRequested += OnBagRequested;
         }
 
-        private void OnDisable()
+        private void Unsubscribe()
         {
-            if (Shift == null) return;
+            if (!_subscribed) return;
+            _subscribed = false;
             scanner.BoxScanned -= OnBoxScanned;
             scanner.Missed -= OnScanMissed;
             handoverZone.BoxEntered -= OnBoxEnteredZone;
             handoverZone.BagEntered -= OnBagEnteredZone;
             Desk.BagRequested -= OnBagRequested;
-        }
-
-        private void OnDestroy()
-        {
-            _presenter?.Dispose();
-            Shift?.Dispose();
-        }
-
-        private void Start()
-        {
-            summaryPanel.Hide();
-            restartButton.SetActive(false);
-            _presenter.ShowShiftStarting();
-            StartCoroutine(RunShift());
         }
 
         /// <summary>Fixes the order sequence (tests). Call before the first customer arrives.</summary>
@@ -120,6 +155,9 @@ namespace Pvz.Runtime
 
         /// <summary>Sets how often customers ask for a bag (tests).</summary>
         internal void UseBagChance(int percent) => Shift.BagChancePercent = percent;
+
+        /// <summary>Sets how long customers wait (tests).</summary>
+        internal void UsePatience(double seconds) => Shift.PatienceSeconds = seconds;
 
         public bool TryGetBox(BoxId id, out QrBox box) => _registry.TryGet(id, out box);
 
@@ -261,9 +299,10 @@ namespace Pvz.Runtime
 
         internal void Configure(ShiftSettings shiftSettings, QrBox[] sceneBoxes, HandScanner handScanner, HandoverZone zone,
             Customer prefab, Transform spawn, Transform service, CounterBoard counterBoard, ShiftSummaryPanel summary,
-            GameObject restart, FeedbackAudio audio, SupplyDrop supply)
+            GameObject restart, FeedbackAudio audio, SupplyDrop supply, DifficultyButton[] difficulty)
         {
             supplyDrop = supply;
+            difficultyButtons = difficulty ?? Array.Empty<DifficultyButton>();
             settings = shiftSettings;
             boxes = sceneBoxes;
             scanner = handScanner;

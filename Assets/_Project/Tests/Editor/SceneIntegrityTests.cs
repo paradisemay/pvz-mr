@@ -32,6 +32,7 @@ namespace Pvz.Editor.Tests
         [TestCase(typeof(MrSessionSetup))]
         [TestCase(typeof(SupplyDrop))]
         [TestCase(typeof(BagDispenser))]
+        [TestCase(typeof(DifficultyButton))]
         public void AllObjectReferencesAreAssigned(System.Type componentType)
         {
             var components = Object.FindObjectsByType(componentType, FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -98,9 +99,24 @@ namespace Pvz.Editor.Tests
         }
 
         [Test]
-        public void ShiftSettings_DeliveryIsValidForTheWarehouse()
+        public void DifficultyPresets_ShareTheSceneBoxLayout()
         {
-            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(PvzSceneBuilder.SettingsPath);
+            var normal = AssetDatabase.LoadAssetAtPath<ShiftSettings>(PvzSceneBuilder.SettingsPath);
+            foreach (var path in new[] { PvzSceneBuilder.EasySettingsPath, PvzSceneBuilder.HardSettingsPath })
+            {
+                var preset = AssetDatabase.LoadAssetAtPath<ShiftSettings>(path);
+                Assert.IsNotNull(preset, path);
+                CollectionAssert.AreEqual(normal.Boxes.Select(b => b.boxId + b.orderNumber),
+                    preset.Boxes.Select(b => b.boxId + b.orderNumber), $"{path}: boxes must match the scene");
+            }
+        }
+
+        [TestCase(PvzSceneBuilder.SettingsPath)]
+        [TestCase(PvzSceneBuilder.EasySettingsPath)]
+        [TestCase(PvzSceneBuilder.HardSettingsPath)]
+        public void ShiftSettings_DeliveryIsValidForTheWarehouse(string settingsPath)
+        {
+            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(settingsPath);
             var catalog = new Core.BoxCatalog(settings.Boxes.Select(b => new Core.BoxRecord(new Core.BoxId(b.boxId), b.orderNumber)));
             var plan = settings.CreateSupplyPlan();
             using (var shift = new Core.Shift(catalog, new Core.SystemRandomSource(1), settings.CreateScoringRules(), plan))

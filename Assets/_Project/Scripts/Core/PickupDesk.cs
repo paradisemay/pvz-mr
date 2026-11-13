@@ -27,6 +27,18 @@ namespace Pvz.Core
         public event Action<BagStatus> BagHandedOver;
         /// <summary>All boxes are handed over and the customer now asks for a bag.</summary>
         public event Action<Order> BagRequested;
+        /// <summary>The customer ran out of patience and left without the order.</summary>
+        public event Action<Order> OrderAbandoned;
+
+        /// <summary>The current customer leaves without the order; its boxes stay in the warehouse.</summary>
+        public Order Abandon()
+        {
+            if (!HasActiveOrder) return null;
+            var order = ActiveSession.Order;
+            ActiveSession = null;
+            OrderAbandoned?.Invoke(order);
+            return order;
+        }
 
         public BoxCatalog Catalog => _catalog;
         public ServiceSession ActiveSession { get; private set; }

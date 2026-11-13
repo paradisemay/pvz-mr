@@ -24,7 +24,10 @@ namespace Pvz.Runtime.Tests
         {
             yield return SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Single);
             yield return null;
-            Object.FindFirstObjectByType<ShiftDirector>().UseRandomSeed(12345); // same order sequence every run
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.Begin();                // default difficulty, skipping the menu
+            director.UseRandomSeed(12345);   // same order sequence every run
+            director.UsePatience(0);         // customers wait as long as the test needs
             Time.timeScale = TimeScale;
         }
 
@@ -140,6 +143,24 @@ namespace Pvz.Runtime.Tests
 
             yield return WaitUntil(() => director.Stats.OrdersCompleted >= 1, 40f, "first order completed automatically");
             Assert.AreEqual(0, director.Stats.WrongHandovers, "boxes waiting in the zone must not count as mistakes");
+        }
+
+        [UnityTest, Timeout(60000)]
+        public IEnumerator ImpatientCustomer_HurriesThenLeaves_AndTheOrderStaysInStock()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.UsePatience(4);
+            yield return WaitUntil(() => director.Desk.HasActiveOrder, 40f, "first customer");
+            var order = director.Desk.ActiveOrder;
+            var customer = director.CurrentCustomer;
+
+            yield return WaitUntil(() => customer.LastLine.Contains("Побыстрее"), 20f, "customer hurries");
+            yield return WaitUntil(() => director.Stats.OrdersAbandoned == 1, 20f, "customer leaves");
+
+            StringAssert.Contains("ухожу", customer.LastLine);
+            Assert.IsFalse(director.Desk.HasActiveOrder);
+            Assert.IsTrue(director.Desk.Catalog.Contains(order.Boxes[0]), "the order's boxes stay for the next customer");
+            Assert.AreEqual(0, director.Stats.OrdersCompleted);
         }
 
         [UnityTest, Timeout(60000)]

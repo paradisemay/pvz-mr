@@ -21,6 +21,7 @@ namespace Pvz.Core
             _desk.WrongHandover += OnWrongHandover;
             _desk.OrderCompleted += OnOrderCompleted;
             _desk.BagHandedOver += OnBagHandedOver;
+            _desk.OrderAbandoned += OnOrderAbandoned;
         }
 
         public event Action Changed;
@@ -35,6 +36,7 @@ namespace Pvz.Core
         public int LastOrderPoints { get; private set; }
         public int BoxesReceived { get; private set; }
         public int BagsGiven { get; private set; }
+        public int OrdersAbandoned { get; private set; }
 
         /// <summary>Handler for <see cref="Shift.BoxReceived"/>: a supply box was accepted into the warehouse.</summary>
         internal void OnBoxReceived(BoxRecord box)
@@ -50,6 +52,7 @@ namespace Pvz.Core
             _desk.WrongHandover -= OnWrongHandover;
             _desk.OrderCompleted -= OnOrderCompleted;
             _desk.BagHandedOver -= OnBagHandedOver;
+            _desk.OrderAbandoned -= OnOrderAbandoned;
         }
 
         private void OnBoxScanned(ScanOutcome outcome)
@@ -72,6 +75,14 @@ namespace Pvz.Core
             BagsGiven++;
             Score += _rules.BagService;
             _bagPointsThisOrder += _rules.BagService;
+            Changed?.Invoke();
+        }
+
+        private void OnOrderAbandoned(Order order)
+        {
+            OrdersAbandoned++;
+            Score = Math.Max(0, Score - _rules.AbandonPenalty);
+            _bagPointsThisOrder = 0;
             Changed?.Invoke();
         }
 
