@@ -104,7 +104,7 @@ namespace Pvz.Core.Tests
             shift.TryEnqueue(out var first);
             shift.TryEnqueue(out _);
             shift.OpenNext(0);
-            shift.Desk.Handover(first.Boxes[0], 1);   // line shrinks to 1
+            shift.Desk.Handover(first.Order.Boxes[0], 1);   // line shrinks to 1
             Assert.AreEqual(1, shift.QueuedOrders.Count);
             Assert.AreEqual(2, shift.MaxQueueLength);
             shift.Dispose();
@@ -130,10 +130,10 @@ namespace Pvz.Core.Tests
             shift.TryEnqueue(out var second);
 
             Assert.AreSame(first, shift.OpenNext(0));
-            shift.Desk.Handover(first.Boxes[0], 1);
-            Assert.AreSame(second, shift.QueuedOrders[0], "the second customer steps up");
+            shift.Desk.Handover(first.Order.Boxes[0], 1);
+            Assert.AreSame(second.Order, shift.QueuedOrders[0], "the second customer steps up");
             Assert.AreSame(second, shift.OpenNext(2));
-            Assert.Throws<InvalidOperationException>(() => { shift.Desk.Handover(second.Boxes[0], 3); shift.OpenNext(4); });
+            Assert.Throws<InvalidOperationException>(() => { shift.Desk.Handover(second.Order.Boxes[0], 3); shift.OpenNext(4); });
             shift.Dispose();
         }
 

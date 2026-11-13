@@ -44,6 +44,7 @@ MonoBehaviour:
     startPosition: {x: 0, y: 0, z: 0}
     startYaw: 0
   bagChancePercent: 0
+  returnChancePercent: 0
   firstCustomerDelay: 2
   delayBetweenCustomers: 3
   thanksDuration: 1.5
@@ -59,4 +60,5 @@ MonoBehaviour:
   intakePoints: 10
   bagPoints: 20
   abandonPenalty: 50
+  returnPoints: 30
   defaultCeilingHeight: 2.4

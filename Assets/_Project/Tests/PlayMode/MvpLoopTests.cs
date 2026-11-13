@@ -29,6 +29,7 @@ namespace Pvz.Runtime.Tests
             director.Begin();                // default difficulty, skipping the menu
             director.UseRandomSeed(12345);   // same order sequence every run
             director.UsePatience(0);         // customers wait as long as the test needs
+            director.UseReturnChance(0);     // only pickups unless a test asks for returns
             Time.timeScale = TimeScale;
         }
 
@@ -181,6 +182,46 @@ namespace Pvz.Runtime.Tests
             Assert.AreSame(second, director.CurrentCustomer);
             yield return WaitUntil(() => front == null, 20f, "the served customer leaves and vanishes");
             Assert.AreEqual(2, director.QueuedOrders.Count, "a new customer joined the end of the line");
+        }
+
+        [UnityTest, Timeout(120000)]
+        public IEnumerator ReturningCustomer_PutsTheBoxOnTheCounter_AndScanningAcceptsIt()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.UseBagChance(0);
+            director.UseReturnChance(100); // from now on every new customer in line comes to return a sold box
+
+            // Serve pickups until a returning customer reaches the counter.
+            var deadline = Time.realtimeSinceStartup + 90f;
+            while (!director.Desk.HasActiveReturn && Time.realtimeSinceStartup < deadline)
+            {
+                if (director.Desk.HasActiveOrder)
+                {
+                    foreach (var id in director.Desk.ActiveSession.Order.Boxes)
+                    {
+                        if (director.Desk.ActiveSession.IsDelivered(id)) continue;
+                        Assert.IsTrue(director.TryGetBox(id, out var box));
+                        yield return MoveTo(box, director.Zone.transform.position + Vector3.up * 0.05f);
+                    }
+                }
+                yield return null;
+            }
+            Assert.IsTrue(director.Desk.HasActiveReturn, "a returning customer came to the counter");
+
+            var request = director.Desk.ActiveReturn;
+            StringAssert.Contains("вернуть", director.CurrentCustomer.LastLine);
+            var returned = director.CurrentReturnBox;
+            Assert.IsNotNull(returned, "the customer put their box on the counter");
+            Assert.AreEqual(request.Box, returned.Id);
+            Assert.Less(Vector3.Distance(returned.transform.position, director.Zone.ReturnSpot.position), 0.01f,
+                "the box lies next to the handover zone");
+            Assert.IsFalse(director.Zone.BoxesInside.Contains(returned), "the returned box is not stock to hand over");
+
+            director.Scanner.ScanDirect(returned);
+            StringAssert.Contains("ВОЗВРАТ ПРИНЯТ", director.Scanner.ScreenText);
+            Assert.AreEqual(1, director.Stats.ReturnsAccepted);
+            Assert.IsFalse(director.Desk.HasCustomer);
+            yield return WaitUntil(() => returned == null, 10f, "the returned box is taken back");
         }
 
         [UnityTest, Timeout(60000)]

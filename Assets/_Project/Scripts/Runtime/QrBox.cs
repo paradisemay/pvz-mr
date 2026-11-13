@@ -95,6 +95,24 @@ namespace Pvz.Runtime
             transform.localRotation = Quaternion.identity;
         }
 
+        /// <summary>
+        /// A returning customer puts their box on the counter: it stays put (kinematic, not grabbable) but can be
+        /// hit by the scanner ray. It is not stock, so the handover zone ignores it (<see cref="IsHandedOver"/>).
+        /// </summary>
+        public void PresentForScan(Vector3 position, Quaternion rotation)
+        {
+            transform.SetParent(null, true);
+            transform.SetPositionAndRotation(position, rotation);
+            if (body != null)
+            {
+                body.isKinematic = true;
+                body.detectCollisions = true;
+                body.position = position;
+                body.rotation = rotation;
+            }
+            Physics.SyncTransforms();
+        }
+
         private void OnDestroy() => ReleaseRuntimeTexture();
 
         /// <summary>The QR texture created for this box at runtime is owned by the box.</summary>

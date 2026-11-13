@@ -13,6 +13,7 @@ namespace Pvz.Core
         public int IntakeBox { get; set; } = 10;
         public int BagService { get; set; } = 20;
         public int AbandonPenalty { get; set; } = 50;
+        public int ReturnService { get; set; } = 30;
 
         public static ScoringRules Default => new ScoringRules();
 

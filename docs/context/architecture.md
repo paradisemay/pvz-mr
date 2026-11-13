@@ -47,6 +47,17 @@
 - Полоска терпения: `Shift.PatienceRemaining` → `ShiftPresenter.UpdatePatience` → `PatienceBar`; цвета привязаны к `Shift.HurryFraction`.
 - Подсказки первого заказа — шаги «только вперёд» в `ShiftPresenter` (`ShiftSettings.showTutorial`).
 
+## Решения T013 (возвраты)
+- Очередь состоит из `Visit` с явным `VisitKind` (`Pickup` / `Return`); новый вид доп. запроса — новый `VisitKind`,
+  а резерв склада идёт только через `Visit.ReservedOrderNumber`, без проверок «а не возврат ли это».
+- `PickupDesk` обслуживает одного клиента: заказ **или** возврат (`HasCustomer`); `OpenReturn` / `ReturnAccepted`.
+  Единый `ActiveVisit` на стойке и явный список заказов со статусами — следующий шаг (T014), когда видов станет больше двух.
+- Проданная коробка может вернуться только возвратом: её id запоминается в `Shift` и отклоняется в поставках.
+  Скан коробки активного возврата проверяется раньше приёмки поставки.
+- Директор не ветвится по виду визита: коробку возврата кладёт обработчик `Desk.ReturnOpened` на
+  `HandoverZone.ReturnSpot` (рядом с зоной, не внутри — не задевает подготовленные коробки). Без префаба коробки
+  возвраты выключаются с ошибкой в логе — бесплатных очков «по скану ничего» нет.
+
 ## Модули
 ```
 Core/
@@ -55,7 +66,8 @@ Core/
   Order              неизменяемый заказ: номер, коробки, нужен ли пакет
   OrderGenerator     случайный заказ из склада (с исключениями — для очереди), шанс пакета
   ServiceSession     обслуживание одного клиента: выдано, ошибки, пакет, «торопил ли»
-  PickupDesk         стойка: OpenOrder / Scan / Handover / HandOverBag / Abandon → исходы + события
+  Visit, ReturnRequest  визит клиента в очереди: заказ или возврат проданной коробки
+  PickupDesk         стойка: OpenOrder / OpenReturn / Scan / Handover / HandOverBag / Abandon → исходы + события
   Outcomes           ScanOutcome, HandoverOutcome, BagStatus, OrderResult
   Shift              смена: склад, очередь, поставка, терпение (Tick), конец смены
   SupplyPlan         запланированная поставка
