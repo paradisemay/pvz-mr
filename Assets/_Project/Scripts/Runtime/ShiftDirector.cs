@@ -130,7 +130,7 @@ namespace Pvz.Runtime
 
             Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules(), settings.CreateSupplyPlan(),
                 settings.BagChancePercent) { PatienceSeconds = settings.PatienceSeconds, QueueLength = settings.QueueLength };
-            _presenter = new ShiftPresenter(Shift, board, scanner, feedback);
+            _presenter = new ShiftPresenter(Shift, board, scanner, feedback, settings.ShowTutorial);
             _supplySeed = settings.CreateRandomSource().Range(1, int.MaxValue);
             Subscribe();
 
