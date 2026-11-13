@@ -109,6 +109,23 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest]
+        public IEnumerator ABoxThrownOutOfReach_ComesBack_ButOneJustInsideStays()
+        {
+            var far = Box("BOX-001");
+            var near = Box("BOX-002");
+            var farStart = far.transform.localPosition;
+            // T025: the warehouse rule (6 m from the play area's centre) decides when a box is lost.
+            PutDown(far, far.transform.parent.TransformPoint(new Vector3(Pvz.Core.WarehouseBounds.MaxReach + 0.5f, 0.5f, 0f)));
+            PutDown(near, near.transform.parent.TransformPoint(new Vector3(Pvz.Core.WarehouseBounds.MaxReach - 0.5f, 0.5f, 0f)));
+            yield return null;
+            yield return null;
+
+            Assert.Less(Vector3.Distance(farStart, far.transform.localPosition), 0.01f, "out of reach: back to its place");
+            var nearLocal = near.transform.localPosition;
+            Assert.Greater(new Vector2(nearLocal.x, nearLocal.z).magnitude, Pvz.Core.WarehouseBounds.MaxReach - 1f, "within reach: left where it is");
+        }
+
+        [UnityTest]
         public IEnumerator TwoBoxesSavedOnTheSameSpot_OnlyOneIsRestoredThere()
         {
             var spot = new Vector3(-0.4f, 0.13f, -1.4f);

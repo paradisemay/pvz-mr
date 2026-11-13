@@ -328,7 +328,6 @@ MonoBehaviour:
   - {fileID: 2812699117108160673}
   - {fileID: 4162296027649790483}
   lostBelowY: -1
-  lostBeyondMeters: 6
 --- !u!1 &4066195177960860459
 GameObject:
   m_ObjectHideFlags: 0
