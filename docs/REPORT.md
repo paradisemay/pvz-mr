@@ -1,6 +1,6 @@
 # Отчёт о реализации прототипа «ПВЗ MR»
 
-Дата: 13.11.2026 · Репозиторий: <https://github.com/paradisemay/pvz-mr> · Последний релиз с APK: [v1.16.0](https://github.com/paradisemay/pvz-mr/releases/tag/v1.16.0)
+Дата: 13.11.2026 · Репозиторий: <https://github.com/paradisemay/pvz-mr> · Последний релиз с APK: [v1.17.0](https://github.com/paradisemay/pvz-mr/releases/tag/v1.17.0)
 
 ## 1. Что получилось
 
