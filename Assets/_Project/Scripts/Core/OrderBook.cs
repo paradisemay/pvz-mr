@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Pvz.Core
 {
-    /// <summary>Where a customer's visit stands.</summary>
+    /// <summary>Where a customer's visit stands. Transitions: Waiting → AtCounter → Served | Abandoned; Waiting → Left.</summary>
     public enum VisitState
     {
         /// <summary>In line, not at the counter yet.</summary>
@@ -32,14 +32,14 @@ namespace Pvz.Core
     }
 
     /// <summary>
-    /// Every customer of the shift with their state (concept: «интерфейс заказов»). Kept by <see cref="Shift"/>,
-    /// which moves entries on as visits join, reach the counter and end; read-only for everyone else.
+    /// Every customer of the shift with their state (concept: «интерфейс заказов»). Kept by <see cref="Shift"/>; the
+    /// allowed transitions are enforced here (an illegal one throws). Read-only for everyone else.
     /// </summary>
     public sealed class OrderBook
     {
         private readonly List<OrderBookEntry> _entries = new List<OrderBookEntry>();
 
-        /// <summary>An entry was added or changed state (the state is already updated).</summary>
+        /// <summary>The book changed; raised once per change, after the state (and the shift's line) is updated.</summary>
         public event Action Changed;
 
         /// <summary>All visits of the shift, oldest first.</summary>
@@ -54,25 +54,55 @@ namespace Pvz.Core
 
         public OrderBookEntry Find(Visit visit) => _entries.Find(e => e.Visit == visit);
 
-        internal void Add(Visit visit)
+        /// <summary>The visits still open (waiting or at the counter), oldest first.</summary>
+        public List<Visit> OpenVisits() => _entries.FindAll(e => e.IsOpen).ConvertAll(e => e.Visit);
+
+        internal void Join(Visit visit)
         {
             if (visit == null) throw new ArgumentNullException(nameof(visit));
-            if (Find(visit) != null) return;
+            if (Find(visit) != null) throw new InvalidOperationException($"{visit} is already in the book.");
             _entries.Add(new OrderBookEntry(visit));
             Changed?.Invoke();
         }
 
-        /// <summary>Moves an open visit on; a finished visit keeps its final state.</summary>
-        internal void Set(Visit visit, VisitState state)
+        /// <summary>The customer reached the counter.</summary>
+        internal void Open(Visit visit) => Move(visit, VisitState.Waiting, VisitState.AtCounter);
+
+        /// <summary>The order was handed over in full, or the return accepted.</summary>
+        internal void Serve(Visit visit) => Move(visit, VisitState.AtCounter, VisitState.Served);
+
+        /// <summary>The customer at the counter ran out of patience.</summary>
+        internal void Abandon(Visit visit) => Move(visit, VisitState.AtCounter, VisitState.Abandoned);
+
+        /// <summary>Customers left the line before reaching the counter (one <see cref="Changed"/> for all of them).</summary>
+        internal void Leave(IEnumerable<Visit> visits)
         {
-            var entry = visit == null ? null : Find(visit);
-            if (entry == null || !entry.IsOpen || entry.State == state) return;
-            entry.State = state;
-            Changed?.Invoke();
+            var changed = false;
+            foreach (var visit in visits)
+            {
+                Entry(visit, VisitState.Waiting).State = VisitState.Left;
+                changed = true;
+            }
+            if (changed) Changed?.Invoke();
         }
 
         /// <summary>The open pickup visit for <paramref name="order"/> (the same order can be ordered again after an abandon).</summary>
         internal Visit OpenPickup(Order order) =>
             _entries.Find(e => e.IsOpen && e.Visit.Kind == VisitKind.Pickup && e.Visit.Order == order)?.Visit;
+
+        private void Move(Visit visit, VisitState from, VisitState to)
+        {
+            Entry(visit, from).State = to;
+            Changed?.Invoke();
+        }
+
+        private OrderBookEntry Entry(Visit visit, VisitState expected)
+        {
+            var entry = visit == null ? null : Find(visit);
+            if (entry == null) throw new InvalidOperationException($"{visit?.ToString() ?? "null"} is not in the book.");
+            if (entry.State != expected)
+                throw new InvalidOperationException($"{visit} is {entry.State}, expected {expected}.");
+            return entry;
+        }
     }
 }

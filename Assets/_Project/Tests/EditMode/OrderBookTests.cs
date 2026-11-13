@@ -91,6 +91,69 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void OpeningTheDeskDirectly_AlsoMarksTheVisitAtTheCounter_BeforeOthersHear()
+        {
+            using (var shift = NewShift())
+            {
+                var order = shift.NextOrder();
+                var stateWhenOpened = VisitState.Waiting;
+                shift.Desk.OrderOpened += _ => stateWhenOpened = shift.Book.Entries[0].State; // like the presenter
+                shift.Desk.OpenOrder(order, 0);
+                Assert.AreEqual(VisitState.AtCounter, stateWhenOpened, "the book is updated before later subscribers react");
+            }
+        }
+
+        [Test]
+        public void IllegalTransitions_Throw()
+        {
+            var book = new OrderBook();
+            var visit = Visit.Pickup(TestData.OrderFor(TestData.Box1, "1435"));
+            Assert.Throws<System.InvalidOperationException>(() => book.Open(visit), "not in the book");
+            book.Join(visit);
+            Assert.Throws<System.InvalidOperationException>(() => book.Join(visit), "twice");
+            Assert.Throws<System.InvalidOperationException>(() => book.Serve(visit), "served before reaching the counter");
+            Assert.Throws<System.InvalidOperationException>(() => book.Abandon(visit), "abandoned while still in line");
+            book.Open(visit);
+            Assert.Throws<System.InvalidOperationException>(() => book.Leave(new[] { visit }), "left the line from the counter");
+            book.Serve(visit);
+            Assert.Throws<System.InvalidOperationException>(() => book.Open(visit), "a finished visit stays finished");
+        }
+
+        [Test]
+        public void TheOpenVisits_AreAlwaysTheLine()
+        {
+            using (var shift = NewShift())
+            {
+                void Check(string when) => CollectionAssert.AreEqual(shift.QueuedVisits, shift.Book.OpenVisits(), when);
+                shift.TimeLimitSeconds = 50;
+                shift.Start(0);
+                shift.TryEnqueue(out var a); shift.TryEnqueue(out var b); shift.TryEnqueue(out _);
+                Check("joined");
+                shift.OpenNext(0); Check("at the counter");
+                foreach (var box in a.Order.Boxes) shift.Desk.Handover(box, 1);
+                Check("served");
+                shift.LeaveQueue(b); Check("left the line");
+                shift.OpenNext(2); shift.Tick(102); Check("abandoned");
+                shift.TryEnqueue(out _); shift.Tick(150); Check("time up");
+            }
+        }
+
+        [Test]
+        public void TimeUp_ChangesTheBookOnce()
+        {
+            using (var shift = NewShift())
+            {
+                shift.TimeLimitSeconds = 10;
+                shift.Start(0);
+                shift.TryEnqueue(out _); shift.TryEnqueue(out _); shift.TryEnqueue(out _);
+                var changes = 0;
+                shift.Book.Changed += () => changes++;
+                shift.Tick(10);
+                Assert.AreEqual(1, changes, "three customers went home: one change");
+            }
+        }
+
+        [Test]
         public void Changed_IsRaised_AfterTheStateIsUpdated()
         {
             using (var shift = NewShift())

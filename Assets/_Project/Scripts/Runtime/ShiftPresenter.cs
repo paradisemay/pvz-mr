@@ -219,13 +219,16 @@ namespace Pvz.Runtime
             }
             switch (entry.State)
             {
-                case VisitState.AtCounter: return $"<color=#FFCC4D>{name} — у стойки</color>";
+                case VisitState.AtCounter: return Colored($"{name} — у стойки", CounterBoard.Accent);
                 case VisitState.Waiting: return $"{name} — ждёт";
-                case VisitState.Served: return $"<color=#59E673>{name} — {(visit.IsReturn ? "принят" : "выдан")}</color>";
-                case VisitState.Abandoned: return $"<color=#FF6B59>{name} — ушёл без заказа</color>";
-                default: return $"<color=#8C96A6>{name} — ушёл из очереди</color>";
+                case VisitState.Served: return Colored($"{name} — {(visit.IsReturn ? "принят" : "выдан")}", CounterBoard.Good);
+                case VisitState.Abandoned: return Colored($"{name} — ушёл без заказа", CounterBoard.Bad);
+                default: return Colored($"{name} — ушёл из очереди", CounterBoard.Muted);
             }
         }
+
+        private static string Colored(string text, UnityEngine.Color color) =>
+            $"<color=#{UnityEngine.ColorUtility.ToHtmlStringRGB(color)}>{text}</color>";
 
         /// <summary>The order number as the customer says it: a forgetful one only knows the end («••81»).</summary>
         internal static string SpokenNumber(Order order) => order.ForgotNumber ? "••" + order.NumberHint : order.Number;

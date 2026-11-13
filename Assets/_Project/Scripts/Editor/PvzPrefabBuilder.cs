@@ -244,7 +244,7 @@ namespace Pvz.Editor
             var orderList = Text("Orders", listGo.transform, new Vector3(0, 0, -0.02f), new Vector2(0.68f, 0.68f),
                 "<b>ЗАКАЗЫ</b>", _font, new Color(0.88f, 0.9f, 0.94f), 0.8f, TextAlignmentOptions.TopLeft);
             orderList.textWrappingMode = TextWrappingModes.NoWrap; // one visit per line: auto-size shrinks instead of wrapping
-            board.ConfigureOrders(orderList);
+            board.ConfigureOrders(orderList, listGo);
             listGo.SetActive(false);
 
             // Summary panel (covers the board when the shift ends)

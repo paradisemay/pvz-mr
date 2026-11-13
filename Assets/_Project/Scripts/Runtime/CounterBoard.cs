@@ -10,6 +10,8 @@ namespace Pvz.Runtime
         public static readonly Color Good = new Color(0.35f, 0.9f, 0.45f);
         public static readonly Color Bad = new Color(1f, 0.42f, 0.35f);
         public static readonly Color Accent = new Color(1f, 0.8f, 0.3f);
+        /// <summary>Something that is over and no longer matters (e.g. a customer who left the line).</summary>
+        public static readonly Color Muted = new Color(0.55f, 0.59f, 0.65f);
 
         [SerializeField] private TMP_Text headline;
         [SerializeField] private TMP_Text status;
@@ -34,19 +36,25 @@ namespace Pvz.Runtime
 
         [Tooltip("Optional: the order list next to the board.")]
         [SerializeField] private TMP_Text orders;
+        [Tooltip("Optional: the panel of the order list, hidden while the list is empty (never the board itself).")]
+        [SerializeField] private GameObject ordersPanel;
 
         public string Orders => orders != null ? orders.text : string.Empty;
 
-        /// <summary>The order list (rich text); hidden when empty.</summary>
+        /// <summary>The order list (rich text); its panel is hidden when the list is empty.</summary>
         public void ShowOrders(string text)
         {
             if (orders == null) return;
             orders.text = text ?? string.Empty;
-            var panel = orders.transform.parent;
-            if (panel != null && panel != transform) panel.gameObject.SetActive(!string.IsNullOrEmpty(orders.text));
+            if (ordersPanel != null && ordersPanel != gameObject && !transform.IsChildOf(ordersPanel.transform))
+                ordersPanel.SetActive(!string.IsNullOrEmpty(orders.text));
         }
 
-        internal void ConfigureOrders(TMP_Text orderList) => orders = orderList;
+        internal void ConfigureOrders(TMP_Text orderList, GameObject panel)
+        {
+            orders = orderList;
+            ordersPanel = panel;
+        }
 
         /// <param name="clock">Time left in the shift («3:12»), or null when the shift has no time limit.</param>
         public void ShowScore(int points, int served, int total, string clock = null)
