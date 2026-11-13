@@ -27,6 +27,7 @@ namespace Pvz.Editor.Tests
 
         [TestCase(typeof(ShiftDirector))]
         [TestCase(typeof(WarehouseLayoutKeeper))]
+        [TestCase(typeof(FeedbackEffects))]
         [TestCase(typeof(HandScanner))]
         [TestCase(typeof(CounterBoard))]
         [TestCase(typeof(ShiftSummaryPanel))]

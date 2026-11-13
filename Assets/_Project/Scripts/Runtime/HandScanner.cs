@@ -19,10 +19,22 @@ namespace Pvz.Runtime
         [SerializeField] private LineRenderer beam;
         [SerializeField, Min(0)] private float beamDuration = 0.15f;
         [SerializeField] private TMP_Text screen;
+        [Tooltip("Screen background that lights up for a moment after a scan.")]
+        [SerializeField] private Renderer screenBack;
+        [SerializeField, Min(0.05f)] private float flashSeconds = 0.35f;
 
         private readonly RaycastHit[] _hits = new RaycastHit[16];
         private XRGrabInteractable _grab;
         private float _beamOffAt;
+        private Color _flashColor;
+        private float _flashUntil;
+        private bool _flashing;
+        private MaterialPropertyBlock _block;
+        private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
+        private static readonly Color ScreenDark = new Color(0.03f, 0.05f, 0.06f);
+
+        /// <summary>How many times the screen flashed (tests).</summary>
+        public int Flashes { get; private set; }
 
         /// <summary>Raised when the trigger is pulled and the ray hits a box.</summary>
         public event Action<QrBox> BoxScanned;
@@ -69,6 +81,7 @@ namespace Pvz.Runtime
         private void Update()
         {
             if (beam != null && beam.enabled && Time.time >= _beamOffAt) beam.enabled = false;
+            if (_flashing) UpdateFlash();
         }
 
         private void OnActivated(ActivateEventArgs args) => Fire();
@@ -95,6 +108,27 @@ namespace Pvz.Runtime
             if (screen == null) return;
             screen.text = text;
             screen.color = color;
+        }
+
+        /// <summary>Lights the screen in <paramref name="color"/> for a moment (visual confirmation of a scan).</summary>
+        public void Flash(Color color)
+        {
+            Flashes++;
+            if (screenBack == null) return;
+            _flashColor = color;
+            _flashUntil = Time.time + flashSeconds;
+            _flashing = true;
+            UpdateFlash();
+        }
+
+        private void UpdateFlash()
+        {
+            var left = Mathf.Clamp01((_flashUntil - Time.time) / flashSeconds);
+            if (_block == null) _block = new MaterialPropertyBlock();
+            screenBack.GetPropertyBlock(_block);
+            _block.SetColor(BaseColor, Color.Lerp(ScreenDark, _flashColor * 0.55f, left));
+            screenBack.SetPropertyBlock(_block);
+            if (left <= 0f) _flashing = false;
         }
 
         private QrBox FindBox(Vector3 origin, Vector3 direction, out Vector3 endPoint)
@@ -125,6 +159,8 @@ namespace Pvz.Runtime
             beam.enabled = true;
             _beamOffAt = Time.time + beamDuration;
         }
+
+        internal void ConfigureScreenBack(Renderer back) => screenBack = back;
 
         internal void Configure(Transform muzzleTransform, LineRenderer beamRenderer, TMP_Text screenText)
         {

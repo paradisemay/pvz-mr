@@ -130,6 +130,7 @@ namespace Pvz.Editor
             CreateRecenterButton(startMenu, mrSetup, font);
             director.ConfigureStartMenu(startMenu.gameObject);
             director.ConfigureReturns(supplyBoxPrefab); // returned boxes use the generic box with a runtime QR
+            director.ConfigureEffects(counter.GetComponentInChildren<FeedbackEffects>(true));
 
             // The player's arrangement of the stock boxes is kept between sessions (T017).
             new GameObject("Warehouse Layout").AddComponent<WarehouseLayoutKeeper>()

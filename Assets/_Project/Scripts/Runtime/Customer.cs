@@ -36,8 +36,13 @@ namespace Pvz.Runtime
             if (body != null) _bodyRestPosition = body.localPosition;
         }
 
+        [SerializeField] private CustomerVoice voice;
+
+        public CustomerVoice Voice => voice;
+
         public void SetLook(int variant)
         {
+            if (voice != null) voice.SetVoice(variant); // each look has its own voice
             if (tintedRenderers == null || tintedRenderers.Length == 0) return;
             var color = Palette[Mathf.Abs(variant) % Palette.Length];
             var block = new MaterialPropertyBlock();
@@ -62,9 +67,12 @@ namespace Pvz.Runtime
 
         internal void ConfigurePatienceBar(PatienceBar bar) => patienceBar = bar;
 
+        internal void ConfigureVoice(CustomerVoice customerVoice) => voice = customerVoice;
+
         public void Say(string line)
         {
             if (speech != null) speech.Show(line);
+            if (voice != null) voice.Speak(line);
         }
 
         public void StopTalking()
