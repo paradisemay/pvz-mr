@@ -1,3 +1,4 @@
+using System.Linq;
 using Pvz.Runtime;
 using TMPro;
 using UnityEditor;
@@ -275,6 +276,11 @@ namespace Pvz.Editor
             audio.spatialBlend = 0.6f;
             root.AddComponent<FeedbackAudio>();
 
+            // Career themes (T022) repaint the counter's body, top and accents.
+            Renderer[] Named(Transform under, params string[] names) => under.GetComponentsInChildren<Renderer>(true)
+                .Where(r => System.Array.IndexOf(names, r.name) >= 0).ToArray();
+            root.AddComponent<CounterSkin>().Configure(Named(root.transform, "Body", "Post"), Named(root.transform, "Top"),
+                Named(root.transform, "StripeFront", "StripeBack", "Frame"));
             return SavePrefab(root, "PickupCounter");
         }
 

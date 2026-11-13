@@ -34,6 +34,8 @@ namespace Pvz.Runtime
         [SerializeField] private QrBox returnBoxPrefab;
         [Tooltip("Optional: confetti over the handover zone when an order is done.")]
         [SerializeField] private FeedbackEffects effects;
+        [Tooltip("Optional: the career between shifts (T022); a finished shift reports its score to it.")]
+        [SerializeField] private CareerKeeper career;
 
         private readonly BoxRegistry _registry = new BoxRegistry();
         private BestScores _bestScores;
@@ -108,7 +110,8 @@ namespace Pvz.Runtime
             if (Shift != null) return; // already started (e.g. by a test) before the first frame
             summaryPanel.Hide();
             restartButton.SetActive(false);
-            if (HasDifficultyMenu) ShiftPresenter.ShowDifficultyMenu(board, MenuRecords());
+            if (HasDifficultyMenu)
+                ShiftPresenter.ShowDifficultyMenu(board, MenuRecords(), career != null ? career.MenuText() : null);
             else Begin();
         }
 
@@ -395,9 +398,17 @@ namespace Pvz.Runtime
             IsShiftOver = true;
             _presenter.ShowShiftOver();
             RecordResult? record = null;
+            string careerLine = null;
+            try
+            {
+                var result = career != null ? career.AddShift(Stats.Score, settings.CareerPointsPercent) : null;
+                if (result.HasValue) careerLine = career.SummaryText(result.Value);
+            }
+            catch (Exception e) { Debug.LogException(e, this); }
             try { record = _bestScores.Submit(settings.DifficultyId, Stats.Score); }
             catch (Exception e) { Debug.LogException(e, this); } // never leave the player without the summary and restart
-            summaryPanel.Show(Stats, OrdersTotal, record, settings.DisplayName, Shift.MaxQueueLength, Shift.IsTimeUp);
+            summaryPanel.Show(Stats, OrdersTotal, record, settings.DisplayName, Shift.MaxQueueLength, Shift.IsTimeUp,
+                careerLine);
             restartButton.SetActive(true);
             ShiftEnded?.Invoke();
         }
@@ -487,6 +498,8 @@ namespace Pvz.Runtime
         internal void ConfigureReturns(QrBox boxPrefab) => returnBoxPrefab = boxPrefab;
 
         internal void ConfigureEffects(FeedbackEffects feedbackEffects) => effects = feedbackEffects;
+
+        internal void ConfigureCareer(CareerKeeper careerKeeper) => career = careerKeeper;
 
         public FeedbackEffects Effects => effects;
 
