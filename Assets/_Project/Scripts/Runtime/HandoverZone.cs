@@ -53,6 +53,13 @@ namespace Pvz.Runtime
         /// <summary>Zone-local offset of <see cref="ReturnSpot"/>: box resting on the counter top, left of the zone.</summary>
         private static readonly Vector3 ReturnSpotLocal = new Vector3(-0.51f, -0.07f, 0.1f);
 
+        /// <summary>The point lies inside the zone's volume.</summary>
+        public bool Contains(Vector3 worldPoint)
+        {
+            var volume = GetComponent<Collider>();
+            return volume != null && (volume.ClosestPoint(worldPoint) - worldPoint).sqrMagnitude < 1e-6f;
+        }
+
         private void Reset() => GetComponent<Collider>().isTrigger = true;
 
         private void OnTriggerEnter(Collider other)

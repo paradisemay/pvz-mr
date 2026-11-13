@@ -33,11 +33,27 @@ namespace Pvz.Runtime
         /// <summary>True once the box was handed over and belongs to a customer.</summary>
         public bool IsHandedOver { get; private set; }
 
+        /// <summary>The player has put the box down at least once (see <see cref="PlacedLocalPosition"/>).</summary>
+        public bool HasPlacement { get; private set; }
+
+        /// <summary>Where the player last put the box down, relative to where it lives (the boxes root of the play area).</summary>
+        public Vector3 PlacedLocalPosition { get; private set; }
+
+        public float PlacedYaw { get; private set; }
+
+        /// <summary><see cref="PlacedLocalPosition"/> in world space (valid even after the box was handed over).</summary>
+        public Vector3 PlacedWorldPosition =>
+            _startParent != null ? _startParent.TransformPoint(PlacedLocalPosition) : PlacedLocalPosition;
+
+        /// <summary>The player moved the box and has not put it down to rest yet.</summary>
+        private bool _movedByPlayer;
+
         private void Awake() => RememberStartPose();
 
         private void Update()
         {
             if (IsHandedOver) return;
+            TrackPlacement();
             var origin = _startParent != null ? _startParent.position : Vector3.zero;
             var offset = transform.position - origin;
             offset.y = 0f;
@@ -59,6 +75,52 @@ namespace Pvz.Runtime
                 body.position = transform.position;
                 body.rotation = transform.rotation;
             }
+        }
+
+        /// <summary>A box the player carried is remembered where it comes to rest after being let go.</summary>
+        private void TrackPlacement()
+        {
+            if (grabInteractable != null && grabInteractable.isSelected)
+            {
+                _movedByPlayer = true;
+                return;
+            }
+            if (_movedByPlayer && body != null && !body.isKinematic && body.IsSleeping()) RecordPlacement();
+        }
+
+        /// <summary>Remembers the current pose as the player's place for this box (tests call it directly).</summary>
+        internal void RecordPlacement()
+        {
+            _movedByPlayer = false;
+            if (IsHandedOver) return;
+            PlacedLocalPosition = _startParent != null ? _startParent.InverseTransformPoint(transform.position) : transform.position;
+            PlacedYaw = (_startParent != null ? Quaternion.Inverse(_startParent.rotation) * transform.rotation : transform.rotation).eulerAngles.y;
+            HasPlacement = true;
+            // A box lost later (fallen through the floor) comes back here, not to where the shift began.
+            _startLocalPosition = transform.localPosition;
+            _startLocalRotation = transform.localRotation;
+        }
+
+        /// <summary>Puts the box where the player left it in an earlier session (upright, at the saved yaw).</summary>
+        public void MoveToSavedPlace(Vector3 localPosition, float yaw)
+        {
+            // Called before the shift, while the box still lives under its start parent (the boxes root).
+            transform.localPosition = localPosition;
+            transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+            if (body != null)
+            {
+                if (!body.isKinematic)
+                {
+                    body.linearVelocity = Vector3.zero;
+                    body.angularVelocity = Vector3.zero;
+                }
+                body.position = transform.position;
+                body.rotation = transform.rotation;
+            }
+            RememberStartPose();
+            PlacedLocalPosition = localPosition;
+            PlacedYaw = yaw;
+            HasPlacement = true;
         }
 
         /// <summary>Gives a generic (supply) box its identity and QR picture at runtime.</summary>
