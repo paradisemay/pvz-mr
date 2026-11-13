@@ -82,6 +82,22 @@ namespace Pvz.Editor
             Object.DestroyImmediate(demoCustomer.gameObject);
             customer.gameObject.SetActive(true);
 
+            // A line of customers (hard difficulty: three).
+            var lineDirection = (PvzSceneBuilder.CustomerSpawnPosition - PvzSceneBuilder.CustomerServicePosition).normalized;
+            var queued = new System.Collections.Generic.List<Customer>();
+            for (var i = 1; i <= 2; i++)
+            {
+                var waiting = Object.Instantiate(customerPrefab, PvzSceneBuilder.CustomerServicePosition + lineDirection * (0.65f * i),
+                    Quaternion.Euler(0, 180, 0));
+                waiting.SetLook(i + 2);
+                queued.Add(waiting);
+            }
+            board.ShowHeadline("Заказ №2781", CounterBoard.Accent);
+            board.ShowStatus("Клиент торопится!", CounterBoard.Bad);
+            customer.Say("Побыстрее,\nпожалуйста!");
+            Capture("09_queue", new Vector3(-1.3f, 1.75f, -0.4f), new Vector3(0f, 1.2f, 2.0f), 62f);
+            foreach (var waiting in queued) Object.DestroyImmediate(waiting.gameObject);
+
             // Supply delivery: boxes just appeared under the ceiling.
             var supply = Object.FindFirstObjectByType<SupplyDrop>();
             var dropped = supply.Drop(new[] { "BOX-101", "BOX-102", "BOX-103" }, 7, 2.4f);

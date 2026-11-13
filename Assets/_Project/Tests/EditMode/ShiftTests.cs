@@ -57,10 +57,71 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
-        public void NextOrder_WhileServing_Throws()
+        public void NextOrder_ReservesOrders_SoQueuedCustomersNeverShareOne()
         {
-            _shift.Desk.OpenOrder(_shift.NextOrder(), 0);
-            Assert.Throws<InvalidOperationException>(() => _shift.NextOrder());
+            var shift = new Shift(TestData.MvpCatalog(), new SystemRandomSource(3));
+            var numbers = new[] { shift.NextOrder().Number, shift.NextOrder().Number, shift.NextOrder().Number };
+            CollectionAssert.AllItemsAreUnique(numbers);
+            Assert.IsFalse(shift.HasUnreservedOrders);
+            Assert.IsNull(shift.NextOrder(), "every order is already promised to someone");
+            shift.Dispose();
+        }
+
+        [Test]
+        public void CompletedAndAbandonedOrders_LeaveTheLine()
+        {
+            var shift = new Shift(TestData.MvpCatalog(), new FakeRandom(0, 0, 0, 0, 0));
+            var first = shift.NextOrder();
+            var second = shift.NextOrder();
+            Assert.IsTrue(shift.IsReserved(first.Number) && shift.IsReserved(second.Number));
+
+            shift.Desk.OpenOrder(first, 0);
+            shift.Desk.Handover(first.Boxes[0], 1);
+            Assert.IsFalse(shift.IsReserved(first.Number));
+
+            shift.Desk.OpenOrder(second, 2);
+            shift.Desk.Abandon();
+            Assert.IsFalse(shift.IsReserved(second.Number));
+            Assert.IsTrue(shift.HasUnreservedOrders);
+            shift.Dispose();
+        }
+
+        [Test]
+        public void LeaveQueue_MakesTheOrderAvailableAgain()
+        {
+            var shift = new Shift(new BoxCatalog(new[] { new BoxRecord(TestData.Box1, "1435") }), new FakeRandom(0, 0));
+            var order = shift.NextOrder();
+            Assert.IsNull(shift.NextOrder());
+            shift.LeaveQueue(order);
+            Assert.AreEqual("1435", shift.NextOrder().Number);
+            shift.Dispose();
+        }
+
+        [Test]
+        public void TryEnqueue_RespectsTheLineLength()
+        {
+            var shift = new Shift(TestData.MvpCatalog(), new SystemRandomSource(5)) { QueueLength = 2 };
+            Assert.IsTrue(shift.TryEnqueue(out _));
+            Assert.IsTrue(shift.TryEnqueue(out _));
+            Assert.IsFalse(shift.TryEnqueue(out var third), "the line is full");
+            Assert.IsNull(third);
+            Assert.AreEqual(2, shift.QueuedOrders.Count);
+            shift.Dispose();
+        }
+
+        [Test]
+        public void OpenNext_ServesTheLineInArrivalOrder()
+        {
+            var shift = new Shift(TestData.MvpCatalog(), new SystemRandomSource(9)) { QueueLength = 3 };
+            shift.TryEnqueue(out var first);
+            shift.TryEnqueue(out var second);
+
+            Assert.AreSame(first, shift.OpenNext(0));
+            shift.Desk.Handover(first.Boxes[0], 1);
+            Assert.AreSame(second, shift.QueuedOrders[0], "the second customer steps up");
+            Assert.AreSame(second, shift.OpenNext(2));
+            Assert.Throws<InvalidOperationException>(() => { shift.Desk.Handover(second.Boxes[0], 3); shift.OpenNext(4); });
+            shift.Dispose();
         }
 
         [Test]
