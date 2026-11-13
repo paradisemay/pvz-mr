@@ -9,7 +9,7 @@ namespace Pvz.Runtime
     [RequireComponent(typeof(XRSimpleInteractable))]
     public sealed class ThemeButton : MonoBehaviour
     {
-        [SerializeField] private ShiftDirector director;
+        [SerializeField] private CareerKeeper keeper;
         [SerializeField] private TMP_Text label;
 
         private XRSimpleInteractable _interactable;
@@ -25,7 +25,7 @@ namespace Pvz.Runtime
 
         public void Press()
         {
-            if (director != null) director.NextTheme();
+            if (keeper != null) keeper.NextTheme();
         }
 
         public string Label => label != null ? label.text : string.Empty;
@@ -35,9 +35,9 @@ namespace Pvz.Runtime
             if (label != null) label.text = text;
         }
 
-        internal void Configure(ShiftDirector shiftDirector, TMP_Text labelText)
+        internal void Configure(CareerKeeper careerKeeper, TMP_Text labelText)
         {
-            director = shiftDirector;
+            keeper = careerKeeper;
             label = labelText;
         }
     }

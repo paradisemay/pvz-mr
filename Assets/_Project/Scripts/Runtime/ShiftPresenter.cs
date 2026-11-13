@@ -101,11 +101,13 @@ namespace Pvz.Runtime
 
         /// <summary>Before the shift: ask the player to pick a difficulty (no shift exists yet).</summary>
         public static void ShowDifficultyMenu(CounterBoard board,
-            System.Collections.Generic.IEnumerable<(string name, int best)> records = null)
+            System.Collections.Generic.IEnumerable<(string name, int best)> records = null, string careerText = null)
         {
             board.ShowHeadline("Выберите сложность", CounterBoard.Accent);
             board.ShowStatus(RecordsText(records) ?? "Нажмите кнопку на стойке", CounterBoard.Neutral);
-            board.ShowScore(0, 0, 0);
+            // The bottom line shows the career before the shift (the score line takes over when it starts).
+            if (string.IsNullOrEmpty(careerText)) board.ShowScore(0, 0, 0);
+            else board.ShowFooter(careerText);
         }
 
         /// <summary>«Рекорды: Лёгкая 450 · Обычная 0 · Сложная 0», or null when there is nothing to show.</summary>
@@ -185,26 +187,21 @@ namespace Pvz.Runtime
             ShowCurrentHint();
         }
 
-        /// <summary>Career line under the menu: points and how far the next theme is.</summary>
-        public static string CareerText(Career career)
-        {
-            if (career == null) return string.Empty;
-            var next = career.NextLocked;
-            return next == null
-                ? $"Карьера: {career.Points} · все темы открыты"
-                : $"Карьера: {career.Points} · до темы «{next.Name}»: {next.UnlockPoints - career.Points}";
-        }
+        /// <summary>Career line under the menu: points and how far the next theme is (null name: all open).</summary>
+        public static string CareerText(int points, string nextThemeName, int nextThemeAt) => nextThemeName == null
+            ? $"Карьера: {points} · все темы открыты"
+            : $"Карьера: {points} · до темы «{nextThemeName}»: {nextThemeAt - points}";
 
         /// <summary>The label of the «ТЕМА» button.</summary>
-        public static string ThemeLabel(CounterTheme theme) => $"ТЕМА:\n{(theme?.Name ?? "Классика").ToUpperInvariant()}";
+        public static string ThemeLabel(string themeName) => $"ТЕМА:\n{(themeName ?? string.Empty).ToUpperInvariant()}";
 
         /// <summary>The career line of the shift summary.</summary>
-        public static string CareerLine(CareerResult result)
+        public static string CareerLine(int total, int added, System.Collections.Generic.IReadOnlyList<string> unlockedNames)
         {
-            var line = $"Карьера: {result.Total} (+{result.Added})";
-            if (result.Unlocked == null || result.Unlocked.Count == 0) return line;
+            var line = $"Карьера: {total} (+{added})";
+            if (unlockedNames == null || unlockedNames.Count == 0) return line;
             var names = new System.Collections.Generic.List<string>();
-            foreach (var theme in result.Unlocked) names.Add($"«{theme.Name}»");
+            foreach (var name in unlockedNames) names.Add($"«{name}»");
             return line + $"\n<b>Открыта тема {string.Join(", ", names)}!</b>";
         }
 

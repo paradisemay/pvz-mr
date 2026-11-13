@@ -142,6 +142,15 @@
 - Сначала все коробки встают на места, потом проверяется, не занято ли место чем-то ещё (сканер, пакет): такая коробка
   ставится чуть выше и падает, а не выталкивается физикой.
 
+## Решения T022 (карьера и темы стойки)
+- Карьера — не часть смены: `CareerKeeper` (как `WarehouseLayoutKeeper`) владеет `Career`, красит стойку и обслуживает
+  кнопку «ТЕМА»; директор только сообщает очки завершённой смены (с весом `ShiftSettings.careerPointsPercent`).
+- Core знает id и пороги тем (`CounterTheme`) и проверяет список; названия и цвета — в `CounterThemeCatalog`
+  (`ScriptableObject`, один на игру: карьера общая для всех сложностей). Выбор темы сохраняется по id.
+- `IScoreStore` — общий целочисленный хранилищем данных игрока; у владельцев свои префиксы (`pvz.best.`, `pvz.career.`).
+- Меню рисует `ShiftPresenter.ShowDifficultyMenu` целиком (рекорды и строка карьеры).
+- `CounterSkin` — блоки свойств поверх материалов (как вспышка экрана в T018): у первой темы их нет, материалы как есть.
+
 ## Модули
 ```
 Core/
@@ -150,6 +159,7 @@ Core/
   Order              неизменяемый заказ: номер, коробки; пакет, срочность, «забыл номер» (подсказка — окончание)
   OrderNumbers       правила номеров: похожие номера, подсказка забывчивого клиента
   WarehouseLayout    раскладка склада игрока: BoxPlacement, формат v1, ITextStore, WarehouseLayoutStore
+  Career, CounterTheme  карьера между сменами и открываемые ею темы стойки
   OrderGenerator     случайный заказ из склада (с исключениями — для очереди), шансы пакета и событий
   ServiceSession     обслуживание одного клиента: выдано, ошибки, пакет, «торопил ли»
   Visit, ReturnRequest  визит клиента в очереди: заказ или возврат проданной коробки
@@ -180,6 +190,7 @@ Runtime/
   WarehouseLayoutKeeper, PlayerPrefsTextStore  раскладка склада между сессиями
   CustomerVoice, Babble  процедурный голос клиентов
   FeedbackEffects    конфетти над зоной выдачи
+  CareerKeeper, CounterThemeCatalog, CounterSkin, ThemeButton  карьера, каталог тем, окраска стойки, кнопка «ТЕМА»
 Editor/
   PvzSceneBuilder, PvzPrefabBuilder, PvzAssetFactory   генерация сцены, префабов, материалов, QR, шрифта, пресетов
   PvzProjectSetup    OpenXR-фичи Meta, Player Settings, исправления валидации

@@ -156,9 +156,10 @@ namespace Pvz.Editor
 
             // Career theme «Мята» (T022).
             var skin = Object.FindFirstObjectByType<CounterSkin>();
-            skin.Apply(Pvz.Core.Career.Themes[1]);
+            var themes = AssetDatabase.LoadAssetAtPath<CounterThemeCatalog>(PvzSceneBuilder.ThemeCatalogPath);
+            skin.Apply(themes.Find("mint"));
             Capture("15_theme_mint", new Vector3(-1.2f, 1.8f, -0.9f), new Vector3(0.1f, 1.3f, 1.0f), 62f);
-            skin.Apply(Pvz.Core.Career.Themes[0]);
+            skin.Apply(themes.Find("classic"));
 
             // Shift timer: the time ran out, the last customer is still served.
             customer.Say("Здравствуйте!\nЗаказ №2781");

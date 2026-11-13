@@ -42,9 +42,9 @@ namespace Pvz.Editor
             EnsureFolders();
             var font = CyrillicFont();
             // Difficulty presets; existing assets are kept as they are (designers may have tuned them).
-            var settings = LoadOrCreateSettings(SettingsPath, s => s.ConfigureDifficulty("Обычная", 90f, 1, 50, 1.2f, 2f, 2, tutorial: false, returnChance: 20, urgentChance: 15, forgotNumberChance: 15, shiftSeconds: 420f));
-            var easy = LoadOrCreateSettings(EasySettingsPath, s => { s.CopyLayoutFrom(settings); s.ConfigureDifficulty("Лёгкая", 0f, 0, 0, 1.0f, 3f, 1, tutorial: true, returnChance: 0, urgentChance: 0, forgotNumberChance: 0, shiftSeconds: 0f); });
-            var hard = LoadOrCreateSettings(HardSettingsPath, s => { s.CopyLayoutFrom(settings); s.ConfigureDifficulty("Сложная", 45f, 1, 80, 1.6f, 1f, 3, tutorial: false, returnChance: 35, urgentChance: 25, forgotNumberChance: 20, shiftSeconds: 300f); });
+            var settings = LoadOrCreateSettings(SettingsPath, s => s.ConfigureDifficulty("Обычная", 90f, 1, 50, 1.2f, 2f, 2, tutorial: false, returnChance: 20, urgentChance: 15, forgotNumberChance: 15, shiftSeconds: 420f, careerPercent: 100));
+            var easy = LoadOrCreateSettings(EasySettingsPath, s => { s.CopyLayoutFrom(settings); s.ConfigureDifficulty("Лёгкая", 0f, 0, 0, 1.0f, 3f, 1, tutorial: true, returnChance: 0, urgentChance: 0, forgotNumberChance: 0, shiftSeconds: 0f, careerPercent: 50); });
+            var hard = LoadOrCreateSettings(HardSettingsPath, s => { s.CopyLayoutFrom(settings); s.ConfigureDifficulty("Сложная", 45f, 1, 80, 1.6f, 1f, 3, tutorial: false, returnChance: 35, urgentChance: 25, forgotNumberChance: 20, shiftSeconds: 300f, careerPercent: 150); });
             var prefabs = new PvzPrefabBuilder(font);
 
             var layout = settings.Boxes; // single source of truth: ids, orders and start positions
@@ -136,12 +136,38 @@ namespace Pvz.Editor
             var keeper = new GameObject("Warehouse Layout").AddComponent<WarehouseLayoutKeeper>();
             keeper.Configure(boxes.ToArray(), counter.GetComponentInChildren<HandoverZone>(true));
             CreateResetWarehouseButton(startMenu, keeper, font);
-            director.ConfigureTheme(counter.GetComponentInChildren<CounterSkin>(true), CreateThemeButton(startMenu, director, font));
+            // The career between shifts and the counter themes it opens (T022).
+            var careerKeeper = new GameObject("Career").AddComponent<CareerKeeper>();
+            careerKeeper.Configure(LoadOrCreateThemeCatalog(), counter.GetComponentInChildren<CounterSkin>(true),
+                CreateThemeButton(startMenu, careerKeeper, font));
+            director.ConfigureCareer(careerKeeper);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();
             Debug.Log($"[PvzSceneBuilder] Built {ScenePath} with {boxes.Count} boxes.");
+        }
+
+        public const string ThemeCatalogPath = "Assets/_Project/Settings/CounterThemes.asset";
+
+        /// <summary>Counter themes of the career; created once, then left to designers (thresholds, names, colours).</summary>
+        private static CounterThemeCatalog LoadOrCreateThemeCatalog()
+        {
+            var catalog = AssetDatabase.LoadAssetAtPath<CounterThemeCatalog>(ThemeCatalogPath);
+            if (catalog != null) return catalog;
+            catalog = ScriptableObject.CreateInstance<CounterThemeCatalog>();
+            catalog.Configure(new[]
+            {
+                new CounterThemeCatalog.Entry { id = "classic", displayName = "Классика", unlockPoints = 0, recolor = false },
+                new CounterThemeCatalog.Entry { id = "mint", displayName = "Мята", unlockPoints = 1000, recolor = true,
+                    body = new Color(0.14f, 0.34f, 0.31f), top = new Color(0.88f, 0.95f, 0.9f), accent = new Color(0.35f, 0.85f, 0.7f) },
+                new CounterThemeCatalog.Entry { id = "night", displayName = "Ночь", unlockPoints = 2500, recolor = true,
+                    body = new Color(0.08f, 0.08f, 0.15f), top = new Color(0.3f, 0.32f, 0.42f), accent = new Color(0.58f, 0.46f, 1f) },
+                new CounterThemeCatalog.Entry { id = "gold", displayName = "Золото", unlockPoints = 5000, recolor = true,
+                    body = new Color(0.27f, 0.19f, 0.08f), top = new Color(0.95f, 0.86f, 0.58f), accent = new Color(1f, 0.8f, 0.2f) },
+            });
+            AssetDatabase.CreateAsset(catalog, ThemeCatalogPath);
+            return catalog;
         }
 
         private static T Load<T>(string prefabPath) where T : Component
@@ -191,7 +217,7 @@ namespace Pvz.Editor
         }
 
         /// <summary>«ТЕМА» next to «Сбросить склад»: the counter theme opened by the career (T022).</summary>
-        private static ThemeButton CreateThemeButton(Transform parent, ShiftDirector director, TMPro.TMP_FontAsset font)
+        private static ThemeButton CreateThemeButton(Transform parent, CareerKeeper keeper, TMPro.TMP_FontAsset font)
         {
             var go = new GameObject("Theme Button");
             go.transform.SetParent(parent, false);
@@ -202,7 +228,7 @@ namespace Pvz.Editor
                 new Color(0.08f, 0.1f, 0.14f), 0.45f, localRot: Quaternion.Euler(90, 0, 0));
             go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
             var button = go.AddComponent<ThemeButton>();
-            button.Configure(director, label);
+            button.Configure(keeper, label);
             return button;
         }
 

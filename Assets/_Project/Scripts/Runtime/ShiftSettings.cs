@@ -96,6 +96,8 @@ namespace Pvz.Runtime
         [SerializeField] private int abandonPenalty = 50;
         [SerializeField] private int returnPoints = 30;
         [SerializeField] private int urgentBonus = 50;
+        [Tooltip("Share (%) of the shift score that goes to the career: easier shifts count less.")]
+        [SerializeField, Range(0, 300)] private int careerPointsPercent = 100;
 
         [Header("Room")]
         [Tooltip("Used for the supply drop when the headset has not found the ceiling.")]
@@ -120,8 +122,9 @@ namespace Pvz.Runtime
         /// <summary>Used by the editor builder to create the difficulty presets.</summary>
         internal void ConfigureDifficulty(string name, float patience, int supplyAfter, int bagChance,
             float walkSpeed, float betweenCustomers, int queue, bool tutorial, int returnChance,
-            int urgentChance, int forgotNumberChance, float shiftSeconds)
+            int urgentChance, int forgotNumberChance, float shiftSeconds, int careerPercent)
         {
+            careerPointsPercent = careerPercent;
             shiftDurationSeconds = shiftSeconds;
             returnChancePercent = returnChance;
             urgentChancePercent = urgentChance;
@@ -142,6 +145,7 @@ namespace Pvz.Runtime
         public int BagChancePercent => bagChancePercent;
         public int ReturnChancePercent => returnChancePercent;
         public float ShiftDurationSeconds => shiftDurationSeconds;
+        public int CareerPointsPercent => careerPointsPercent;
         public int UrgentChancePercent => urgentChancePercent;
         public float UrgentPatienceFactor => urgentPatienceFactor;
         public int ForgotNumberChancePercent => forgotNumberChancePercent;

@@ -31,6 +31,7 @@ namespace Pvz.Editor.Tests
         [TestCase(typeof(ResetWarehouseButton))]
         [TestCase(typeof(ThemeButton))]
         [TestCase(typeof(CounterSkin))]
+        [TestCase(typeof(CareerKeeper))]
         [TestCase(typeof(HandScanner))]
         [TestCase(typeof(CounterBoard))]
         [TestCase(typeof(ShiftSummaryPanel))]

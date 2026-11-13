@@ -34,14 +34,11 @@ namespace Pvz.Runtime
         [SerializeField] private QrBox returnBoxPrefab;
         [Tooltip("Optional: confetti over the handover zone when an order is done.")]
         [SerializeField] private FeedbackEffects effects;
-        [Tooltip("Optional: paints the counter in the career theme (T022).")]
-        [SerializeField] private CounterSkin skin;
-        [Tooltip("Optional: start-menu button that switches the theme.")]
-        [SerializeField] private ThemeButton themeButton;
+        [Tooltip("Optional: the career between shifts (T022); a finished shift reports its score to it.")]
+        [SerializeField] private CareerKeeper career;
 
         private readonly BoxRegistry _registry = new BoxRegistry();
         private BestScores _bestScores;
-        private Career _career;
         private readonly List<QueuedCustomer> _line = new List<QueuedCustomer>();
         private ShiftPresenter _presenter;
         private int _customersSpawned;
@@ -87,7 +84,7 @@ namespace Pvz.Runtime
         private void Awake()
         {
             if (!ValidateReferences()) enabled = false;
-            UseScoreStoreInternal(new PlayerPrefsScoreStore());
+            _bestScores = new BestScores(new PlayerPrefsScoreStore());
         }
 
         private void OnEnable()
@@ -113,12 +110,8 @@ namespace Pvz.Runtime
             if (Shift != null) return; // already started (e.g. by a test) before the first frame
             summaryPanel.Hide();
             restartButton.SetActive(false);
-            ShowTheme();
             if (HasDifficultyMenu)
-            {
-                ShiftPresenter.ShowDifficultyMenu(board, MenuRecords());
-                board.ShowFooter(ShiftPresenter.CareerText(_career));
-            }
+                ShiftPresenter.ShowDifficultyMenu(board, MenuRecords(), career != null ? career.MenuText() : null);
             else Begin();
         }
 
@@ -223,32 +216,7 @@ namespace Pvz.Runtime
         internal void UseBagChance(int percent) => Shift.BagChancePercent = percent;
 
         /// <summary>Replaces where best scores are kept (tests: in memory instead of PlayerPrefs).</summary>
-        internal void UseScoreStore(IScoreStore store) => UseScoreStoreInternal(store);
-
-        /// <summary>Best scores and the career share one store.</summary>
-        private void UseScoreStoreInternal(IScoreStore store)
-        {
-            _bestScores = new BestScores(store);
-            _career = new Career(store);
-        }
-
-        public Career Career => _career;
-        public CounterSkin Skin => skin;
-
-        /// <summary>«ТЕМА»: the next theme the career has opened (only before the shift).</summary>
-        public void NextTheme()
-        {
-            if (Shift != null) return;
-            _career.NextTheme();
-            ShowTheme();
-        }
-
-        private void ShowTheme()
-        {
-            var theme = _career.Current;
-            if (skin != null) skin.Apply(theme);
-            if (themeButton != null) themeButton.ShowLabel(ShiftPresenter.ThemeLabel(theme));
-        }
+        internal void UseScoreStore(IScoreStore store) => _bestScores = new BestScores(store);
 
         public BestScores BestScores => _bestScores;
 
@@ -430,13 +398,17 @@ namespace Pvz.Runtime
             IsShiftOver = true;
             _presenter.ShowShiftOver();
             RecordResult? record = null;
-            CareerResult? career = null;
-            try { career = _career.AddShift(Stats.Score); }
+            string careerLine = null;
+            try
+            {
+                var result = career != null ? career.AddShift(Stats.Score, settings.CareerPointsPercent) : null;
+                if (result.HasValue) careerLine = career.SummaryText(result.Value);
+            }
             catch (Exception e) { Debug.LogException(e, this); }
             try { record = _bestScores.Submit(settings.DifficultyId, Stats.Score); }
             catch (Exception e) { Debug.LogException(e, this); } // never leave the player without the summary and restart
             summaryPanel.Show(Stats, OrdersTotal, record, settings.DisplayName, Shift.MaxQueueLength, Shift.IsTimeUp,
-                career.HasValue ? ShiftPresenter.CareerLine(career.Value) : null);
+                careerLine);
             restartButton.SetActive(true);
             ShiftEnded?.Invoke();
         }
@@ -527,11 +499,7 @@ namespace Pvz.Runtime
 
         internal void ConfigureEffects(FeedbackEffects feedbackEffects) => effects = feedbackEffects;
 
-        internal void ConfigureTheme(CounterSkin counterSkin, ThemeButton button)
-        {
-            skin = counterSkin;
-            themeButton = button;
-        }
+        internal void ConfigureCareer(CareerKeeper careerKeeper) => career = careerKeeper;
 
         public FeedbackEffects Effects => effects;
 
