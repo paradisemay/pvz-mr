@@ -128,6 +128,7 @@ namespace Pvz.Editor
                 supplyDrop,
                 CreateDifficultyButtons(startMenu, new[] { easy, settings, hard }, font));
             CreateRecenterButton(startMenu, mrSetup, font);
+            counter.GetComponentInChildren<CounterBoard>(true).ConfigureHowToPlay(CreateHowToPlayCard(startMenu, font));
             director.ConfigureStartMenu(startMenu.gameObject);
             director.ConfigureReturns(supplyBoxPrefab); // returned boxes use the generic box with a runtime QR
             director.ConfigureEffects(counter.GetComponentInChildren<FeedbackEffects>(true));
@@ -186,6 +187,26 @@ namespace Pvz.Editor
             configureNew(settings);
             AssetDatabase.CreateAsset(settings, path);
             return settings;
+        }
+
+        /// <summary>
+        /// «Как играть» to the left of the board (mirrors the order list on the right): the loop in five steps, for the
+        /// first run on a headset without anyone to explain. Part of the start menu, so it is hidden when the shift starts (T024).
+        /// </summary>
+        private static TMPro.TMP_Text CreateHowToPlayCard(Transform parent, TMPro.TMP_FontAsset font)
+        {
+            var go = new GameObject("How To Play");
+            go.transform.SetParent(parent, false);
+            go.transform.position = CounterPosition + new Vector3(-1.2f, 2.14f, 0.08f);
+            go.transform.rotation = Quaternion.Euler(0f, 18f, 0f);
+            Primitive(PrimitiveType.Cube, "Panel", go.transform, Vector3.zero, new Vector3(0.74f, 0.62f, 0.03f),
+                Unlit("HowToPlayPanel", new Color(0.07f, 0.09f, 0.13f)));
+            Primitive(PrimitiveType.Cube, "Frame", go.transform, new Vector3(0, -0.325f, 0), new Vector3(0.74f, 0.03f, 0.035f),
+                Lit("HowToPlayFrame", new Color(0.35f, 0.6f, 0.95f)));
+            var text = Text("Text", go.transform, new Vector3(0, 0, -0.02f), new Vector2(0.68f, 0.56f), ShiftPresenter.HowToPlayText(),
+                font, new Color(0.88f, 0.9f, 0.94f), 0.8f, TMPro.TextAlignmentOptions.TopLeft);
+            text.textWrappingMode = TMPro.TextWrappingModes.NoWrap; // one step per line: auto-size shrinks instead of wrapping
+            return text; // the presenter writes the text at runtime (ShowDifficultyMenu)
         }
 
         /// <summary>«Стойку ко мне»: moves the play area in front of the player before the shift starts.</summary>

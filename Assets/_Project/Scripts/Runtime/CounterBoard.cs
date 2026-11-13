@@ -56,6 +56,18 @@ namespace Pvz.Runtime
             ordersPanel = panel;
         }
 
+        [Tooltip("Optional: the «Как играть» card of the start menu.")]
+        [SerializeField] private TMP_Text howToPlay;
+
+        public string HowToPlay => howToPlay != null ? howToPlay.text : string.Empty;
+
+        public void ShowHowToPlay(string text)
+        {
+            if (howToPlay != null) howToPlay.text = text ?? string.Empty;
+        }
+
+        internal void ConfigureHowToPlay(TMP_Text card) => howToPlay = card;
+
         /// <summary>A free text on the bottom line (before the shift: the career).</summary>
         public void ShowFooter(string text)
         {

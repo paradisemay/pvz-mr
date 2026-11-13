@@ -24,6 +24,15 @@ namespace Pvz.Editor.Tests
         }
 
         [Test]
+        public void HowToPlay_ExplainsTheLoop()
+        {
+            var text = ShiftPresenter.HowToPlayText();
+            StringAssert.StartsWith("<b>КАК ИГРАТЬ</b>", text);
+            foreach (var step in new[] { "сканер", "номер заказа", "зелёную зону", "пакет", "Возврат", "Поставка", "курок" })
+                StringAssert.Contains(step, text);
+        }
+
+        [Test]
         public void ThemeButton_NamesTheTheme() => Assert.AreEqual("ТЕМА:\nНОЧЬ", ShiftPresenter.ThemeLabel("Ночь"));
 
         [Test]
