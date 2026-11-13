@@ -257,6 +257,22 @@ namespace Pvz.Editor
 
             var customer = root.AddComponent<Customer>();
             customer.Configure(bubble, carry, body, new[] { torso.GetComponent<Renderer>(), armL.GetComponent<Renderer>(), armR.GetComponent<Renderer>() });
+            // Patience bar above the head (hidden until the customer is at the counter and patience is ticking).
+            var barGo = new GameObject("PatienceBar");
+            barGo.transform.SetParent(root.transform, false);
+            barGo.transform.localPosition = new Vector3(0, 1.88f, 0);
+            barGo.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            var barRoot = new GameObject("Content");
+            barRoot.transform.SetParent(barGo.transform, false);
+            barRoot.transform.localScale = new Vector3(0.42f, 0.045f, 1f);
+            Primitive(PrimitiveType.Quad, "Background", barRoot.transform, Vector3.zero, Vector3.one, _boardBack);
+            var fill = Primitive(PrimitiveType.Quad, "Fill", barRoot.transform, new Vector3(0, 0, -0.002f), new Vector3(1f, 0.7f, 1f),
+                Unlit("PatienceFill", Color.white));
+            var bar = barGo.AddComponent<PatienceBar>();
+            bar.Configure(barRoot, fill.transform, fill.GetComponent<Renderer>());
+            barRoot.SetActive(false);
+            customer.ConfigurePatienceBar(bar);
+
             return SavePrefab(root, "Customer");
         }
 

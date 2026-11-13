@@ -82,6 +82,30 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void PatienceRemaining_DecreasesFromOneToZero()
+        {
+            Assert.IsNull(_shift.PatienceRemaining(0), "no customer at the counter");
+            var order = _shift.NextOrder();
+            _shift.Desk.OpenOrder(order, 10);
+
+            Assert.AreEqual(1.0, _shift.PatienceRemaining(10).Value, 1e-9);
+            Assert.AreEqual(0.75, _shift.PatienceRemaining(35).Value, 1e-9);
+            Assert.AreEqual(0.0, _shift.PatienceRemaining(500).Value, 1e-9);
+        }
+
+        [Test]
+        public void PatienceRemaining_IsNull_WhenNotTicking()
+        {
+            _shift.Desk.OpenOrder(_shift.NextOrder(), 0);
+            _shift.PatienceSeconds = 0;
+            Assert.IsNull(_shift.PatienceRemaining(5), "infinite patience");
+
+            _shift.PatienceSeconds = 100;
+            _shift.Desk.Handover(_shift.Desk.ActiveOrder.Boxes[0], 5);
+            Assert.IsNull(_shift.PatienceRemaining(6), "served customers no longer leave");
+        }
+
+        [Test]
         public void ZeroPatience_MeansCustomersWaitForever()
         {
             _shift.PatienceSeconds = 0;

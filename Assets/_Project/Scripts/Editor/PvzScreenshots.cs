@@ -46,6 +46,7 @@ namespace Pvz.Editor
             var customerPrefab = AssetDatabase.LoadAssetAtPath<Customer>(PvzAssetFactory.PrefabsDir + "/Customer.prefab");
             var customer = Object.Instantiate(customerPrefab, PvzSceneBuilder.CustomerServicePosition, Quaternion.Euler(0, 180, 0));
             customer.SetLook(0);
+            customer.ShowPatience(0.55); // waited a while: the bar is yellow
             customer.Say("Здравствуйте!\nЗаказ №2781");
             var board = Object.FindFirstObjectByType<CounterBoard>();
             board.ShowHeadline("Заказ №2781", CounterBoard.Accent);

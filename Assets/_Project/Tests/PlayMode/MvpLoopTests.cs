@@ -182,6 +182,25 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest, Timeout(60000)]
+        public IEnumerator PatienceBar_ShrinksWhileTheCustomerWaits_AndHidesWithoutPatience()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.UsePatience(30);
+            yield return WaitUntil(() => director.Desk.HasActiveOrder, 40f, "first customer at the counter");
+            yield return null;
+
+            var bar = director.CurrentCustomer.PatienceBar;
+            Assert.IsTrue(bar.IsVisible, "patience is shown at the counter");
+            var first = bar.Value;
+            yield return new WaitForSeconds(2f);
+            Assert.Less(bar.Value, first, "the bar shrinks over time");
+
+            director.UsePatience(0);
+            yield return null;
+            Assert.IsFalse(bar.IsVisible, "no bar when customers wait forever");
+        }
+
+        [UnityTest, Timeout(60000)]
         public IEnumerator ImpatientCustomer_HurriesThenLeaves_AndTheOrderStaysInStock()
         {
             var director = Object.FindFirstObjectByType<ShiftDirector>();
