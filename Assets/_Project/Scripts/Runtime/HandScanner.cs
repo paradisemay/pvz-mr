@@ -30,6 +30,13 @@ namespace Pvz.Runtime
         /// <summary>Raised when the trigger is pulled but no box is in front of the scanner.</summary>
         public event Action Missed;
 
+        /// <summary>Raised when the player picks the scanner up.</summary>
+        public event Action Grabbed;
+
+        /// <summary>Held by the player (a socket or stand holding it does not count).</summary>
+        public bool IsHeld => _grab != null && _grab.isSelected &&
+                              !(_grab.firstInteractorSelecting is UnityEngine.XR.Interaction.Toolkit.Interactors.XRSocketInteractor);
+
         public string ScreenText => screen != null ? screen.text : string.Empty;
 
         private void Awake()
@@ -38,9 +45,26 @@ namespace Pvz.Runtime
             if (beam != null) beam.enabled = false;
         }
 
-        private void OnEnable() => _grab.activated.AddListener(OnActivated);
+        private void OnEnable()
+        {
+            _grab.activated.AddListener(OnActivated);
+            _grab.selectEntered.AddListener(OnSelected);
+        }
 
-        private void OnDisable() => _grab.activated.RemoveListener(OnActivated);
+        private void OnDisable()
+        {
+            _grab.activated.RemoveListener(OnActivated);
+            _grab.selectEntered.RemoveListener(OnSelected);
+        }
+
+        private void OnSelected(SelectEnterEventArgs args)
+        {
+            if (args.interactorObject is UnityEngine.XR.Interaction.Toolkit.Interactors.XRSocketInteractor) return;
+            Grabbed?.Invoke();
+        }
+
+        /// <summary>Same as picking the scanner up with a controller (tests, debug).</summary>
+        internal void SimulateGrab() => Grabbed?.Invoke();
 
         private void Update()
         {

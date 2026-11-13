@@ -15,6 +15,7 @@ MonoBehaviour:
   displayName: "\u0421\u043B\u043E\u0436\u043D\u0430\u044F"
   patienceSeconds: 45
   queueLength: 3
+  showTutorial: 0
   boxes:
   - boxId: BOX-001
     orderNumber: 1435
@@ -57,4 +58,5 @@ MonoBehaviour:
   wrongHandoverPenalty: 25
   intakePoints: 10
   bagPoints: 20
+  abandonPenalty: 50
   defaultCeilingHeight: 2.4

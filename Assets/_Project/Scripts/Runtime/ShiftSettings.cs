@@ -35,6 +35,8 @@ namespace Pvz.Runtime
         [SerializeField, Min(0)] private float patienceSeconds = 90f;
         [Tooltip("How many customers can stand in line at the counter (1 = one at a time).")]
         [SerializeField, Range(1, 4)] private int queueLength = 2;
+        [Tooltip("Step-by-step hints on the board until the first order is handed over.")]
+        [SerializeField] private bool showTutorial;
 
         [Header("Warehouse")]
         [SerializeField] private BoxDefinition[] boxes =
@@ -91,6 +93,7 @@ namespace Pvz.Runtime
         public string DifficultyId => name;
         public float PatienceSeconds => patienceSeconds;
         public int QueueLength => queueLength;
+        public bool ShowTutorial => showTutorial;
         public BoxDefinition[] Boxes => boxes;
 
         /// <summary>Copies the warehouse layout (boxes and delivery) so every preset matches the scene.</summary>
@@ -102,9 +105,10 @@ namespace Pvz.Runtime
 
         /// <summary>Used by the editor builder to create the difficulty presets.</summary>
         internal void ConfigureDifficulty(string name, float patience, int supplyAfter, int bagChance,
-            float walkSpeed, float betweenCustomers, int queue)
+            float walkSpeed, float betweenCustomers, int queue, bool tutorial = false)
         {
             queueLength = queue;
+            showTutorial = tutorial;
             displayName = name;
             patienceSeconds = patience;
             supplyAfterOrders = supplyAfter;
