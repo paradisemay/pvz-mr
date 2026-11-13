@@ -30,7 +30,47 @@ namespace Pvz.Runtime
 
         private WarehouseLayout Layout => _layout ?? (_layout = _store.Load());
 
-        private void Awake() => _store = new WarehouseLayoutStore(StoreOverride ?? new PlayerPrefsTextStore());
+        /// <summary>Where the scene put each stock box (the layout before the player changed anything).</summary>
+        private (Vector3 position, float yaw)[] _defaults = Array.Empty<(Vector3, float)>();
+
+        private void Awake()
+        {
+            _store = new WarehouseLayoutStore(StoreOverride ?? new PlayerPrefsTextStore());
+            _defaults = new (Vector3, float)[boxes.Length];
+            for (var i = 0; i < boxes.Length; i++)
+            {
+                if (boxes[i] == null) continue;
+                _defaults[i] = (boxes[i].transform.localPosition, boxes[i].transform.localRotation.eulerAngles.y);
+            }
+        }
+
+        /// <summary>
+        /// «Сбросить склад»: forgets the saved arrangement and puts the stock boxes back where the scene had them
+        /// (e.g. the furniture in the room changed). Returns how many boxes were moved back.
+        /// </summary>
+        public int ResetLayout()
+        {
+            _layout = WarehouseLayout.Empty;
+            Save();
+            var moved = new System.Collections.Generic.List<int>();
+            for (var i = 0; i < boxes.Length; i++)
+            {
+                var box = boxes[i];
+                // A box in the player's hand stays there: the hand owns it (and its parent) until it is let go.
+                if (box == null || box.IsHandedOver || box.IsHeld) continue;
+                box.MoveToSavedPlace(_defaults[i].position, _defaults[i].yaw);
+                moved.Add(i);
+            }
+            // Only after all boxes moved (they never collide with each other at their defaults): if something else now
+            // stands on a default place (the scanner, a bag), the box is put just above it and settles, not shoved.
+            foreach (var i in moved)
+            {
+                var (position, yaw) = _defaults[i];
+                if (boxes[i].IsSpotFree(position, yaw)) continue;
+                boxes[i].MoveToSavedPlace(position + Vector3.up * (boxes[i].Reach + 0.05f), yaw);
+            }
+            return moved.Count;
+        }
 
         private void OnEnable()
         {
