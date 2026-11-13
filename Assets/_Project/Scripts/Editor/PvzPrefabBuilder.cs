@@ -107,8 +107,10 @@ namespace Pvz.Editor
 
             var screenRoot = new GameObject("Screen").transform;
             screenRoot.SetParent(root.transform, false);
-            screenRoot.localPosition = new Vector3(0, 0.041f, -0.005f);
-            screenRoot.localRotation = Quaternion.Euler(60, 0, 0);
+            // Tilted towards the player and lifted so the whole screen stays above the head (top at y = 0.04):
+            // at 75° its lower edge is 0.0375 * cos 75° ≈ 0.01 below the centre.
+            screenRoot.localPosition = new Vector3(0, 0.052f, -0.005f);
+            screenRoot.localRotation = Quaternion.Euler(75, 0, 0);
             Primitive(PrimitiveType.Quad, "ScreenBack", screenRoot, Vector3.zero, new Vector3(0.06f, 0.075f, 1f), _screen,
                 localRot: Quaternion.identity);
             var screenText = Text("ScreenText", screenRoot, new Vector3(0, 0, -0.001f), new Vector2(0.055f, 0.068f),

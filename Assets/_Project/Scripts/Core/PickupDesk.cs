@@ -105,7 +105,7 @@ namespace Pvz.Core
             else if (ActiveSession.Requires(box))
                 outcome = new ScanOutcome(ScanStatus.Matches, box, record.OrderNumber);
             else
-                outcome = new ScanOutcome(ScanStatus.OtherOrder, box, record.OrderNumber);
+                outcome = new ScanOutcome(ScanStatus.OtherOrder, box, record.OrderNumber, IsLookAlikeTrap(record.OrderNumber));
 
             BoxScanned?.Invoke(outcome);
             return outcome;
@@ -123,7 +123,9 @@ namespace Pvz.Core
             {
                 // Offering the same wrong box again (e.g. it slipped out of the zone and back) is not a new mistake.
                 var firstTime = session.Reject(box);
-                var wrong = new HandoverOutcome(HandoverStatus.WrongBox, box, false, isRepeat: !firstTime);
+                _catalog.TryGet(box, out var wrongRecord);
+                var wrong = new HandoverOutcome(HandoverStatus.WrongBox, box, false, isRepeat: !firstTime,
+                    looksLikeTheWantedOrder: IsLookAlikeTrap(wrongRecord?.OrderNumber));
                 BoxHandedOver?.Invoke(wrong);
                 if (firstTime) WrongHandover?.Invoke(wrong);
                 return wrong;
@@ -140,6 +142,13 @@ namespace Pvz.Core
             else if (asksForBag) BagRequested?.Invoke(session.Order);
             return accepted;
         }
+
+        /// <summary>
+        /// A box of another order whose number is easy to mix up with the customer's. Not for a customer who forgot the
+        /// number: the warning would tell the player more than the customer did.
+        /// </summary>
+        private bool IsLookAlikeTrap(string boxOrderNumber) =>
+            HasActiveOrder && !ActiveOrder.ForgotNumber && OrderNumbers.LookAlike(boxOrderNumber, ActiveOrder.Number);
 
         /// <summary>Gives the current customer a carrier bag.</summary>
         public BagStatus HandOverBag(double now)
