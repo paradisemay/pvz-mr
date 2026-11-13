@@ -18,13 +18,14 @@ namespace Pvz.Runtime
             if (root != null) root.SetActive(false);
         }
 
-        public void Show(ShiftStats stats, int ordersTotal, RecordResult? record = null, string difficulty = null, int maxQueue = 0)
+        public void Show(ShiftStats stats, int ordersTotal, RecordResult? record = null, string difficulty = null, int maxQueue = 0,
+            bool endedByTime = false)
         {
             var grade = ShiftRating.Grade(stats.OrdersCompleted, ordersTotal, stats.WrongHandovers, stats.OrdersAbandoned);
             if (body != null)
             {
                 body.text =
-                    "<b>СМЕНА ЗАВЕРШЕНА</b>\n" +
+                    (endedByTime ? "<b>СМЕНА ЗАВЕРШЕНА</b> — время вышло\n" : "<b>СМЕНА ЗАВЕРШЕНА</b>\n") +
                     $"Обслужено клиентов: {stats.OrdersCompleted}/{ordersTotal}\n" +
                     $"Обработано товаров: {stats.BoxesHandedOver}\n" +
                     (maxQueue > 0 ? $"Макс. очередь: {maxQueue}\n" : string.Empty) +
