@@ -92,11 +92,16 @@ namespace Pvz.Core
         /// <summary>How long a customer waits at the counter, seconds; 0 = forever.</summary>
         public double PatienceSeconds { get; set; }
 
-        /// <summary>Advances customer patience. Call regularly with the current time.</summary>
+        /// <summary>
+        /// Advances customer patience. Call regularly with the current time.
+        /// A customer who has already received part of the order waits until it is complete: leaving with some boxes
+        /// would take them out of stock and leave an incomplete order behind.
+        /// </summary>
         public void Tick(double now)
         {
             if (PatienceSeconds <= 0 || !Desk.HasActiveOrder) return;
             var session = Desk.ActiveSession;
+            if (session.DeliveredCount > 0) return;
             var waited = now - session.OpenedAt;
             if (!session.Hurried && waited >= PatienceSeconds * HurryFraction)
             {

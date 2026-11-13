@@ -207,19 +207,8 @@ MonoBehaviour:
   m_Name: Standalone
   m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.OpenXRSettings
   features:
-  - {fileID: 1096372286631141177}
-  - {fileID: 3521407536688045527}
-  - {fileID: -1264941826884239492}
-  - {fileID: -3293328043163913371}
-  - {fileID: -403856879876598192}
-  - {fileID: 399251573119796703}
-  - {fileID: -2367898662845912526}
-  - {fileID: -8399390468444689763}
-  - {fileID: -3726282867378594377}
-  - {fileID: 7444772631874126516}
-  - {fileID: 5195341551509778786}
-  - {fileID: 8957367926523931546}
   - {fileID: -1189633176224070359}
+  - {fileID: 1096372286631141177}
   - {fileID: 6759362413687488732}
   - {fileID: -8199564833664193456}
   - {fileID: -5446305245068398498}
@@ -231,6 +220,17 @@ MonoBehaviour:
   - {fileID: -3794500563437319328}
   - {fileID: -6662315026167237743}
   - {fileID: -7083124252189938872}
+  - {fileID: -3726282867378594377}
+  - {fileID: -8399390468444689763}
+  - {fileID: -1264941826884239492}
+  - {fileID: -2367898662845912526}
+  - {fileID: -403856879876598192}
+  - {fileID: -3293328043163913371}
+  - {fileID: 5195341551509778786}
+  - {fileID: 399251573119796703}
+  - {fileID: 8957367926523931546}
+  - {fileID: 7444772631874126516}
+  - {fileID: 3521407536688045527}
   - {fileID: -4566092923412860312}
   - {fileID: 2647556179630419671}
   - {fileID: 8337859523197326169}
@@ -488,7 +488,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6096094d69d82cc40947df806f66ab34, type: 3}
   m_Name: OpenXRCompositionLayersFeature Android
   m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.Features.CompositionLayers.OpenXRCompositionLayersFeature
-  m_enabled: 0
+  m_enabled: 1
   nameUi: Composition Layers Support
   version: 1.0.0
   featureIdInternal: com.unity.openxr.feature.compositionlayers

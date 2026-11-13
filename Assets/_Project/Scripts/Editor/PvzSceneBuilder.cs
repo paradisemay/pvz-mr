@@ -43,8 +43,8 @@ namespace Pvz.Editor
             var font = CyrillicFont();
             // Difficulty presets; existing assets are kept as they are (designers may have tuned them).
             var settings = LoadOrCreateSettings(SettingsPath, s => s.ConfigureDifficulty("Обычная", 90f, 1, 50, 1.2f, 2f, 2));
-            var easy = LoadOrCreateSettings(EasySettingsPath, s => s.ConfigureDifficulty("Лёгкая", 0f, 0, 0, 1.0f, 3f, 1));
-            var hard = LoadOrCreateSettings(HardSettingsPath, s => s.ConfigureDifficulty("Сложная", 45f, 1, 80, 1.6f, 1f, 3));
+            var easy = LoadOrCreateSettings(EasySettingsPath, s => { s.CopyLayoutFrom(settings); s.ConfigureDifficulty("Лёгкая", 0f, 0, 0, 1.0f, 3f, 1); });
+            var hard = LoadOrCreateSettings(HardSettingsPath, s => { s.CopyLayoutFrom(settings); s.ConfigureDifficulty("Сложная", 45f, 1, 80, 1.6f, 1f, 3); });
             var prefabs = new PvzPrefabBuilder(font);
 
             var layout = settings.Boxes; // single source of truth: ids, orders and start positions
@@ -77,7 +77,10 @@ namespace Pvz.Editor
             var mrSetup = new GameObject("MR Session Setup").AddComponent<MrSessionSetup>();
             mrSetup.Configure(camera, mockRoom, simulator, locomotion, playArea);
             // Room planes need the USE_SCENE permission on Quest; plane detection waits for it.
-            mrSetup.gameObject.AddComponent<ScenePermissionGate>().Configure(Object.FindFirstObjectByType<ARPlaneManager>());
+            // Saved disabled: Meta requires USE_SCENE before plane detection starts; the gate enables it.
+            var planeManager = Object.FindFirstObjectByType<ARPlaneManager>();
+            planeManager.enabled = false;
+            mrSetup.gameObject.AddComponent<ScenePermissionGate>().Configure(planeManager);
 
             var counter = (GameObject)PrefabUtility.InstantiatePrefab(counterPrefab, playArea);
             counter.transform.localPosition = CounterPosition;
@@ -151,7 +154,6 @@ namespace Pvz.Editor
             return settings;
         }
 
-        /// <summary>Three buttons on the player's side of the counter; hidden once the shift starts.</summary>
         /// <summary>«Стойку ко мне»: moves the play area in front of the player before the shift starts.</summary>
         private static void CreateRecenterButton(Transform parent, MrSessionSetup session, TMPro.TMP_FontAsset font)
         {
@@ -166,6 +168,7 @@ namespace Pvz.Editor
             go.AddComponent<RecenterButton>().Configure(session);
         }
 
+        /// <summary>Three buttons on the player's side of the counter; hidden once the shift starts.</summary>
         private static DifficultyButton[] CreateDifficultyButtons(Transform parent, ShiftSettings[] presets, TMPro.TMP_FontAsset font)
         {
             var colors = new[] { new Color(0.35f, 0.8f, 0.45f), new Color(0.95f, 0.75f, 0.2f), new Color(0.92f, 0.35f, 0.3f) };

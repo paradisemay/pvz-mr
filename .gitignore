@@ -57,3 +57,7 @@ Thumbs.db
 
 # Temp scenes left by the test runner when the editor exits in play mode
 /[Aa]ssets/InitTestScene*
+
+# Temporary copies made by AR Foundation during player builds
+/[Aa]ssets/XR/Temp/
+/[Aa]ssets/XR/Temp.meta

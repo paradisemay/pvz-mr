@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
-#if UNITY_ANDROID
+#if UNITY_ANDROID && !UNITY_EDITOR
 using UnityEngine.Android;
 #endif
 
@@ -8,8 +8,9 @@ namespace Pvz.Runtime
 {
     /// <summary>
     /// Meta's OpenXR runtime only gives room data (planes) to apps that hold the Android permission
-    /// <c>com.oculus.permission.USE_SCENE</c>. Plane detection stays off until the player grants it;
-    /// without it the game still works (boxes rest on the invisible floor), just without real tables and walls.
+    /// <c>com.oculus.permission.USE_SCENE</c>. The <see cref="ARPlaneManager"/> is saved disabled in the scene
+    /// and enabled here once the player grants it (or right away outside Android).
+    /// Without the permission the game still works: boxes rest on the invisible floor, the ceiling height falls back to settings.
     /// </summary>
     public sealed class ScenePermissionGate : MonoBehaviour
     {
@@ -18,16 +19,6 @@ namespace Pvz.Runtime
         [SerializeField] private ARPlaneManager planes;
 
         public bool Granted { get; private set; }
-
-        private void Awake()
-        {
-            if (Application.isEditor || Application.platform != RuntimePlatform.Android)
-            {
-                Granted = true; // no permission system in the editor
-                return;
-            }
-            if (planes != null) planes.enabled = false;
-        }
 
         private void Start()
         {
@@ -41,6 +32,9 @@ namespace Pvz.Runtime
             callbacks.PermissionGranted += OnGranted;
             callbacks.PermissionDenied += OnDenied;
             Permission.RequestUserPermission(ScenePermission, callbacks);
+#else
+            // Editor / Quest Link: no Android permission system.
+            OnGranted(ScenePermission);
 #endif
         }
 

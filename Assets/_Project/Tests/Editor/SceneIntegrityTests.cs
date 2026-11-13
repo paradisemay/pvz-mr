@@ -129,6 +129,13 @@ namespace Pvz.Editor.Tests
         }
 
         [Test]
+        public void PlaneDetection_IsSavedDisabled_UntilTheSceneIsPermitted()
+        {
+            Assert.IsFalse(Object.FindFirstObjectByType<UnityEngine.XR.ARFoundation.ARPlaneManager>(FindObjectsInactive.Include).enabled,
+                "Meta requires USE_SCENE before plane detection starts; ScenePermissionGate enables it");
+        }
+
+        [Test]
         public void BoxesHaveGrabAndPhysics()
         {
             foreach (var box in Object.FindObjectsByType<QrBox>(FindObjectsSortMode.None))
