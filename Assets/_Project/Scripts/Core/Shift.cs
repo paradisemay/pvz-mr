@@ -92,14 +92,20 @@ namespace Pvz.Core
             ? !Desk.HasCustomer
             : !HasOrdersLeft && !Desk.HasCustomer && !HasPendingIntake && !HasScheduledDelivery && _line.Count == 0;
 
-        /// <summary>Length of the shift, seconds; 0 = no time limit (the shift lasts until everything is sold).</summary>
-        public double TimeLimitSeconds { get; set; }
+        /// <summary>The shift clock (time only; the consequences of running out are handled here, in <see cref="Tick"/>).</summary>
+        public ShiftClock Clock { get; } = new ShiftClock();
 
-        /// <summary>When <see cref="Start"/> was called, or null before that.</summary>
-        public double? StartedAt { get; private set; }
+        /// <summary>Length of the shift, seconds; 0 = no time limit (the shift lasts until everything is sold).</summary>
+        public double TimeLimitSeconds
+        {
+            get => Clock.LimitSeconds;
+            set => Clock.LimitSeconds = value;
+        }
+
+        public double? StartedAt => Clock.StartedAt;
 
         /// <summary>The shift time ran out: nobody new joins the line and no delivery comes any more.</summary>
-        public bool IsTimeUp { get; private set; }
+        public bool IsTimeUp => Clock.HasRunOut;
 
         /// <summary>
         /// The shift time ran out (raised once). The argument lists the customers who were still waiting in line and
@@ -108,27 +114,24 @@ namespace Pvz.Core
         public event Action<IReadOnlyList<Visit>> TimeUp;
 
         /// <summary>Starts the shift clock (only the first call counts).</summary>
-        public void Start(double now)
-        {
-            if (StartedAt == null) StartedAt = now;
-        }
+        public void Start(double now) => Clock.Start(now);
 
         /// <summary>Seconds of the shift left, or null when there is no time limit or the clock has not started.</summary>
-        public double? TimeLeft(double now) => TimeLimitSeconds <= 0 || StartedAt == null
-            ? (double?)null
-            : Math.Max(0.0, StartedAt.Value + TimeLimitSeconds - now);
+        public double? TimeLeft(double now) => Clock.TimeLeft(now);
 
+        /// <summary>The time ran out: the line goes home (the customer at the counter stays), then <see cref="TimeUp"/>.</summary>
         private void CheckTime(double now)
         {
-            if (IsTimeUp || TimeLeft(now) != 0) return;
+            // A shift that already ended (everything sold) stops the clock: the time can no longer run out.
+            if (!IsTimeUp && IsOver) return;
+            if (!Clock.TryRunOut(now)) return;
             var sentAway = new List<Visit>();
             foreach (var visit in _line)
             {
                 if (!IsAtCounter(visit)) sentAway.Add(visit);
             }
             foreach (var visit in sentAway) _line.Remove(visit);
-            IsTimeUp = true; // committed before the event
-            TimeUp?.Invoke(sentAway);
+            TimeUp?.Invoke(sentAway); // the line and IsTimeUp are already committed
         }
 
         private bool IsAtCounter(Visit visit) => visit.Kind == VisitKind.Pickup

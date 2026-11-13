@@ -87,6 +87,26 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void AShiftThatEndedNormally_NeverRunsOutOfTime()
+        {
+            using (var shift = new Shift(new BoxCatalog(new[] { new BoxRecord(TestData.Box1, "1435") }),
+                       new SystemRandomSource(7)) { TimeLimitSeconds = 30 })
+            {
+                shift.Start(0);
+                shift.TryEnqueue(out var visit);
+                shift.OpenNext(1);
+                shift.Desk.Handover(TestData.Box1, 2);
+                Assert.IsTrue(shift.IsOver, "everything sold");
+                var raised = false;
+                shift.TimeUp += _ => raised = true;
+
+                shift.Tick(100);
+                Assert.IsFalse(raised);
+                Assert.IsFalse(shift.IsTimeUp, "the summary must not be replaced by «time is up»");
+            }
+        }
+
+        [Test]
         public void ClockDoesNotRun_UntilStarted()
         {
             using (var shift = TimedShift(10))

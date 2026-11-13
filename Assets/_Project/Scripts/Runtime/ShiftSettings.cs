@@ -119,8 +119,8 @@ namespace Pvz.Runtime
 
         /// <summary>Used by the editor builder to create the difficulty presets.</summary>
         internal void ConfigureDifficulty(string name, float patience, int supplyAfter, int bagChance,
-            float walkSpeed, float betweenCustomers, int queue, bool tutorial = false, int returnChance = 0,
-            int urgentChance = 0, int forgotNumberChance = 0, float shiftSeconds = 0f)
+            float walkSpeed, float betweenCustomers, int queue, bool tutorial, int returnChance,
+            int urgentChance, int forgotNumberChance, float shiftSeconds)
         {
             shiftDurationSeconds = shiftSeconds;
             returnChancePercent = returnChance;

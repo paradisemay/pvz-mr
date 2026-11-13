@@ -294,6 +294,22 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest, Timeout(60000)]
+        public IEnumerator WhenTimeRunsOut_WhileTheFirstCustomerWalksIn_TheShiftEndsAtOnce()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            yield return WaitUntil(() => director.CurrentCustomer != null && director.CurrentCustomer.IsWalking && !director.Desk.HasCustomer,
+                20f, "the first customer walks to the counter");
+
+            director.UseTimeLimit(Time.timeAsDouble - director.Shift.StartedAt.Value); // the time is up right now
+            yield return WaitUntil(() => director.IsShiftOver, 10f, "the shift ends");
+            Assert.IsTrue(director.Shift.IsTimeUp);
+            Assert.IsFalse(director.Desk.HasCustomer, "the customer never reached the counter");
+            Assert.AreEqual(0, director.QueuedVisits.Count);
+            var summary = Object.FindFirstObjectByType<ShiftSummaryPanel>(FindObjectsInactive.Include);
+            StringAssert.Contains("время вышло", summary.Text);
+        }
+
+        [UnityTest, Timeout(60000)]
         public IEnumerator PatienceBar_ShrinksWhileTheCustomerWaits_AndHidesWithoutPatience()
         {
             var director = Object.FindFirstObjectByType<ShiftDirector>();

@@ -61,15 +61,16 @@ namespace Pvz.Runtime
         /// <summary>Sets how often customers come to return a box (tests).</summary>
         internal void UseReturnChance(int percent) => Shift.ReturnChancePercent = percent;
 
-        /// <summary>Sets how often customers are in a hurry or forget the order number (tests).</summary>
         /// <summary>Sets the shift length, counted from the start of the shift (tests; 0 = no limit).</summary>
         internal void UseTimeLimit(double seconds) => Shift.TimeLimitSeconds = seconds;
 
+        /// <summary>Sets how often customers are in a hurry or forget the order number (tests).</summary>
         internal void UseEventChances(int urgentPercent, int forgotNumberPercent)
         {
             Shift.UrgentChancePercent = urgentPercent;
             Shift.ForgotNumberChancePercent = forgotNumberPercent;
         }
+
         public IReadOnlyList<DifficultyButton> DifficultyButtons => difficultyButtons;
 
         public event Action ShiftEnded;
@@ -111,7 +112,7 @@ namespace Pvz.Runtime
 
         private void Update()
         {
-            if (Shift == null) return;
+            if (Shift == null || IsShiftOver) return; // the clock and patience stop with the shift
             Shift.Tick(Now);
             _presenter.UpdatePatience(Now);
             _presenter.UpdateClock(Now);
@@ -244,6 +245,7 @@ namespace Pvz.Runtime
                 }
 
                 yield return FillQueue();
+                if (Shift.IsOver) break; // the time ran out while the line was filling
                 if (_line.Count > 0)
                 {
                     yield return ServeFrontCustomer();
@@ -400,7 +402,7 @@ namespace Pvz.Runtime
 
         private void OnBoxScanned(QrBox box)
         {
-            if (box != null) Shift.Scan(box.Id);
+            if (box != null && !IsShiftOver) Shift.Scan(box.Id); // after the summary nothing scores any more
         }
 
         private void OnScanMissed() => _presenter.ShowScanMissed();
@@ -417,12 +419,14 @@ namespace Pvz.Runtime
 
         private void OnBoxEnteredZone(QrBox box)
         {
+            if (IsShiftOver) return;
             var outcome = Desk.Handover(box.Id, Now);
             if (outcome.Status == HandoverStatus.Accepted) GiveToCustomer(box);
         }
 
         private void OnBagEnteredZone(ParcelBag bag)
         {
+            if (IsShiftOver) return;
             if (Desk.HandOverBag(Now) == BagStatus.Accepted) GiveToCustomer(bag);
         }
 

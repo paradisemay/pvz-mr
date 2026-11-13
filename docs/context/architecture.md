@@ -70,6 +70,15 @@
 - Формат номера («••81») и реплики — `ShiftPresenter.SpokenNumber` / `GreetingFor`. Сканер намеренно показывает
   полный номер коробки: это способ найти заказ забывчивого клиента.
 
+## Решения T015 (таймер смены)
+- Время — отдельный тип Core `ShiftClock` (лимит, старт, `TimeLeft(now)`, `TryRunOut(now)` — ровно один раз);
+  последствия решает `Shift`: в `Tick(now)` (как и терпение) при истечении времени очередь, кроме стоящего у стойки,
+  уходит, затем `TimeUp(sentAway)` — после фиксации состояния. При вышедшем времени `CanEnqueue` и `IsDeliveryDue`
+  ложны, а `IsOver` = «у стойки никого»; необслуженные заказы остаются на складе.
+- Директор только уводит клиентов из `sentAway` и не доводит до стойки того, чей визит уже снят (`IsStillQueued`).
+- Формат часов — `ShiftPresenter.ClockText`; строка табло обновляется раз в секунду (`UpdateClock`).
+- Длительность — `ShiftSettings.shiftDurationSeconds`; параметры пресетов передаются билдером явно, без значений по умолчанию.
+
 ## Модули
 ```
 Core/
@@ -81,7 +90,8 @@ Core/
   Visit, ReturnRequest  визит клиента в очереди: заказ или возврат проданной коробки
   PickupDesk         стойка: OpenOrder / OpenReturn / Scan / Handover / HandOverBag / Abandon → исходы + события
   Outcomes           ScanOutcome, HandoverOutcome, BagStatus, OrderResult
-  Shift              смена: склад, очередь, поставка, терпение (Tick), конец смены
+  Shift              смена: склад, очередь, поставка, терпение и таймер (Tick), конец смены
+  ShiftClock         часы смены: лимит, оставшееся время, «время вышло» ровно один раз
   SupplyPlan         запланированная поставка
   ShiftStats         очки и статистика; ScoringRules — таблица очков; ShiftRating — оценка смены
   BestScores         рекорды по сложностям (IScoreStore, MemoryScoreStore, RecordResult)
