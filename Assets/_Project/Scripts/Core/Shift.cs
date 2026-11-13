@@ -318,28 +318,31 @@ namespace Pvz.Core
                 Join(visit);
                 return true;
             }
-            var order = NextOrder();
-            if (order == null) return false;
-            visit = Book.Line[Book.Line.Count - 1];
-            return true;
+            visit = JoinPickup();
+            return visit != null;
         }
 
         /// <summary>
         /// Reserves an order for a new pickup customer regardless of <see cref="QueueLength"/> (tests and single-customer use).
         /// Returns null when every order in the warehouse is already taken by someone.
         /// </summary>
-        public Order NextOrder()
+        public Order NextOrder() => JoinPickup()?.Order;
+
+        /// <summary>A new pickup customer joins the line; returns their visit (null when nothing is left to promise).</summary>
+        private Visit JoinPickup()
         {
             var order = _generator.CreateRandomOrder(Desk.Catalog, ReservedNumbers(), KnownOrderNumbers());
             if (order == null) return null;
-            Join(Visit.Pickup(order));
-            return order;
+            var visit = Visit.Pickup(order);
+            Join(visit);
+            return visit;
         }
 
         private void Join(Visit visit)
         {
+            // Everything about the shift is up to date before the book tells its listeners.
+            MaxQueueLength = Math.Max(MaxQueueLength, Book.Line.Count + 1);
             Book.Join(visit);
-            MaxQueueLength = Math.Max(MaxQueueLength, Book.Line.Count);
         }
 
         /// <summary>The first customer in line reached the counter: their order (or return) is opened.</summary>
@@ -405,6 +408,8 @@ namespace Pvz.Core
         private HashSet<string> ReservedNumbers()
         {
             var numbers = new HashSet<string>();
+            // An order opened at the desk without joining the line (tests, single-customer use) is taken too.
+            if (Desk.HasActiveOrder) numbers.Add(Desk.ActiveOrder.Number);
             foreach (var visit in Book.Line)
             {
                 if (visit.ReservedOrderNumber != null) numbers.Add(visit.ReservedOrderNumber);
