@@ -46,6 +46,9 @@ namespace Pvz.Core
         /// <summary>Returns taken back from customers.</summary>
         public int ReturnsAccepted { get; private set; }
 
+        /// <summary>Urgent orders handed over in full.</summary>
+        public int UrgentServed { get; private set; }
+
         /// <summary>Points every accepted return gives.</summary>
         public int PointsPerReturn => _rules.ReturnService;
 
@@ -119,6 +122,11 @@ namespace Pvz.Core
             _totalServiceSeconds += result.DurationSeconds;
             if (result.Mistakes == 0) FlawlessOrders++;
             var orderPoints = _rules.PointsForOrder(result.DurationSeconds, result.Mistakes);
+            if (result.Order.IsUrgent)
+            {
+                UrgentServed++;
+                orderPoints += _rules.UrgentBonus;
+            }
             Score += orderPoints;
             // Points shown for the order include the bag, which was already added to the score when handed over.
             LastOrderPoints = orderPoints + _bagPointsThisOrder;

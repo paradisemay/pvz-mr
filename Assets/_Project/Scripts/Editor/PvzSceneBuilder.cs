@@ -42,9 +42,9 @@ namespace Pvz.Editor
             EnsureFolders();
             var font = CyrillicFont();
             // Difficulty presets; existing assets are kept as they are (designers may have tuned them).
-            var settings = LoadOrCreateSettings(SettingsPath, s => s.ConfigureDifficulty("Обычная", 90f, 1, 50, 1.2f, 2f, 2, returnChance: 20));
+            var settings = LoadOrCreateSettings(SettingsPath, s => s.ConfigureDifficulty("Обычная", 90f, 1, 50, 1.2f, 2f, 2, returnChance: 20, urgentChance: 15, forgotNumberChance: 15));
             var easy = LoadOrCreateSettings(EasySettingsPath, s => { s.CopyLayoutFrom(settings); s.ConfigureDifficulty("Лёгкая", 0f, 0, 0, 1.0f, 3f, 1, tutorial: true); });
-            var hard = LoadOrCreateSettings(HardSettingsPath, s => { s.CopyLayoutFrom(settings); s.ConfigureDifficulty("Сложная", 45f, 1, 80, 1.6f, 1f, 3, returnChance: 35); });
+            var hard = LoadOrCreateSettings(HardSettingsPath, s => { s.CopyLayoutFrom(settings); s.ConfigureDifficulty("Сложная", 45f, 1, 80, 1.6f, 1f, 3, returnChance: 35, urgentChance: 25, forgotNumberChance: 20); });
             var prefabs = new PvzPrefabBuilder(font);
 
             var layout = settings.Boxes; // single source of truth: ids, orders and start positions

@@ -30,6 +30,7 @@ namespace Pvz.Runtime.Tests
             director.UseRandomSeed(12345);   // same order sequence every run
             director.UsePatience(0);         // customers wait as long as the test needs
             director.UseReturnChance(0);     // only pickups unless a test asks for returns
+            director.UseEventChances(0, 0);  // no urgent or forgetful customers unless a test asks for them
             Time.timeScale = TimeScale;
         }
 
@@ -222,6 +223,43 @@ namespace Pvz.Runtime.Tests
             Assert.AreEqual(1, director.Stats.ReturnsAccepted);
             Assert.IsFalse(director.Desk.HasCustomer);
             yield return WaitUntil(() => returned == null, 10f, "the returned box is taken back");
+        }
+
+        [UnityTest, Timeout(60000)]
+        public IEnumerator ForgetfulCustomer_GivesOnlyTheEndOfTheNumber_AndIsServedAfterScanning()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            var board = Object.FindFirstObjectByType<CounterBoard>();
+            director.UseBagChance(0);
+            director.UseEventChances(0, 100); // every customer forgets the number (where the end is unambiguous)
+            yield return WaitUntil(() => director.Desk.HasActiveOrder, 40f, "first customer at the counter");
+
+            var order = director.Desk.ActiveOrder;
+            Assert.IsTrue(order.ForgotNumber);
+            StringAssert.Contains("Забыл номер", director.CurrentCustomer.LastLine);
+            StringAssert.Contains(order.NumberHint, director.CurrentCustomer.LastLine);
+            StringAssert.DoesNotContain(order.Number, director.CurrentCustomer.LastLine, "the customer does not know the full number");
+            StringAssert.Contains("••" + order.NumberHint, board.Headline);
+            StringAssert.DoesNotContain(order.Number, board.Headline);
+
+            // A wrong box: the customer objects, still knowing only the end of the number.
+            var other = director.RemainingBoxes.First(b => !order.Contains(b.Id));
+            var home = other.transform.position;
+            yield return PlaceInZone(director, other);
+            StringAssert.Contains("не мой заказ", director.CurrentCustomer.LastLine);
+            StringAssert.Contains("••" + order.NumberHint, director.CurrentCustomer.LastLine);
+            StringAssert.DoesNotContain(order.Number, director.CurrentCustomer.LastLine);
+            yield return MoveTo(other, home);
+
+            foreach (var id in order.Boxes)
+            {
+                Assert.IsTrue(director.TryGetBox(id, out var box));
+                director.Scanner.ScanDirect(box);
+                StringAssert.Contains("НУЖНАЯ КОРОБКА", director.Scanner.ScreenText);
+                StringAssert.Contains(order.Number, director.Scanner.ScreenText, "the scanner tells the full number");
+                yield return MoveTo(box, director.Zone.transform.position + Vector3.up * 0.05f);
+            }
+            yield return WaitUntil(() => director.Stats.OrdersCompleted == 1, 10f, "order handed over");
         }
 
         [UnityTest, Timeout(60000)]

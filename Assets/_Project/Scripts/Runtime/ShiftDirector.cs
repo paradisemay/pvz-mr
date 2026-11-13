@@ -60,6 +60,13 @@ namespace Pvz.Runtime
 
         /// <summary>Sets how often customers come to return a box (tests).</summary>
         internal void UseReturnChance(int percent) => Shift.ReturnChancePercent = percent;
+
+        /// <summary>Sets how often customers are in a hurry or forget the order number (tests).</summary>
+        internal void UseEventChances(int urgentPercent, int forgotNumberPercent)
+        {
+            Shift.UrgentChancePercent = urgentPercent;
+            Shift.ForgotNumberChancePercent = forgotNumberPercent;
+        }
         public IReadOnlyList<DifficultyButton> DifficultyButtons => difficultyButtons;
 
         public event Action ShiftEnded;
@@ -141,6 +148,9 @@ namespace Pvz.Runtime
                 PatienceSeconds = settings.PatienceSeconds,
                 QueueLength = settings.QueueLength,
                 ReturnChancePercent = settings.ReturnChancePercent,
+                UrgentChancePercent = settings.UrgentChancePercent,
+                UrgentPatienceFactor = settings.UrgentPatienceFactor,
+                ForgotNumberChancePercent = settings.ForgotNumberChancePercent,
             };
             if (Shift.ReturnChancePercent > 0 && returnBoxPrefab == null)
             {

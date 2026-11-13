@@ -45,6 +45,9 @@ MonoBehaviour:
     startYaw: 0
   bagChancePercent: 80
   returnChancePercent: 35
+  urgentChancePercent: 25
+  urgentPatienceFactor: 0.6
+  forgotNumberChancePercent: 20
   firstCustomerDelay: 2
   delayBetweenCustomers: 1
   thanksDuration: 1.5
@@ -61,4 +64,5 @@ MonoBehaviour:
   bagPoints: 20
   abandonPenalty: 50
   returnPoints: 30
+  urgentBonus: 50
   defaultCeilingHeight: 2.4

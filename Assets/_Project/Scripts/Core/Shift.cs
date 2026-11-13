@@ -90,7 +90,10 @@ namespace Pvz.Core
         public void UseRandomSource(IRandomSource random)
         {
             _random = random ?? throw new ArgumentNullException(nameof(random));
-            _generator = new OrderGenerator(_random, BagChancePercent);
+            _generator = new OrderGenerator(_random, BagChancePercent) {
+                UrgentChancePercent = UrgentChancePercent,
+                ForgotNumberChancePercent = ForgotNumberChancePercent,
+            };
         }
 
         /// <summary>Share of the patience after which the customer starts hurrying the player.</summary>
@@ -109,6 +112,24 @@ namespace Pvz.Core
         /// <summary>How long a customer waits at the counter, seconds; 0 = forever.</summary>
         public double PatienceSeconds { get; set; }
 
+        private double _urgentPatienceFactor = 0.6;
+
+        /// <summary>Share (0..1] of the usual patience an urgent customer has.</summary>
+        public double UrgentPatienceFactor
+        {
+            get => _urgentPatienceFactor;
+            set
+            {
+                // 0 would mean "waits forever" — the opposite of urgent.
+                if (value <= 0 || value > 1) throw new ArgumentOutOfRangeException(nameof(value), value, "Expected a share in (0, 1].");
+                _urgentPatienceFactor = value;
+            }
+        }
+
+        /// <summary>How long the customer with <paramref name="order"/> waits at the counter, seconds; 0 = forever.</summary>
+        public double PatienceFor(Order order) =>
+            order != null && order.IsUrgent ? PatienceSeconds * UrgentPatienceFactor : PatienceSeconds;
+
         /// <summary>
         /// Advances customer patience. Call regularly with the current time.
         /// A customer who has already received part of the order waits until it is complete: leaving with some boxes
@@ -116,16 +137,17 @@ namespace Pvz.Core
         /// </summary>
         public void Tick(double now)
         {
-            if (PatienceSeconds <= 0 || !Desk.HasActiveOrder) return;
+            if (!Desk.HasActiveOrder) return;
             var session = Desk.ActiveSession;
-            if (session.DeliveredCount > 0) return;
+            var patience = PatienceFor(session.Order);
+            if (patience <= 0 || session.DeliveredCount > 0) return;
             var waited = now - session.OpenedAt;
-            if (!session.Hurried && waited >= PatienceSeconds * HurryFraction)
+            if (!session.Hurried && waited >= patience * HurryFraction)
             {
                 session.MarkHurried();
                 CustomerHurried?.Invoke(session.Order);
             }
-            if (waited >= PatienceSeconds) Desk.Abandon();
+            if (waited >= patience) Desk.Abandon();
         }
 
         /// <summary>
@@ -134,10 +156,11 @@ namespace Pvz.Core
         /// </summary>
         public double? PatienceRemaining(double now)
         {
-            if (PatienceSeconds <= 0 || !Desk.HasActiveOrder) return null;
+            if (!Desk.HasActiveOrder) return null;
             var session = Desk.ActiveSession;
-            if (session.DeliveredCount > 0) return null;
-            var left = 1.0 - (now - session.OpenedAt) / PatienceSeconds;
+            var patience = PatienceFor(session.Order);
+            if (patience <= 0 || session.DeliveredCount > 0) return null;
+            var left = 1.0 - (now - session.OpenedAt) / patience;
             return Math.Max(0.0, Math.Min(1.0, left));
         }
 
@@ -146,6 +169,20 @@ namespace Pvz.Core
         {
             get => _generator.BagChancePercent;
             set => _generator.BagChancePercent = value;
+        }
+
+        /// <summary>Probability (0..100) that a customer is in a hurry (less patience, bonus points).</summary>
+        public int UrgentChancePercent
+        {
+            get => _generator.UrgentChancePercent;
+            set => _generator.UrgentChancePercent = value;
+        }
+
+        /// <summary>Probability (0..100) that a customer remembers only the end of the order number.</summary>
+        public int ForgotNumberChancePercent
+        {
+            get => _generator.ForgotNumberChancePercent;
+            set => _generator.ForgotNumberChancePercent = value;
         }
 
         /// <summary>How many customers may wait in line (including the one at the counter).</summary>
@@ -196,7 +233,7 @@ namespace Pvz.Core
         /// </summary>
         public Order NextOrder()
         {
-            var order = _generator.CreateRandomOrder(Desk.Catalog, ReservedNumbers());
+            var order = _generator.CreateRandomOrder(Desk.Catalog, ReservedNumbers(), KnownOrderNumbers());
             if (order == null) return null;
             Join(Visit.Pickup(order));
             return order;
@@ -253,6 +290,17 @@ namespace Pvz.Core
         {
             var visit = _line.Find(v => v.Kind == VisitKind.Pickup && v.Order == order);
             if (visit != null) LeaveQueue(visit);
+        }
+
+        /// <summary>
+        /// Every order this shift has or will have: stock, deliveries waiting to be scanned and the planned delivery.
+        /// A forgetful customer's hint must stay unambiguous against all of them.
+        /// </summary>
+        private IEnumerable<string> KnownOrderNumbers()
+        {
+            foreach (var number in _orderNumbers) yield return number;
+            if (!HasScheduledDelivery) yield break;
+            foreach (var box in _supplyPlan.Boxes) yield return box.OrderNumber;
         }
 
         private HashSet<string> ReservedNumbers()

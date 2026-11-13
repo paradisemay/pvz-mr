@@ -63,6 +63,14 @@ namespace Pvz.Runtime
         [Tooltip("Chance (0..100) that a new customer brings back a box sold earlier in the shift.")]
         [SerializeField, Range(0, 100)] private int returnChancePercent = 20;
 
+        [Header("Random events")]
+        [Tooltip("Chance (0..100) that a customer is in a hurry: less patience, bonus points.")]
+        [SerializeField, Range(0, 100)] private int urgentChancePercent = 15;
+        [Tooltip("Share of the usual patience an urgent customer has.")]
+        [SerializeField, Range(0.1f, 1f)] private float urgentPatienceFactor = 0.6f;
+        [Tooltip("Chance (0..100) that a customer remembers only the last digits of the order number.")]
+        [SerializeField, Range(0, 100)] private int forgotNumberChancePercent = 15;
+
         [Header("Pacing (seconds, m/s)")]
         [SerializeField, Min(0)] private float firstCustomerDelay = 2f;
         [SerializeField, Min(0)] private float delayBetweenCustomers = 2f;
@@ -85,6 +93,7 @@ namespace Pvz.Runtime
         [SerializeField] private int bagPoints = 20;
         [SerializeField] private int abandonPenalty = 50;
         [SerializeField] private int returnPoints = 30;
+        [SerializeField] private int urgentBonus = 50;
 
         [Header("Room")]
         [Tooltip("Used for the supply drop when the headset has not found the ceiling.")]
@@ -108,9 +117,12 @@ namespace Pvz.Runtime
 
         /// <summary>Used by the editor builder to create the difficulty presets.</summary>
         internal void ConfigureDifficulty(string name, float patience, int supplyAfter, int bagChance,
-            float walkSpeed, float betweenCustomers, int queue, bool tutorial = false, int returnChance = 0)
+            float walkSpeed, float betweenCustomers, int queue, bool tutorial = false, int returnChance = 0,
+            int urgentChance = 0, int forgotNumberChance = 0)
         {
             returnChancePercent = returnChance;
+            urgentChancePercent = urgentChance;
+            forgotNumberChancePercent = forgotNumberChance;
             queueLength = queue;
             showTutorial = tutorial;
             displayName = name;
@@ -126,6 +138,9 @@ namespace Pvz.Runtime
         public float DefaultCeilingHeight => defaultCeilingHeight;
         public int BagChancePercent => bagChancePercent;
         public int ReturnChancePercent => returnChancePercent;
+        public int UrgentChancePercent => urgentChancePercent;
+        public float UrgentPatienceFactor => urgentPatienceFactor;
+        public int ForgotNumberChancePercent => forgotNumberChancePercent;
 
         public SupplyPlan CreateSupplyPlan() => !HasSupply
             ? SupplyPlan.None
@@ -151,6 +166,7 @@ namespace Pvz.Runtime
             BagService = bagPoints,
             AbandonPenalty = abandonPenalty,
             ReturnService = returnPoints,
+            UrgentBonus = urgentBonus,
         };
 
         public bool TryGetOrderNumber(BoxId id, out string orderNumber)
