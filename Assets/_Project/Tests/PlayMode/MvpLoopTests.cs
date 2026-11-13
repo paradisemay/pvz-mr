@@ -76,7 +76,11 @@ namespace Pvz.Runtime.Tests
                 if (!director.Desk.HasActiveOrder) continue;
 
                 var order = director.Desk.ActiveOrder;
-                if (order.Boxes.Count > 1) multiBoxOrders++;
+                if (order.Boxes.Count > 1)
+                {
+                    multiBoxOrders++;
+                    Assert.AreEqual(3, order.Boxes.Count, "«большой заказ»: three boxes");
+                }
 
                 var other = director.RemainingBoxes.FirstOrDefault(b => !order.Contains(b.Id) && !director.Shift.IsPendingIntake(b.Id));
                 if (!wrongBoxTried && other != null)
@@ -117,21 +121,21 @@ namespace Pvz.Runtime.Tests
             }
 
             Assert.IsTrue(wrongBoxTried);
-            Assert.AreEqual(3, received, "the supply delivery has 3 boxes");
-            Assert.AreEqual(1, multiBoxOrders, "BOX-101 and BOX-102 form one order");
+            Assert.AreEqual(4, received, "the supply delivery has 4 boxes");
+            Assert.AreEqual(1, multiBoxOrders, "BOX-101, BOX-102 and BOX-104 form one big order");
             Assert.AreEqual(5, director.OrdersTotal);
             Assert.AreEqual(5, director.Stats.OrdersCompleted);
             Assert.AreEqual(5, director.Stats.BagsGiven);
-            Assert.AreEqual(3, director.Stats.BoxesReceived);
+            Assert.AreEqual(4, director.Stats.BoxesReceived);
             Assert.Greater(director.Stats.Score, 0);
             Assert.AreEqual(0, director.Desk.Catalog.Count);
 
             var summary = Object.FindFirstObjectByType<ShiftSummaryPanel>(FindObjectsInactive.Include);
             Assert.IsTrue(summary.IsVisible, "shift summary should be visible");
             StringAssert.Contains("Обслужено клиентов: 5/5", summary.Text);
-            StringAssert.Contains("Принято из поставки: 3", summary.Text);
+            StringAssert.Contains("Принято из поставки: 4", summary.Text);
             StringAssert.Contains("Выдано пакетов: 5", summary.Text);
-            StringAssert.Contains("Обработано товаров: 6", summary.Text, "3 + 3 boxes, the two-box order counts twice");
+            StringAssert.Contains("Обработано товаров: 7", summary.Text, "3 stock boxes + 4 supply boxes, each box of the big order counts");
             StringAssert.Contains("Макс. очередь: 2", summary.Text);
             StringAssert.Contains("НОВЫЙ РЕКОРД", summary.Text, "the first shift on an empty store is a record");
             Assert.AreEqual(director.Stats.Score, director.BestScores.Get(director.ActiveSettings.DifficultyId));
