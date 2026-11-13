@@ -67,6 +67,24 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest]
+        public IEnumerator ResetButton_PutsTheBoxesBack_AndForgetsTheSavedLayout()
+        {
+            var box = Box("BOX-001");
+            var defaultPlace = box.transform.localPosition;
+            PutDown(box, box.transform.parent.TransformPoint(new Vector3(0.7f, 0.13f, -1.3f)));
+
+            yield return Load(); // the box comes back at the player's place
+            Assert.Greater(Vector3.Distance(defaultPlace, Box("BOX-001").transform.localPosition), 0.3f, "restored first");
+
+            Object.FindFirstObjectByType<ResetWarehouseButton>(FindObjectsInactive.Include).Press();
+            Assert.Less(Vector3.Distance(defaultPlace, Box("BOX-001").transform.localPosition), 0.01f, "back where it started");
+
+            yield return Load(); // and the next session no longer remembers the old place
+            Assert.AreEqual(0, Object.FindFirstObjectByType<WarehouseLayoutKeeper>().Restored);
+            Assert.Less(Vector3.Distance(defaultPlace, Box("BOX-001").transform.localPosition), 0.01f);
+        }
+
+        [UnityTest]
         public IEnumerator TwoBoxesSavedOnTheSameSpot_OnlyOneIsRestoredThere()
         {
             var spot = new Vector3(-0.4f, 0.13f, -1.4f);

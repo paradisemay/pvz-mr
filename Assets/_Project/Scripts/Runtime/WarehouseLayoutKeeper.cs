@@ -30,7 +30,38 @@ namespace Pvz.Runtime
 
         private WarehouseLayout Layout => _layout ?? (_layout = _store.Load());
 
-        private void Awake() => _store = new WarehouseLayoutStore(StoreOverride ?? new PlayerPrefsTextStore());
+        /// <summary>Where the scene put each stock box (the layout before the player changed anything).</summary>
+        private (Vector3 position, float yaw)[] _defaults = Array.Empty<(Vector3, float)>();
+
+        private void Awake()
+        {
+            _store = new WarehouseLayoutStore(StoreOverride ?? new PlayerPrefsTextStore());
+            _defaults = new (Vector3, float)[boxes.Length];
+            for (var i = 0; i < boxes.Length; i++)
+            {
+                if (boxes[i] == null) continue;
+                _defaults[i] = (boxes[i].transform.localPosition, boxes[i].transform.localRotation.eulerAngles.y);
+            }
+        }
+
+        /// <summary>
+        /// «Сбросить склад»: forgets the saved arrangement and puts the stock boxes back where the scene had them
+        /// (e.g. the furniture in the room changed). Returns how many boxes were moved back.
+        /// </summary>
+        public int ResetLayout()
+        {
+            _layout = WarehouseLayout.Empty;
+            Save();
+            var moved = 0;
+            for (var i = 0; i < boxes.Length; i++)
+            {
+                var box = boxes[i];
+                if (box == null || box.IsHandedOver) continue;
+                box.MoveToSavedPlace(_defaults[i].position, _defaults[i].yaw);
+                moved++;
+            }
+            return moved;
+        }
 
         private void OnEnable()
         {

@@ -133,8 +133,9 @@ namespace Pvz.Editor
             director.ConfigureEffects(counter.GetComponentInChildren<FeedbackEffects>(true));
 
             // The player's arrangement of the stock boxes is kept between sessions (T017).
-            new GameObject("Warehouse Layout").AddComponent<WarehouseLayoutKeeper>()
-                .Configure(boxes.ToArray(), counter.GetComponentInChildren<HandoverZone>(true));
+            var keeper = new GameObject("Warehouse Layout").AddComponent<WarehouseLayoutKeeper>();
+            keeper.Configure(boxes.ToArray(), counter.GetComponentInChildren<HandoverZone>(true));
+            CreateResetWarehouseButton(startMenu, keeper, font);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
@@ -172,6 +173,20 @@ namespace Pvz.Editor
                 new Color(0.08f, 0.1f, 0.14f), 0.6f, localRot: Quaternion.Euler(90, 0, 0));
             go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
             go.AddComponent<RecenterButton>().Configure(session);
+        }
+
+        /// <summary>«Сбросить склад» behind «Стойку ко мне»: boxes back to their first places, saved layout forgotten (T020).</summary>
+        private static void CreateResetWarehouseButton(Transform parent, WarehouseLayoutKeeper keeper, TMPro.TMP_FontAsset font)
+        {
+            var go = new GameObject("Reset Warehouse Button");
+            go.transform.SetParent(parent, false);
+            go.transform.position = CounterPosition + new Vector3(-0.15f, PvzPrefabBuilder.CounterHeight + 0.03f, 0.14f);
+            Primitive(PrimitiveType.Cube, "Cap", go.transform, Vector3.zero, new Vector3(0.22f, 0.05f, 0.13f),
+                Lit("ResetWarehouseButton", new Color(0.95f, 0.6f, 0.25f)), true);
+            Text("Label", go.transform, new Vector3(0, 0.027f, 0), new Vector2(0.21f, 0.11f), "СБРОСИТЬ\nСКЛАД", font,
+                new Color(0.08f, 0.1f, 0.14f), 0.6f, localRot: Quaternion.Euler(90, 0, 0));
+            go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
+            go.AddComponent<ResetWarehouseButton>().Configure(keeper);
         }
 
         /// <summary>Three buttons on the player's side of the counter; hidden once the shift starts.</summary>
