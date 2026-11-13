@@ -17,6 +17,12 @@ namespace Pvz.Core
         /// <summary>Probability (0..100) that a customer also wants a bag.</summary>
         public int BagChancePercent { get; set; }
 
+        /// <summary>Probability (0..100) that a customer is in a hurry.</summary>
+        public int UrgentChancePercent { get; set; }
+
+        /// <summary>Probability (0..100) that a customer remembers only the end of the order number.</summary>
+        public int ForgotNumberChancePercent { get; set; }
+
         /// <summary>
         /// Picks a random box and returns the order it belongs to (all boxes sharing that order number),
         /// or null if the catalog is empty.
@@ -41,9 +47,25 @@ namespace Pvz.Core
             {
                 if (box.OrderNumber == picked.OrderNumber) boxes.Add(box.Id);
             }
-            // Roll only when bags are possible, so shifts without bags keep the same order sequence.
-            var needsBag = BagChancePercent > 0 && _random.Range(0, 100) < BagChancePercent;
-            return new Order(picked.OrderNumber, boxes, needsBag);
+            // Roll each trait only when it is possible, so shifts without it keep the same order sequence.
+            var needsBag = Roll(BagChancePercent);
+            var urgent = Roll(UrgentChancePercent);
+            var forgot = Roll(ForgotNumberChancePercent) && HintIsUnambiguous(catalog, picked.OrderNumber);
+            return new Order(picked.OrderNumber, boxes, needsBag, urgent, forgot);
+        }
+
+        private bool Roll(int chancePercent) => chancePercent > 0 && _random.Range(0, 100) < chancePercent;
+
+        /// <summary>No other order in the warehouse ends with the same digits, so the hint names exactly one order.</summary>
+        private static bool HintIsUnambiguous(BoxCatalog catalog, string number)
+        {
+            if (!Order.CanHint(number)) return false;
+            var hint = Order.HintOf(number);
+            foreach (var box in catalog.Boxes)
+            {
+                if (box.OrderNumber != number && box.OrderNumber.EndsWith(hint, StringComparison.Ordinal)) return false;
+            }
+            return true;
         }
     }
 }

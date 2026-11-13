@@ -14,6 +14,8 @@ namespace Pvz.Core
         public int BagService { get; set; } = 20;
         public int AbandonPenalty { get; set; } = 50;
         public int ReturnService { get; set; } = 30;
+        /// <summary>Extra points for serving a customer who was in a hurry (on top of <see cref="PointsForOrder"/>).</summary>
+        public int UrgentBonus { get; set; } = 50;
 
         public static ScoringRules Default => new ScoringRules();
 

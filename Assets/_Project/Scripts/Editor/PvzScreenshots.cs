@@ -124,6 +124,15 @@ namespace Pvz.Editor
             Object.DestroyImmediate(returnBox.gameObject);
             customer.ShowPatience(0.55);
 
+            // Random events: an urgent customer who forgot the order number.
+            customer.Say("Срочно! Номер забыл…\nКончается на 81");
+            customer.ShowPatience(0.3);
+            board.ShowHeadline("СРОЧНО: заказ №••81", CounterBoard.Bad);
+            board.ShowStatus("Найдите коробку сканером", CounterBoard.Neutral);
+            scanner.ShowResult("Заказ №2781\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
+            Capture("11_events", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.1f, 1.55f, 1.3f), 70f);
+            customer.ShowPatience(0.55);
+
             // Supply delivery: boxes just appeared under the ceiling.
             var supply = Object.FindFirstObjectByType<SupplyDrop>();
             var dropped = supply.Drop(new[] { "BOX-101", "BOX-102", "BOX-103" }, 7, 2.4f);

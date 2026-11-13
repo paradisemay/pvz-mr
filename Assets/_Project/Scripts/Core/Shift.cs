@@ -90,7 +90,10 @@ namespace Pvz.Core
         public void UseRandomSource(IRandomSource random)
         {
             _random = random ?? throw new ArgumentNullException(nameof(random));
-            _generator = new OrderGenerator(_random, BagChancePercent);
+            _generator = new OrderGenerator(_random, BagChancePercent) {
+                UrgentChancePercent = UrgentChancePercent,
+                ForgotNumberChancePercent = ForgotNumberChancePercent,
+            };
         }
 
         /// <summary>Share of the patience after which the customer starts hurrying the player.</summary>
@@ -109,6 +112,13 @@ namespace Pvz.Core
         /// <summary>How long a customer waits at the counter, seconds; 0 = forever.</summary>
         public double PatienceSeconds { get; set; }
 
+        /// <summary>Share of the usual patience an urgent customer has.</summary>
+        public double UrgentPatienceFactor { get; set; } = 0.6;
+
+        /// <summary>How long the customer with <paramref name="order"/> waits at the counter, seconds; 0 = forever.</summary>
+        public double PatienceFor(Order order) =>
+            order != null && order.IsUrgent ? PatienceSeconds * UrgentPatienceFactor : PatienceSeconds;
+
         /// <summary>
         /// Advances customer patience. Call regularly with the current time.
         /// A customer who has already received part of the order waits until it is complete: leaving with some boxes
@@ -116,16 +126,17 @@ namespace Pvz.Core
         /// </summary>
         public void Tick(double now)
         {
-            if (PatienceSeconds <= 0 || !Desk.HasActiveOrder) return;
+            if (!Desk.HasActiveOrder) return;
             var session = Desk.ActiveSession;
-            if (session.DeliveredCount > 0) return;
+            var patience = PatienceFor(session.Order);
+            if (patience <= 0 || session.DeliveredCount > 0) return;
             var waited = now - session.OpenedAt;
-            if (!session.Hurried && waited >= PatienceSeconds * HurryFraction)
+            if (!session.Hurried && waited >= patience * HurryFraction)
             {
                 session.MarkHurried();
                 CustomerHurried?.Invoke(session.Order);
             }
-            if (waited >= PatienceSeconds) Desk.Abandon();
+            if (waited >= patience) Desk.Abandon();
         }
 
         /// <summary>
@@ -134,10 +145,11 @@ namespace Pvz.Core
         /// </summary>
         public double? PatienceRemaining(double now)
         {
-            if (PatienceSeconds <= 0 || !Desk.HasActiveOrder) return null;
+            if (!Desk.HasActiveOrder) return null;
             var session = Desk.ActiveSession;
-            if (session.DeliveredCount > 0) return null;
-            var left = 1.0 - (now - session.OpenedAt) / PatienceSeconds;
+            var patience = PatienceFor(session.Order);
+            if (patience <= 0 || session.DeliveredCount > 0) return null;
+            var left = 1.0 - (now - session.OpenedAt) / patience;
             return Math.Max(0.0, Math.Min(1.0, left));
         }
 
@@ -146,6 +158,20 @@ namespace Pvz.Core
         {
             get => _generator.BagChancePercent;
             set => _generator.BagChancePercent = value;
+        }
+
+        /// <summary>Probability (0..100) that a customer is in a hurry (less patience, bonus points).</summary>
+        public int UrgentChancePercent
+        {
+            get => _generator.UrgentChancePercent;
+            set => _generator.UrgentChancePercent = value;
+        }
+
+        /// <summary>Probability (0..100) that a customer remembers only the end of the order number.</summary>
+        public int ForgotNumberChancePercent
+        {
+            get => _generator.ForgotNumberChancePercent;
+            set => _generator.ForgotNumberChancePercent = value;
         }
 
         /// <summary>How many customers may wait in line (including the one at the counter).</summary>

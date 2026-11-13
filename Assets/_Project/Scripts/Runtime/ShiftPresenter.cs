@@ -141,11 +141,26 @@ namespace Pvz.Runtime
 
         private void OnOrderOpened(Order order)
         {
-            Say($"Здравствуйте!\nЗаказ №{order.Number}");
-            _board.ShowHeadline($"Заказ №{order.Number}", CounterBoard.Accent);
+            Say(GreetingFor(order));
+            _board.ShowHeadline(order.IsUrgent ? $"СРОЧНО: заказ №{SpokenNumber(order)}" : $"Заказ №{SpokenNumber(order)}",
+                order.IsUrgent ? CounterBoard.Bad : CounterBoard.Accent);
             _board.ShowStatus(BoxesLeftText(order.Boxes.Count, order.Boxes.Count), CounterBoard.Neutral);
             if (_step == TutorialStep.TakeScanner && _scanner.IsHeld) _step = TutorialStep.Scan;
             ShowCurrentHint();
+        }
+
+        /// <summary>The order number as the customer says it: a forgetful one only knows the end («••81»).</summary>
+        internal static string SpokenNumber(Order order) => order.ForgotNumber ? "••" + order.NumberHint : order.Number;
+
+        internal static string GreetingFor(Order order)
+        {
+            if (order.ForgotNumber)
+                return order.IsUrgent
+                    ? $"Срочно! Номер забыл…\nКончается на {order.NumberHint}"
+                    : $"Ой, я забыл номер…\nОн кончается на {order.NumberHint}";
+            return order.IsUrgent
+                ? $"Срочно, опаздываю!\nЗаказ №{order.Number}"
+                : $"Здравствуйте!\nЗаказ №{order.Number}";
         }
 
         private const string HintTakeScanner = "Подсказка: возьмите сканер со стойки";
@@ -214,7 +229,7 @@ namespace Pvz.Runtime
                     break;
                 case HandoverStatus.WrongBox:
                     PlaySound(FeedbackAudio.Sound.Error);
-                    Say($"Это не мой заказ!\nМне нужен №{_shift.Desk.ActiveOrder.Number}");
+                    Say($"Это не мой заказ!\nМне нужен №{SpokenNumber(_shift.Desk.ActiveOrder)}");
                     _board.ShowStatus(outcome.IsRepeat ? "Эту коробку клиент уже вернул" : "Неверная коробка: штраф", CounterBoard.Bad);
                     break;
                 case HandoverStatus.NoActiveOrder:
