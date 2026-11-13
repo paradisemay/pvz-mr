@@ -41,6 +41,7 @@ namespace Pvz.Editor
             Capture("00_difficulty_menu", new Vector3(0f, 1.65f, -0.35f), new Vector3(-0.1f, 1.5f, 1.1f), 75f);
             foreach (var button in Object.FindObjectsByType<DifficultyButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
             foreach (var button in Object.FindObjectsByType<RecenterButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false); // start menu is hidden during play
+            foreach (var button in Object.FindObjectsByType<ResetWarehouseButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
 
             // Stage a moment of play: a customer at the counter asking for an order.
             var customerPrefab = AssetDatabase.LoadAssetAtPath<Customer>(PvzAssetFactory.PrefabsDir + "/Customer.prefab");

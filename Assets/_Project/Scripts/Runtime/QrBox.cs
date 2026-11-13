@@ -33,6 +33,9 @@ namespace Pvz.Runtime
         /// <summary>True once the box was handed over and belongs to a customer.</summary>
         public bool IsHandedOver { get; private set; }
 
+        /// <summary>The player holds the box right now.</summary>
+        public bool IsHeld => grabInteractable != null && grabInteractable.isSelected;
+
         /// <summary>The player let the box go and it came to rest (see <see cref="PlacedLocalPosition"/>).</summary>
         public event System.Action<QrBox> Placed;
 
@@ -151,7 +154,10 @@ namespace Pvz.Runtime
                 body.rotation = transform.rotation;
             }
             Physics.SyncTransforms(); // the next box checking its spot must see this one already moved
-            RememberStartPose();
+            // The new place is also where a lost box returns; the parent it lives under never changes here.
+            _startLocalPosition = localPosition;
+            _startLocalRotation = transform.localRotation;
+            _movedByPlayer = false;
             PlacedLocalPosition = localPosition;
             PlacedYaw = yaw;
             HasPlacement = true;
