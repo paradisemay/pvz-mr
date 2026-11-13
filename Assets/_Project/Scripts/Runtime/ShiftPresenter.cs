@@ -223,27 +223,32 @@ namespace Pvz.Runtime
         private void OnBoxScanned(ScanOutcome outcome)
         {
             PlaySound(FeedbackAudio.Sound.Beep);
+            var (text, color) = ScanResultText(outcome);
+            _scanner.ShowResult(text, color);
+            var tutorialScanning = _step == TutorialStep.Scan || _step == TutorialStep.TakeScanner;
+            if (outcome.Status == ScanStatus.Matches && tutorialScanning) { _step = TutorialStep.Carry; ShowCurrentHint(); }
+            else if (outcome.Status == ScanStatus.OtherOrder && tutorialScanning) ShowHint(HintWrongBox);
+        }
+
+        /// <summary>What the scanner screen shows for a scan (also used for the PR screenshots).</summary>
+        public static (string text, UnityEngine.Color color) ScanResultText(ScanOutcome outcome)
+        {
             switch (outcome.Status)
             {
                 case ScanStatus.Matches:
-                    _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
-                    if (_step == TutorialStep.Scan || _step == TutorialStep.TakeScanner) { _step = TutorialStep.Carry; ShowCurrentHint(); }
-                    break;
+                    return ($"Заказ №{outcome.BoxOrderNumber}\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
                 case ScanStatus.OtherOrder:
-                    _scanner.ShowResult(outcome.LooksLikeTheWantedOrder
-                        ? $"Заказ №{outcome.BoxOrderNumber}\nПОХОЖ, НО НЕ ТОТ!"
+                    return (outcome.LooksLikeTheWantedOrder
+                        ? $"Заказ №{outcome.BoxOrderNumber}\nПОХОЖ —\nНЕ ТОТ!"
                         : $"Заказ №{outcome.BoxOrderNumber}\nНЕ ТОТ ЗАКАЗ", CounterBoard.Bad);
-                    if (_step == TutorialStep.Scan || _step == TutorialStep.TakeScanner) ShowHint(HintWrongBox);
-                    break;
                 case ScanStatus.ReturnAccepted:
-                    _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}\nВОЗВРАТ ПРИНЯТ", CounterBoard.Good);
-                    break;
+                    return ($"Заказ №{outcome.BoxOrderNumber}\nВОЗВРАТ ПРИНЯТ", CounterBoard.Good);
                 case ScanStatus.NoActiveOrder:
-                    _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}", CounterBoard.Neutral);
-                    break;
+                    return ($"Заказ №{outcome.BoxOrderNumber}", CounterBoard.Neutral);
+                case ScanStatus.Received:
+                    return ($"Заказ №{outcome.BoxOrderNumber}\nПРИНЯТО НА СКЛАД", CounterBoard.Good);
                 default:
-                    _scanner.ShowResult("Код не найден", CounterBoard.Bad);
-                    break;
+                    return ("Код не найден", CounterBoard.Bad);
             }
         }
 
@@ -259,7 +264,9 @@ namespace Pvz.Runtime
                     break;
                 case HandoverStatus.WrongBox:
                     PlaySound(FeedbackAudio.Sound.Error);
-                    Say($"Это не мой заказ!\nМне нужен №{SpokenNumber(_shift.Desk.ActiveOrder)}");
+                    Say(outcome.LooksLikeTheWantedOrder
+                        ? $"Похож, но не мой!\nМне нужен №{SpokenNumber(_shift.Desk.ActiveOrder)}"
+                        : $"Это не мой заказ!\nМне нужен №{SpokenNumber(_shift.Desk.ActiveOrder)}");
                     _board.ShowStatus(outcome.IsRepeat ? "Эту коробку клиент уже вернул" : "Неверная коробка: штраф", CounterBoard.Bad);
                     break;
                 case HandoverStatus.NoActiveOrder:

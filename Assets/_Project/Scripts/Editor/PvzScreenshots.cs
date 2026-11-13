@@ -67,8 +67,11 @@ namespace Pvz.Editor
             Capture("05_scanner", scanner.transform.position + new Vector3(-0.18f, 0.22f, -0.25f), scanner.transform.position, 40f);
 
             // «Похожие заказы»: the customer wants №2781, the scanner caught a box of №2718.
-            scanner.ShowResult("Заказ №2718\nПОХОЖ, НО НЕ ТОТ!", CounterBoard.Bad);
-            Capture("13_lookalike", scanner.transform.position + new Vector3(-0.18f, 0.22f, -0.25f), scanner.transform.position, 40f);
+            var (lookAlikeText, lookAlikeColor) = ShiftPresenter.ScanResultText(new Pvz.Core.ScanOutcome(Pvz.Core.ScanStatus.OtherOrder, new Pvz.Core.BoxId("BOX-103"), "2718", looksLikeTheWantedOrder: true));
+            scanner.ShowResult(lookAlikeText, lookAlikeColor);
+            // Straight at the scanner screen (TMP text reads from behind its forward axis).
+            var screen = scanner.GetComponentInChildren<TMP_Text>(true).transform;
+            Capture("13_lookalike", screen.position - screen.forward * 0.2f, screen.position, 35f, screen.up);
             scanner.ShowResult("Заказ №2781\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
 
             // Two-box order handed over; the customer now asks for a bag.
@@ -181,15 +184,20 @@ namespace Pvz.Editor
             if (simulator != null) simulator.SetActive(false);
         }
 
-        private static void Capture(string name, Vector3 from, Vector3 lookAt, float fov)
+        private static void Capture(string name, Vector3 from, Vector3 lookAt, float fov, Vector3? up = null)
         {
             foreach (var t in Object.FindObjectsByType<TMP_Text>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
                 t.ForceMeshUpdate(true, true);
+                // A text that does not fit its box would also not fit in the game: report it.
+                if (t.isActiveAndEnabled && t.isTextOverflowing)
+                    Debug.LogWarning($"[PvzScreenshots] {name}: text overflows '{t.name}' (size {t.fontSize:0.###}, min {t.fontSizeMin:0.###}, rect {t.rectTransform.rect.size}): {t.text.Replace('\n', '|')}");
+            }
 
             var go = new GameObject("Screenshot Camera");
             var cam = go.AddComponent<Camera>();
             cam.transform.position = from;
-            cam.transform.LookAt(lookAt);
+            cam.transform.LookAt(lookAt, up ?? Vector3.up);
             cam.fieldOfView = fov;
             cam.nearClipPlane = 0.02f;
             cam.clearFlags = CameraClearFlags.SolidColor;

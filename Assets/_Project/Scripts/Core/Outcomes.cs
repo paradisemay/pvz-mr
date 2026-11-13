@@ -23,7 +23,7 @@ namespace Pvz.Core
             Status = status;
             Box = box;
             BoxOrderNumber = boxOrderNumber;
-            LooksLikeTheWantedOrder = looksLikeTheWantedOrder;
+            LooksLikeTheWantedOrder = status == ScanStatus.OtherOrder && looksLikeTheWantedOrder;
         }
 
         public ScanStatus Status { get; }
@@ -38,7 +38,7 @@ namespace Pvz.Core
         /// </summary>
         public bool LooksLikeTheWantedOrder { get; }
 
-        public override string ToString() => $"{Status} {Box} #{BoxOrderNumber}";
+        public override string ToString() => $"{Status} {Box} #{BoxOrderNumber}" + (LooksLikeTheWantedOrder ? " (look-alike)" : string.Empty);
     }
 
     /// <summary>Summary of a completed order, raised by <see cref="PickupDesk.OrderCompleted"/>.</summary>
@@ -83,13 +83,18 @@ namespace Pvz.Core
 
     public readonly struct HandoverOutcome
     {
-        public HandoverOutcome(HandoverStatus status, BoxId box, bool orderCompleted, bool isRepeat = false)
+        public HandoverOutcome(HandoverStatus status, BoxId box, bool orderCompleted, bool isRepeat = false,
+            bool looksLikeTheWantedOrder = false)
         {
             Status = status;
             Box = box;
             OrderCompleted = orderCompleted;
             IsRepeat = isRepeat;
+            LooksLikeTheWantedOrder = status == HandoverStatus.WrongBox && looksLikeTheWantedOrder;
         }
+
+        /// <summary>A <see cref="HandoverStatus.WrongBox"/> whose order number is easy to mix up with the customer's.</summary>
+        public bool LooksLikeTheWantedOrder { get; }
 
         public HandoverStatus Status { get; }
         public BoxId Box { get; }

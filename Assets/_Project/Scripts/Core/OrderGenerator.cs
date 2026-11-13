@@ -70,9 +70,8 @@ namespace Pvz.Core
         /// </summary>
         private static bool HintIsUnambiguous(string number, BoxCatalog catalog, IEnumerable<string> otherKnownNumbers)
         {
-            if (!Order.CanHint(number)) return false;
-            var hint = Order.HintOf(number);
-            bool Clashes(string other) => other != number && other.EndsWith(hint, StringComparison.Ordinal);
+            if (!OrderNumbers.CanHint(number)) return false;
+            bool Clashes(string other) => OrderNumbers.SameHint(number, other);
             foreach (var box in catalog.Boxes)
             {
                 if (Clashes(box.OrderNumber)) return false;

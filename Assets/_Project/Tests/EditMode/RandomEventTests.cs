@@ -73,7 +73,7 @@ namespace Pvz.Core.Tests
         [Test]
         public void ShortNumber_CannotBeHalfForgotten()
         {
-            Assert.IsFalse(Order.CanHint("42"));
+            Assert.IsFalse(OrderNumbers.CanHint("42"));
             Assert.Throws<ArgumentException>(() => new Order("42", new[] { TestData.Box1 }, forgotNumber: true));
             var generator = new OrderGenerator(new FakeRandom(0, 0)) { ForgotNumberChancePercent = 100 };
             Assert.IsFalse(generator.CreateRandomOrder(new BoxCatalog(new[] { new BoxRecord(TestData.Box1, "42") })).ForgotNumber);
