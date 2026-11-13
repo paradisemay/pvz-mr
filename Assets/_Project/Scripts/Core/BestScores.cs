@@ -19,7 +19,26 @@ namespace Pvz.Core
         public void Set(string key, int value) => _values[key] = value;
     }
 
-    /// <summary>Best shift score per difficulty.</summary>
+    /// <summary>Outcome of submitting a finished shift.</summary>
+    public readonly struct RecordResult
+    {
+        public RecordResult(int score, int previousBest, bool isRecord)
+        {
+            Score = score;
+            PreviousBest = previousBest;
+            IsRecord = isRecord;
+        }
+
+        public int Score { get; }
+        /// <summary>Best score before this shift (0 if the difficulty was never played).</summary>
+        public int PreviousBest { get; }
+        public bool IsRecord { get; }
+    }
+
+    /// <summary>
+    /// Best shift score per difficulty. Records are keyed by a stable difficulty id (not the display name),
+    /// an unplayed difficulty counts as 0, and only a strictly higher score is a new record.
+    /// </summary>
     public sealed class BestScores
     {
         private const string KeyPrefix = "pvz.best.";
@@ -30,23 +49,21 @@ namespace Pvz.Core
             _store = store ?? throw new ArgumentNullException(nameof(store));
         }
 
-        /// <summary>Best score for the difficulty, or null if it was never played.</summary>
-        public int? Get(string difficulty) => _store.TryGet(Key(difficulty), out var value) ? value : (int?)null;
+        public int Get(string difficultyId) => _store.TryGet(Key(difficultyId), out var value) ? value : 0;
 
-        /// <summary>Records a finished shift; returns true when it beats (or sets) the record.</summary>
-        public bool Submit(string difficulty, int score)
+        public RecordResult Submit(string difficultyId, int score)
         {
-            var best = Get(difficulty);
-            if (best.HasValue && score <= best.Value) return false;
-            _store.Set(Key(difficulty), score);
-            return true;
+            var best = Get(difficultyId);
+            var isRecord = score > best;
+            if (isRecord) _store.Set(Key(difficultyId), score);
+            return new RecordResult(score, best, isRecord);
         }
 
-        /// <summary>Storage key; stable across runs, independent of letter case and spaces around the name.</summary>
-        public static string Key(string difficulty)
+        /// <summary>Storage key; stable across runs, independent of letter case and spaces around the id.</summary>
+        public static string Key(string difficultyId)
         {
-            if (string.IsNullOrWhiteSpace(difficulty)) throw new ArgumentException("Difficulty must have a name.", nameof(difficulty));
-            return KeyPrefix + difficulty.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(difficultyId)) throw new ArgumentException("Difficulty must have an id.", nameof(difficultyId));
+            return KeyPrefix + difficultyId.Trim().ToLowerInvariant();
         }
     }
 }

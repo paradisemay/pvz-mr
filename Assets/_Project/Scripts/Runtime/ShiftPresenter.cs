@@ -78,11 +78,21 @@ namespace Pvz.Runtime
         }
 
         /// <summary>Before the shift: ask the player to pick a difficulty (no shift exists yet).</summary>
-        public static void ShowDifficultyMenu(CounterBoard board, string records = null)
+        public static void ShowDifficultyMenu(CounterBoard board,
+            System.Collections.Generic.IEnumerable<(string name, int best)> records = null)
         {
             board.ShowHeadline("Выберите сложность", CounterBoard.Accent);
-            board.ShowStatus(string.IsNullOrEmpty(records) ? "Нажмите кнопку на стойке" : records, CounterBoard.Neutral);
+            board.ShowStatus(RecordsText(records) ?? "Нажмите кнопку на стойке", CounterBoard.Neutral);
             board.ShowScore(0, 0, 0);
+        }
+
+        /// <summary>«Рекорды: Лёгкая 450 · Обычная 0 · Сложная 0», or null when there is nothing to show.</summary>
+        public static string RecordsText(System.Collections.Generic.IEnumerable<(string name, int best)> records)
+        {
+            if (records == null) return null;
+            var parts = new System.Collections.Generic.List<string>();
+            foreach (var (name, best) in records) parts.Add($"{name} {best}");
+            return parts.Count == 0 ? null : "Рекорды: " + string.Join(" · ", parts);
         }
 
         public void ShowShiftStarting(string difficulty = null)

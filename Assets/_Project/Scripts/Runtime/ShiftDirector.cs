@@ -87,7 +87,7 @@ namespace Pvz.Runtime
             if (Shift != null) return; // already started (e.g. by a test) before the first frame
             summaryPanel.Hide();
             restartButton.SetActive(false);
-            if (HasDifficultyMenu) ShiftPresenter.ShowDifficultyMenu(board, RecordsText());
+            if (HasDifficultyMenu) ShiftPresenter.ShowDifficultyMenu(board, MenuRecords());
             else Begin();
         }
 
@@ -172,13 +172,16 @@ namespace Pvz.Runtime
 
         public BestScores BestScores => _bestScores;
 
-        /// <summary>«Рекорды: Лёгкая 450 · Обычная — · Сложная —» for the start menu.</summary>
-        private string RecordsText()
+        private IEnumerable<(string name, int best)> MenuRecords()
         {
-            var parts = difficultyButtons.Where(b => b != null && b.Settings != null)
-                .Select(b => (name: b.Settings.DisplayName, best: _bestScores.Get(b.Settings.DisplayName)))
-                .Select(p => $"{p.name} {(p.best.HasValue ? p.best.Value.ToString() : "—")}");
-            return "Рекорды: " + string.Join(" · ", parts);
+            var records = new List<(string name, int best)>();
+            foreach (var button in difficultyButtons)
+            {
+                if (button == null || button.Settings == null) continue;
+                try { records.Add((button.Settings.DisplayName, _bestScores.Get(button.Settings.DifficultyId))); }
+                catch (ArgumentException e) { Debug.LogException(e, button); }
+            }
+            return records;
         }
 
         /// <summary>Sets how long customers wait (tests).</summary>
@@ -310,12 +313,10 @@ namespace Pvz.Runtime
         {
             IsShiftOver = true;
             _presenter.ShowShiftOver();
-            var difficulty = settings.DisplayName;
-            var previousBest = _bestScores.Get(difficulty);
-            var isRecord = _bestScores.Submit(difficulty, Stats.Score);
-            summaryPanel.Show(Stats, OrdersTotal, isRecord
-                ? (previousBest.HasValue ? $"<b>НОВЫЙ РЕКОРД!</b> Было: {previousBest.Value}" : "<b>НОВЫЙ РЕКОРД!</b>")
-                : $"Рекорд ({difficulty}): {previousBest.Value}");
+            RecordResult? record = null;
+            try { record = _bestScores.Submit(settings.DifficultyId, Stats.Score); }
+            catch (Exception e) { Debug.LogException(e, this); } // never leave the player without the summary and restart
+            summaryPanel.Show(Stats, OrdersTotal, record, settings.DisplayName);
             restartButton.SetActive(true);
             ShiftEnded?.Invoke();
         }
