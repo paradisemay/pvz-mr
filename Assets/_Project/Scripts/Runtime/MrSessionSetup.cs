@@ -58,8 +58,22 @@ namespace Pvz.Runtime
             if (forward.sqrMagnitude < 0.001f) forward = Vector3.forward;
             var position = new Vector3(head.position.x, playArea.position.y, head.position.z);
             playArea.SetPositionAndRotation(position, Quaternion.LookRotation(forward.normalized, Vector3.up));
+
+            // Boxes, bags and the scanner are dynamic bodies: teleport them cleanly with the play area.
+            foreach (var body in playArea.GetComponentsInChildren<Rigidbody>())
+            {
+                body.position = body.transform.position;
+                body.rotation = body.transform.rotation;
+                if (body.isKinematic) continue;
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+                body.WakeUp();
+            }
             Physics.SyncTransforms();
         }
+
+        /// <summary>Root of everything the game places in the room.</summary>
+        public Transform PlayArea => playArea;
 
         internal void Configure(Camera camera, GameObject mockRoom, GameObject simulator, GameObject locomotionRoot, Transform playAreaRoot)
         {

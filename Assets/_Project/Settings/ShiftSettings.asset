@@ -12,6 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fbec8379f09b3954abc684e80ff1f07b, type: 3}
   m_Name: ShiftSettings
   m_EditorClassIdentifier: Pvz.Runtime::Pvz.Runtime.ShiftSettings
+  displayName: "\u041E\u0431\u044B\u0447\u043D\u0430\u044F"
+  patienceSeconds: 90
+  queueLength: 2
   boxes:
   - boxId: BOX-001
     orderNumber: 1435

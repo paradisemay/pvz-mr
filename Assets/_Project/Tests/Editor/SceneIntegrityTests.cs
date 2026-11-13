@@ -33,6 +33,8 @@ namespace Pvz.Editor.Tests
         [TestCase(typeof(SupplyDrop))]
         [TestCase(typeof(BagDispenser))]
         [TestCase(typeof(DifficultyButton))]
+        [TestCase(typeof(RecenterButton))]
+        [TestCase(typeof(ScenePermissionGate))]
         public void AllObjectReferencesAreAssigned(System.Type componentType)
         {
             var components = Object.FindObjectsByType(componentType, FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -124,6 +126,13 @@ namespace Pvz.Editor.Tests
                 Assert.DoesNotThrow(() => shift.ExpectDelivery(plan.Boxes),
                     "supply boxes must have unique ids and new order numbers");
             }
+        }
+
+        [Test]
+        public void PlaneDetection_IsSavedDisabled_UntilTheSceneIsPermitted()
+        {
+            Assert.IsFalse(Object.FindFirstObjectByType<UnityEngine.XR.ARFoundation.ARPlaneManager>(FindObjectsInactive.Include).enabled,
+                "Meta requires USE_SCENE before plane detection starts; ScenePermissionGate enables it");
         }
 
         [Test]

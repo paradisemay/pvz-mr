@@ -4,6 +4,8 @@
     "references": [
         "Pvz.Core",
         "Pvz.Runtime",
+        "Unity.XR.ARFoundation",
+        "Unity.XR.CoreUtils",
         "UnityEngine.TestRunner"
     ],
     "includePlatforms": [],

@@ -44,8 +44,32 @@ namespace Pvz.Editor
             ApplyPlayerSettings(log);
             ApplyOpenXrFeatures(log);
             ApplyRenderPipeline(log);
+            FixOpenXrValidation(log);
             AssetDatabase.SaveAssets();
             Debug.Log(log.ToString());
+        }
+
+        /// <summary>Applies the automatic fixes of OpenXR project validation for Android (the build refuses to start otherwise).</summary>
+        private static void FixOpenXrValidation(StringBuilder log)
+        {
+            var issues = new List<UnityEngine.XR.OpenXR.Features.OpenXRFeature.ValidationRule>();
+            for (var pass = 0; pass < 3; pass++)
+            {
+                UnityEditor.XR.OpenXR.OpenXRProjectValidation.GetCurrentValidationIssues(issues, BuildTargetGroup.Android);
+                var fixedAny = false;
+                foreach (var issue in issues)
+                {
+                    if (issue.fixIt == null || !issue.fixItAutomatic) continue;
+                    issue.fixIt();
+                    fixedAny = true;
+                    log.AppendLine($"  openxr-validation fixed: {issue.message}");
+                }
+                if (!fixedAny) break;
+            }
+
+            UnityEditor.XR.OpenXR.OpenXRProjectValidation.GetCurrentValidationIssues(issues, BuildTargetGroup.Android);
+            foreach (var issue in issues)
+                log.AppendLine($"  openxr-validation {(issue.error ? "ERROR" : "warning")} (manual): {issue.message}");
         }
 
         private static void ApplyPlayerSettings(StringBuilder log)
@@ -101,6 +125,22 @@ namespace Pvz.Editor
                 asset.supportsHDR = false;
                 EditorUtility.SetDirty(asset);
                 log.AppendLine($"  urp: HDR off in {path}");
+            }
+
+            // SSAO is too expensive on standalone headsets (OpenXR validation warns about it).
+            foreach (var guid in AssetDatabase.FindAssets("t:UniversalRendererData", new[] { "Assets/Settings" }))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!path.Contains("Mobile")) continue;
+                var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(path);
+                if (data == null) continue;
+                foreach (var feature in data.rendererFeatures)
+                {
+                    if (feature == null || !feature.GetType().Name.Contains("AmbientOcclusion") || !feature.isActive) continue;
+                    feature.SetActive(false);
+                    EditorUtility.SetDirty(feature);
+                    log.AppendLine($"  urp: {feature.name} off in {path}");
+                }
             }
         }
     }

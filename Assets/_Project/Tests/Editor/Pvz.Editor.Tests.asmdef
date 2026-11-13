@@ -4,6 +4,7 @@
     "references": [
         "Pvz.Core",
         "Pvz.Runtime",
+        "Unity.XR.ARFoundation",
         "Pvz.Editor",
         "Unity.XR.Interaction.Toolkit",
         "UnityEngine.TestRunner",

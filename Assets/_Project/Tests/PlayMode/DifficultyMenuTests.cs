@@ -39,6 +39,7 @@ namespace Pvz.Runtime.Tests
             Assert.IsTrue(director.IsStarted);
             Assert.AreSame(hard.Settings, director.ActiveSettings);
             Assert.AreEqual(45, director.Shift.PatienceSeconds, 1e-6);
+            Assert.AreEqual(3, director.ActiveSettings.QueueLength);
             Assert.IsTrue(director.DifficultyButtons.All(b => !b.gameObject.activeInHierarchy));
 
             // A second press cannot restart the running shift.
@@ -57,6 +58,7 @@ namespace Pvz.Runtime.Tests
             Assert.IsFalse(director.Shift.HasScheduledDelivery);
             Assert.AreEqual(0, director.Shift.BagChancePercent);
             Assert.AreEqual(0, director.Shift.PatienceSeconds, 1e-6);
+            Assert.AreEqual(1, director.ActiveSettings.QueueLength, "easy: one customer at a time");
         }
     }
 }
