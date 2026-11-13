@@ -14,8 +14,10 @@ namespace Pvz.Runtime
         private readonly HandScanner _scanner;
         private readonly FeedbackAudio _audio;
 
-        /// <summary>Tutorial hints are shown until the first order is handed over.</summary>
-        private bool _tutorial;
+        /// <summary>First-order tutorial: steps only move forward, so re-grabbing the scanner never rewinds a hint.</summary>
+        private enum TutorialStep { Off, TakeScanner, Scan, Carry }
+
+        private TutorialStep _step;
 
         public ShiftPresenter(Shift shift, CounterBoard board, HandScanner scanner, FeedbackAudio audio, bool tutorial = false)
         {
@@ -38,11 +40,10 @@ namespace Pvz.Runtime
             _shift.Desk.BagRequested += OnBagRequested;
             _shift.CustomerHurried += OnCustomerHurried;
             _shift.OrderAbandoned += OnOrderAbandoned;
-            _tutorial = tutorial;
+            _step = tutorial ? TutorialStep.TakeScanner : TutorialStep.Off;
             _scanner.Grabbed += OnScannerGrabbed;
         }
 
-        public bool TutorialActive => _tutorial;
 
         /// <summary>Customer standing at the counter (lines are spoken through them). Set by the director.</summary>
         public Customer Customer { get; set; }
@@ -139,7 +140,8 @@ namespace Pvz.Runtime
             Say($"Здравствуйте!\nЗаказ №{order.Number}");
             _board.ShowHeadline($"Заказ №{order.Number}", CounterBoard.Accent);
             _board.ShowStatus(BoxesLeftText(order.Boxes.Count, order.Boxes.Count), CounterBoard.Neutral);
-            if (_tutorial) ShowHint(_scanner.IsHeld ? HintScan : HintTakeScanner);
+            if (_step == TutorialStep.TakeScanner && _scanner.IsHeld) _step = TutorialStep.Scan;
+            ShowCurrentHint();
         }
 
         private const string HintTakeScanner = "Подсказка: возьмите сканер со стойки";
@@ -147,11 +149,28 @@ namespace Pvz.Runtime
         private const string HintCarry = "Подсказка: отнесите коробку в зелёную зону";
         private const string HintWrongBox = "Подсказка: не та коробка — ищите № заказа клиента";
 
-        private void ShowHint(string hint) => _board.ShowStatus(hint, CounterBoard.Accent);
+        private void ShowCurrentHint()
+        {
+            switch (_step)
+            {
+                case TutorialStep.TakeScanner: ShowHint(HintTakeScanner); break;
+                case TutorialStep.Scan: ShowHint(HintScan); break;
+                case TutorialStep.Carry: ShowHint(HintCarry); break;
+            }
+        }
+
+        /// <summary>Hint on the status line; for multi-box orders the box count stays visible in front of it.</summary>
+        private void ShowHint(string hint)
+        {
+            var left = _shift.Desk.HasActiveOrder ? _shift.Desk.ActiveSession.RemainingCount : 0;
+            _board.ShowStatus(left > 1 ? $"Коробок: {left}. {hint}" : hint, CounterBoard.Accent);
+        }
 
         private void OnScannerGrabbed()
         {
-            if (_tutorial && _shift.Desk.HasActiveOrder) ShowHint(HintScan);
+            if (_step != TutorialStep.TakeScanner) return; // only the very first pickup advances the tutorial
+            _step = TutorialStep.Scan;
+            if (_shift.Desk.HasActiveOrder) ShowCurrentHint();
         }
 
         private void OnBoxScanned(ScanOutcome outcome)
@@ -161,11 +180,11 @@ namespace Pvz.Runtime
             {
                 case ScanStatus.Matches:
                     _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
-                    if (_tutorial) ShowHint(HintCarry);
+                    if (_step == TutorialStep.Scan || _step == TutorialStep.TakeScanner) { _step = TutorialStep.Carry; ShowCurrentHint(); }
                     break;
                 case ScanStatus.OtherOrder:
                     _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}\nНЕ ТОТ ЗАКАЗ", CounterBoard.Bad);
-                    if (_tutorial) ShowHint(HintWrongBox);
+                    if (_step == TutorialStep.Scan || _step == TutorialStep.TakeScanner) ShowHint(HintWrongBox);
                     break;
                 case ScanStatus.NoActiveOrder:
                     _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}", CounterBoard.Neutral);
@@ -242,7 +261,7 @@ namespace Pvz.Runtime
 
         private void OnOrderCompleted(OrderResult result)
         {
-            _tutorial = false; // the player has done it once
+            _step = TutorialStep.Off; // the player has done it once
 
             Say("Спасибо!\nХорошего дня!");
             _board.ShowHeadline("Заказ выдан", CounterBoard.Good);

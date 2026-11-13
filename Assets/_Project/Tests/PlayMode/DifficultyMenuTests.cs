@@ -67,17 +67,38 @@ namespace Pvz.Runtime.Tests
                 StringAssert.Contains("курок", board.Status);
 
                 var wanted = director.Desk.ActiveOrder.Boxes[0];
-                var other = director.RemainingBoxes.First(b => b.Id != wanted);
+                var other = director.RemainingBoxes.First(b => !director.Desk.ActiveOrder.Contains(b.Id) && !director.Shift.IsReserved(OrderNumberOf(director, b)));
                 director.Scanner.ScanDirect(other);
                 StringAssert.Contains("не та коробка", board.Status);
                 Assert.IsTrue(director.TryGetBox(wanted, out var box));
                 director.Scanner.ScanDirect(box);
                 StringAssert.Contains("зелёную зону", board.Status);
+
+                // Putting the scanner down and picking it up again must not rewind the hint.
+                director.Scanner.SimulateGrab();
+                StringAssert.Contains("зелёную зону", board.Status);
+
+                yield return MoveTo(box, director.Zone.transform.position);
+                StringAssert.DoesNotContain("Подсказка", board.Status, "hints stop after the first order");
             }
             finally
             {
                 Time.timeScale = 1f;
             }
+        }
+
+        private static string OrderNumberOf(ShiftDirector director, QrBox box) =>
+            director.Desk.Catalog.TryGet(box.Id, out var record) ? record.OrderNumber : string.Empty;
+
+        private static IEnumerator MoveTo(Component item, Vector3 position)
+        {
+            var body = item.GetComponent<Rigidbody>();
+            item.transform.position = position;
+            body.position = position;
+            Physics.SyncTransforms();
+            yield return new WaitForFixedUpdate();
+            yield return new WaitForFixedUpdate();
+            yield return null;
         }
 
         [UnityTest, Timeout(60000)]

@@ -33,7 +33,9 @@ namespace Pvz.Runtime
         /// <summary>Raised when the player picks the scanner up.</summary>
         public event Action Grabbed;
 
-        public bool IsHeld => _grab != null && _grab.isSelected;
+        /// <summary>Held by the player (a socket or stand holding it does not count).</summary>
+        public bool IsHeld => _grab != null && _grab.isSelected &&
+                              !(_grab.firstInteractorSelecting is UnityEngine.XR.Interaction.Toolkit.Interactors.XRSocketInteractor);
 
         public string ScreenText => screen != null ? screen.text : string.Empty;
 
@@ -55,7 +57,11 @@ namespace Pvz.Runtime
             _grab.selectEntered.RemoveListener(OnSelected);
         }
 
-        private void OnSelected(SelectEnterEventArgs args) => Grabbed?.Invoke();
+        private void OnSelected(SelectEnterEventArgs args)
+        {
+            if (args.interactorObject is UnityEngine.XR.Interaction.Toolkit.Interactors.XRSocketInteractor) return;
+            Grabbed?.Invoke();
+        }
 
         /// <summary>Same as picking the scanner up with a controller (tests, debug).</summary>
         internal void SimulateGrab() => Grabbed?.Invoke();
