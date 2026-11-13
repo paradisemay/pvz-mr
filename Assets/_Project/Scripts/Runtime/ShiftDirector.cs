@@ -321,7 +321,7 @@ namespace Pvz.Runtime
             RecordResult? record = null;
             try { record = _bestScores.Submit(settings.DifficultyId, Stats.Score); }
             catch (Exception e) { Debug.LogException(e, this); } // never leave the player without the summary and restart
-            summaryPanel.Show(Stats, OrdersTotal, record, settings.DisplayName);
+            summaryPanel.Show(Stats, OrdersTotal, record, settings.DisplayName, Shift.MaxQueueLength);
             restartButton.SetActive(true);
             ShiftEnded?.Invoke();
         }

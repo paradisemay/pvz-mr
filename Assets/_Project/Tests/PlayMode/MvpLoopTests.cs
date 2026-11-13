@@ -124,6 +124,8 @@ namespace Pvz.Runtime.Tests
             StringAssert.Contains("Обслужено клиентов: 5/5", summary.Text);
             StringAssert.Contains("Принято из поставки: 3", summary.Text);
             StringAssert.Contains("Выдано пакетов: 5", summary.Text);
+            StringAssert.Contains("Обработано товаров: 6", summary.Text, "3 + 3 boxes, the two-box order counts twice");
+            StringAssert.Contains("Макс. очередь: 2", summary.Text);
             StringAssert.Contains("НОВЫЙ РЕКОРД", summary.Text, "the first shift on an empty store is a record");
             Assert.AreEqual(director.Stats.Score, director.BestScores.Get(director.ActiveSettings.DifficultyId));
         }

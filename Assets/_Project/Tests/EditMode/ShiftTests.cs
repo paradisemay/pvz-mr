@@ -98,6 +98,19 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void MaxQueueLength_RemembersTheLongestLine()
+        {
+            var shift = new Shift(TestData.MvpCatalog(), new SystemRandomSource(2)) { QueueLength = 3 };
+            shift.TryEnqueue(out var first);
+            shift.TryEnqueue(out _);
+            shift.OpenNext(0);
+            shift.Desk.Handover(first.Boxes[0], 1);   // line shrinks to 1
+            Assert.AreEqual(1, shift.QueuedOrders.Count);
+            Assert.AreEqual(2, shift.MaxQueueLength);
+            shift.Dispose();
+        }
+
+        [Test]
         public void TryEnqueue_RespectsTheLineLength()
         {
             var shift = new Shift(TestData.MvpCatalog(), new SystemRandomSource(5)) { QueueLength = 2 };
