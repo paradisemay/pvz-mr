@@ -20,6 +20,8 @@ namespace Pvz.Editor
     {
         public const string ScenePath = ScenesDir + "/Game.unity";
         public const string SettingsPath = SettingsDir + "/ShiftSettings.asset";
+        public const string EasySettingsPath = SettingsDir + "/ShiftSettings_Easy.asset";
+        public const string HardSettingsPath = SettingsDir + "/ShiftSettings_Hard.asset";
 
         private const string SamplesRoot = "Assets/Samples/XR Interaction Toolkit/3.2.2";
         private const string XrOriginPrefabPath = SamplesRoot + "/Starter Assets/Prefabs/XR Origin (XR Rig).prefab";
@@ -39,7 +41,10 @@ namespace Pvz.Editor
 
             EnsureFolders();
             var font = CyrillicFont();
-            var settings = LoadOrCreateSettings();
+            // Difficulty presets; existing assets are kept as they are (designers may have tuned them).
+            var settings = LoadOrCreateSettings(SettingsPath, s => s.ConfigureDifficulty("Обычная", 90f, 1, 50, 1.2f, 2f));
+            var easy = LoadOrCreateSettings(EasySettingsPath, s => s.ConfigureDifficulty("Лёгкая", 0f, 0, 0, 1.0f, 3f));
+            var hard = LoadOrCreateSettings(HardSettingsPath, s => s.ConfigureDifficulty("Сложная", 45f, 1, 80, 1.6f, 1f));
             var prefabs = new PvzPrefabBuilder(font);
 
             var layout = settings.Boxes; // single source of truth: ids, orders and start positions
@@ -112,7 +117,8 @@ namespace Pvz.Editor
                 counter.GetComponentInChildren<ShiftSummaryPanel>(true),
                 counter.GetComponentInChildren<RestartButton>(true).gameObject,
                 counter.GetComponentInChildren<FeedbackAudio>(true),
-                supplyDrop);
+                supplyDrop,
+                CreateDifficultyButtons(playArea, new[] { easy, settings, hard }, font));
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
@@ -128,13 +134,35 @@ namespace Pvz.Editor
             return component;
         }
 
-        private static ShiftSettings LoadOrCreateSettings()
+        private static ShiftSettings LoadOrCreateSettings(string path, System.Action<ShiftSettings> configureNew)
         {
-            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(SettingsPath);
+            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(path);
             if (settings != null) return settings;
             settings = ScriptableObject.CreateInstance<ShiftSettings>();
-            AssetDatabase.CreateAsset(settings, SettingsPath);
+            configureNew(settings);
+            AssetDatabase.CreateAsset(settings, path);
             return settings;
+        }
+
+        /// <summary>Three buttons on the player's side of the counter; hidden once the shift starts.</summary>
+        private static DifficultyButton[] CreateDifficultyButtons(Transform parent, ShiftSettings[] presets, TMPro.TMP_FontAsset font)
+        {
+            var colors = new[] { new Color(0.35f, 0.8f, 0.45f), new Color(0.95f, 0.75f, 0.2f), new Color(0.92f, 0.35f, 0.3f) };
+            var buttons = new DifficultyButton[presets.Length];
+            for (var i = 0; i < presets.Length; i++)
+            {
+                var go = new GameObject($"Difficulty {presets[i].DisplayName}");
+                go.transform.SetParent(parent, false);
+                go.transform.position = CounterPosition + new Vector3(-0.62f + i * 0.25f, PvzPrefabBuilder.CounterHeight + 0.03f, -0.22f);
+                Primitive(PrimitiveType.Cube, "Cap", go.transform, Vector3.zero, new Vector3(0.22f, 0.05f, 0.13f),
+                    Lit($"Difficulty{i}", colors[i % colors.Length]), true);
+                Text("Label", go.transform, new Vector3(0, 0.027f, 0), new Vector2(0.22f, 0.1f), presets[i].DisplayName.ToUpperInvariant(),
+                    font, new Color(0.1f, 0.1f, 0.12f), 0.6f, localRot: Quaternion.Euler(90, 0, 0));
+                go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
+                buttons[i] = go.AddComponent<DifficultyButton>();
+                buttons[i].Configure(presets[i]);
+            }
+            return buttons;
         }
 
         private static void CreateLighting()

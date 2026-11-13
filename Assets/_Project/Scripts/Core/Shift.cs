@@ -69,6 +69,36 @@ namespace Pvz.Core
             _generator = new OrderGenerator(random ?? throw new ArgumentNullException(nameof(random)), BagChancePercent);
         }
 
+        /// <summary>Share of the patience after which the customer starts hurrying the player.</summary>
+        public const double HurryFraction = 0.6;
+
+        /// <summary>The customer told the player to hurry up (once per customer).</summary>
+        public event Action<Order> CustomerHurried;
+
+        /// <summary>The customer ran out of patience and left; the order's boxes stay in the warehouse.</summary>
+        public event Action<Order> OrderAbandoned
+        {
+            add => Desk.OrderAbandoned += value;
+            remove => Desk.OrderAbandoned -= value;
+        }
+
+        /// <summary>How long a customer waits at the counter, seconds; 0 = forever.</summary>
+        public double PatienceSeconds { get; set; }
+
+        /// <summary>Advances customer patience. Call regularly with the current time.</summary>
+        public void Tick(double now)
+        {
+            if (PatienceSeconds <= 0 || !Desk.HasActiveOrder) return;
+            var session = Desk.ActiveSession;
+            var waited = now - session.OpenedAt;
+            if (!session.Hurried && waited >= PatienceSeconds * HurryFraction)
+            {
+                session.MarkHurried();
+                CustomerHurried?.Invoke(session.Order);
+            }
+            if (waited >= PatienceSeconds) Desk.Abandon();
+        }
+
         /// <summary>Probability (0..100) that a customer also asks for a bag.</summary>
         public int BagChancePercent
         {

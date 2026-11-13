@@ -29,6 +29,11 @@ namespace Pvz.Runtime
             }
         }
 
+        [Header("Difficulty")]
+        [SerializeField] private string displayName = "Обычная";
+        [Tooltip("How long a customer waits at the counter, seconds; 0 = forever.")]
+        [SerializeField, Min(0)] private float patienceSeconds = 90f;
+
         [Header("Warehouse")]
         [SerializeField] private BoxDefinition[] boxes =
         {
@@ -77,7 +82,21 @@ namespace Pvz.Runtime
         [Tooltip("Used for the supply drop when the headset has not found the ceiling.")]
         [SerializeField, Min(1.5f)] private float defaultCeilingHeight = 2.4f;
 
+        public string DisplayName => displayName;
+        public float PatienceSeconds => patienceSeconds;
         public BoxDefinition[] Boxes => boxes;
+
+        /// <summary>Used by the editor builder to create the difficulty presets.</summary>
+        internal void ConfigureDifficulty(string name, float patience, int supplyAfter, int bagChance,
+            float walkSpeed, float betweenCustomers)
+        {
+            displayName = name;
+            patienceSeconds = patience;
+            supplyAfterOrders = supplyAfter;
+            bagChancePercent = bagChance;
+            customerWalkSpeed = walkSpeed;
+            delayBetweenCustomers = betweenCustomers;
+        }
         public int SupplyAfterOrders => supplyAfterOrders;
         public BoxDefinition[] SupplyBoxes => supplyBoxes;
         public bool HasSupply => supplyAfterOrders > 0 && supplyBoxes != null && supplyBoxes.Length > 0;
