@@ -49,6 +49,57 @@ namespace Pvz.Runtime.Tests
             Assert.AreSame(hard.Settings, director.ActiveSettings);
         }
 
+        [UnityTest, Timeout(60000)]
+        public IEnumerator EasyShift_GuidesTheFirstOrder_StepByStep()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            var board = Object.FindFirstObjectByType<CounterBoard>();
+            Time.timeScale = 4f;
+            try
+            {
+                director.DifficultyButtons.First(b => b.Settings.DisplayName == "Лёгкая").Press();
+                var deadline = Time.realtimeSinceStartup + 30f;
+                while (!director.Desk.HasActiveOrder && Time.realtimeSinceStartup < deadline) yield return null;
+                Assert.IsTrue(director.Desk.HasActiveOrder, "first customer at the counter");
+
+                StringAssert.Contains("возьмите сканер", board.Status);
+                director.Scanner.SimulateGrab();
+                StringAssert.Contains("курок", board.Status);
+
+                var wanted = director.Desk.ActiveOrder.Boxes[0];
+                var other = director.RemainingBoxes.First(b => b.Id != wanted);
+                director.Scanner.ScanDirect(other);
+                StringAssert.Contains("не та коробка", board.Status);
+                Assert.IsTrue(director.TryGetBox(wanted, out var box));
+                director.Scanner.ScanDirect(box);
+                StringAssert.Contains("зелёную зону", board.Status);
+            }
+            finally
+            {
+                Time.timeScale = 1f;
+            }
+        }
+
+        [UnityTest, Timeout(60000)]
+        public IEnumerator NormalShift_HasNoHints()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            var board = Object.FindFirstObjectByType<CounterBoard>();
+            Time.timeScale = 4f;
+            try
+            {
+                director.DifficultyButtons.First(b => b.Settings.DisplayName == "Обычная").Press();
+                var deadline = Time.realtimeSinceStartup + 30f;
+                while (!director.Desk.HasActiveOrder && Time.realtimeSinceStartup < deadline) yield return null;
+                Assert.IsTrue(director.Desk.HasActiveOrder);
+                StringAssert.DoesNotContain("Подсказка", board.Status);
+            }
+            finally
+            {
+                Time.timeScale = 1f;
+            }
+        }
+
         [UnityTest]
         public IEnumerator EasyShift_HasNoDeliveryAndNoBags()
         {

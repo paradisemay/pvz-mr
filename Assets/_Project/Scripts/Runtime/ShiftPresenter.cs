@@ -14,7 +14,10 @@ namespace Pvz.Runtime
         private readonly HandScanner _scanner;
         private readonly FeedbackAudio _audio;
 
-        public ShiftPresenter(Shift shift, CounterBoard board, HandScanner scanner, FeedbackAudio audio)
+        /// <summary>Tutorial hints are shown until the first order is handed over.</summary>
+        private bool _tutorial;
+
+        public ShiftPresenter(Shift shift, CounterBoard board, HandScanner scanner, FeedbackAudio audio, bool tutorial = false)
         {
             _shift = shift ?? throw new ArgumentNullException(nameof(shift));
             // Explicit Unity null checks: serialized references may be "fake null" objects in the editor.
@@ -35,7 +38,11 @@ namespace Pvz.Runtime
             _shift.Desk.BagRequested += OnBagRequested;
             _shift.CustomerHurried += OnCustomerHurried;
             _shift.OrderAbandoned += OnOrderAbandoned;
+            _tutorial = tutorial;
+            _scanner.Grabbed += OnScannerGrabbed;
         }
+
+        public bool TutorialActive => _tutorial;
 
         /// <summary>Customer standing at the counter (lines are spoken through them). Set by the director.</summary>
         public Customer Customer { get; set; }
@@ -53,6 +60,7 @@ namespace Pvz.Runtime
             _shift.Desk.BagRequested -= OnBagRequested;
             _shift.CustomerHurried -= OnCustomerHurried;
             _shift.OrderAbandoned -= OnOrderAbandoned;
+            _scanner.Grabbed -= OnScannerGrabbed;
         }
 
         public void ShowReceiveSupplyHint()
@@ -131,6 +139,19 @@ namespace Pvz.Runtime
             Say($"Здравствуйте!\nЗаказ №{order.Number}");
             _board.ShowHeadline($"Заказ №{order.Number}", CounterBoard.Accent);
             _board.ShowStatus(BoxesLeftText(order.Boxes.Count, order.Boxes.Count), CounterBoard.Neutral);
+            if (_tutorial) ShowHint(_scanner.IsHeld ? HintScan : HintTakeScanner);
+        }
+
+        private const string HintTakeScanner = "Подсказка: возьмите сканер со стойки";
+        private const string HintScan = "Подсказка: наведите сканер на коробку и нажмите курок";
+        private const string HintCarry = "Подсказка: отнесите коробку в зелёную зону";
+        private const string HintWrongBox = "Подсказка: не та коробка — ищите № заказа клиента";
+
+        private void ShowHint(string hint) => _board.ShowStatus(hint, CounterBoard.Accent);
+
+        private void OnScannerGrabbed()
+        {
+            if (_tutorial && _shift.Desk.HasActiveOrder) ShowHint(HintScan);
         }
 
         private void OnBoxScanned(ScanOutcome outcome)
@@ -140,9 +161,11 @@ namespace Pvz.Runtime
             {
                 case ScanStatus.Matches:
                     _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
+                    if (_tutorial) ShowHint(HintCarry);
                     break;
                 case ScanStatus.OtherOrder:
                     _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}\nНЕ ТОТ ЗАКАЗ", CounterBoard.Bad);
+                    if (_tutorial) ShowHint(HintWrongBox);
                     break;
                 case ScanStatus.NoActiveOrder:
                     _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}", CounterBoard.Neutral);
@@ -219,6 +242,8 @@ namespace Pvz.Runtime
 
         private void OnOrderCompleted(OrderResult result)
         {
+            _tutorial = false; // the player has done it once
+
             Say("Спасибо!\nХорошего дня!");
             _board.ShowHeadline("Заказ выдан", CounterBoard.Good);
             // ShiftStats subscribed to the desk before the presenter, so LastOrderPoints is already updated.
