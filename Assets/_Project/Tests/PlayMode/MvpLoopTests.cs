@@ -312,6 +312,35 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest, Timeout(60000)]
+        public IEnumerator Customers_Speak_TheScannerFlashes_AndAServedOrderIsCelebrated()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.UseBagChance(0);
+            yield return WaitUntil(() => director.Desk.HasActiveOrder, 40f, "first customer at the counter");
+
+            var customer = director.CurrentCustomer;
+            Assert.IsNotNull(customer.Voice, "customers have a voice");
+            Assert.Greater(customer.Voice.LinesSpoken, 0, "the greeting is spoken, not only shown");
+
+            var order = director.Desk.ActiveOrder;
+            var flashes = director.Scanner.Flashes;
+            Assert.IsTrue(director.TryGetBox(order.Boxes[0], out var first));
+            director.Scanner.ScanDirect(first);
+            Assert.AreEqual(flashes + 1, director.Scanner.Flashes, "the screen lights up after a scan");
+
+            Assert.IsNotNull(director.Effects, "confetti is wired in the scene");
+            var celebrations = director.Effects.Celebrations;
+            foreach (var id in order.Boxes)
+            {
+                Assert.IsTrue(director.TryGetBox(id, out var box));
+                yield return MoveTo(box, director.Zone.transform.position + Vector3.up * 0.05f);
+            }
+            yield return WaitUntil(() => director.Stats.OrdersCompleted == 1, 10f, "order handed over");
+            Assert.AreEqual(celebrations + 1, director.Effects.Celebrations, "confetti for the served order");
+            Assert.Greater(director.Effects.ParticlesAlive, 0, "the confetti really flies");
+        }
+
+        [UnityTest, Timeout(60000)]
         public IEnumerator PatienceBar_ShrinksWhileTheCustomerWaits_AndHidesWithoutPatience()
         {
             var director = Object.FindFirstObjectByType<ShiftDirector>();

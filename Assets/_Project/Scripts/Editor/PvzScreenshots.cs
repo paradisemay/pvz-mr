@@ -141,6 +141,16 @@ namespace Pvz.Editor
             Capture("11_events", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.1f, 1.55f, 1.3f), 70f);
             customer.ShowPatience(0.55);
 
+            // An order handed over: confetti over the handover zone (T018).
+            var confetti = Object.FindFirstObjectByType<FeedbackEffects>().GetComponentInChildren<ParticleSystem>(true);
+            confetti.Emit(45);
+            confetti.Simulate(0.35f, true, false);
+            customer.Say("Спасибо!\nХорошего дня!");
+            board.ShowHeadline("Заказ выдан", CounterBoard.Good);
+            board.ShowStatus("+250 очков", CounterBoard.Good);
+            Capture("14_confetti", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.3f, 1.35f, 1.1f), 70f);
+            confetti.Clear(true);
+
             // Shift timer: the time ran out, the last customer is still served.
             customer.Say("Здравствуйте!\nЗаказ №2781");
             board.ShowHeadline("Время смены вышло!", CounterBoard.Bad);

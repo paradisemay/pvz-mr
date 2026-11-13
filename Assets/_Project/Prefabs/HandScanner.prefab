@@ -779,6 +779,8 @@ MonoBehaviour:
   beam: {fileID: 3248783056024472900}
   beamDuration: 0.15
   screen: {fileID: 2203962271468668668}
+  screenBack: {fileID: 915356637468776328}
+  flashSeconds: 0.35
 --- !u!1 &6036746954568527519
 GameObject:
   m_ObjectHideFlags: 0

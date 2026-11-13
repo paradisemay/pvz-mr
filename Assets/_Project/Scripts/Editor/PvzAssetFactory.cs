@@ -65,6 +65,15 @@ namespace Pvz.Editor
             return mat;
         }
 
+        /// <summary>Particles that take their colour from the particle (confetti of many colours).</summary>
+        public static Material ParticlesUnlit(string name)
+        {
+            var mat = LoadOrCreateMaterial(name, "Universal Render Pipeline/Particles/Unlit", out var created);
+            if (created) mat.SetColor("_BaseColor", Color.white);
+            EditorUtility.SetDirty(mat);
+            return mat;
+        }
+
         public static Material UnlitTransparent(string name, Color color)
         {
             var existing = AssetDatabase.LoadAssetAtPath<Material>($"{MaterialsDir}/{name}.mat");
