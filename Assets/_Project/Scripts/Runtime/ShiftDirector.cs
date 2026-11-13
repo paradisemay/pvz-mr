@@ -28,6 +28,8 @@ namespace Pvz.Runtime
         [SerializeField] private SupplyDrop supplyDrop;
         [Tooltip("Optional: buttons to pick the difficulty. Without them the shift starts at once with the default settings.")]
         [SerializeField] private DifficultyButton[] difficultyButtons = Array.Empty<DifficultyButton>();
+        [Tooltip("Optional: everything shown before the shift (difficulty buttons, recenter button); hidden on start.")]
+        [SerializeField] private GameObject startMenu;
 
         private readonly BoxRegistry _registry = new BoxRegistry();
         private readonly List<QueuedCustomer> _line = new List<QueuedCustomer>();
@@ -123,6 +125,7 @@ namespace Pvz.Runtime
             Subscribe();
 
             foreach (var button in difficultyButtons) if (button != null) button.gameObject.SetActive(false);
+            if (startMenu != null) startMenu.SetActive(false);
             _presenter.ShowShiftStarting(settings.DisplayName);
             StartCoroutine(RunShift());
         }
@@ -360,6 +363,8 @@ namespace Pvz.Runtime
             Debug.LogError($"[ShiftDirector] Missing references: {string.Join(", ", missing)}. Rebuild the scene (PVZ → Build Scene And Assets).", this);
             return false;
         }
+
+        internal void ConfigureStartMenu(GameObject menuRoot) => startMenu = menuRoot;
 
         internal void Configure(ShiftSettings shiftSettings, QrBox[] sceneBoxes, HandScanner handScanner, HandoverZone zone,
             Customer prefab, Transform spawn, Transform service, CounterBoard counterBoard, ShiftSummaryPanel summary,

@@ -33,6 +33,8 @@ namespace Pvz.Editor.Tests
         [TestCase(typeof(SupplyDrop))]
         [TestCase(typeof(BagDispenser))]
         [TestCase(typeof(DifficultyButton))]
+        [TestCase(typeof(RecenterButton))]
+        [TestCase(typeof(ScenePermissionGate))]
         public void AllObjectReferencesAreAssigned(System.Type componentType)
         {
             var components = Object.FindObjectsByType(componentType, FindObjectsInactive.Include, FindObjectsSortMode.None);
