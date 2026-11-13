@@ -78,6 +78,29 @@ namespace Pvz.Runtime
 
         private float _stackHeight;
 
+        private Coroutine _walk;
+
+        /// <summary>Starts walking to a place (cancels the previous walk). Poll <see cref="IsWalking"/>.</summary>
+        public void GoTo(Vector3 target, Quaternion finalRotation, float speed)
+        {
+            if (_walk != null) StopCoroutine(_walk);
+            _walk = StartCoroutine(WalkTo(target, finalRotation, speed));
+        }
+
+        /// <summary>Walks away and disappears together with everything they carry.</summary>
+        public void LeaveAndVanish(Vector3 exit, float speed)
+        {
+            if (_walk != null) StopCoroutine(_walk);
+            _walk = StartCoroutine(Leave(exit, speed));
+        }
+
+        private IEnumerator Leave(Vector3 exit, float speed)
+        {
+            StopTalking();
+            yield return WalkTo(exit, transform.rotation, speed);
+            Destroy(gameObject);
+        }
+
         /// <summary>Walks to <paramref name="target"/> and turns to <paramref name="finalRotation"/>.</summary>
         public IEnumerator WalkTo(Vector3 target, Quaternion finalRotation, float speed)
         {

@@ -21,12 +21,21 @@ namespace Pvz.Core
         /// Picks a random box and returns the order it belongs to (all boxes sharing that order number),
         /// or null if the catalog is empty.
         /// </summary>
-        public Order CreateRandomOrder(BoxCatalog catalog)
+        public Order CreateRandomOrder(BoxCatalog catalog) => CreateRandomOrder(catalog, null);
+
+        /// <summary>Same, but never picks an order whose number is in <paramref name="excludedOrders"/>.</summary>
+        public Order CreateRandomOrder(BoxCatalog catalog, ICollection<string> excludedOrders)
         {
             if (catalog == null) throw new ArgumentNullException(nameof(catalog));
-            if (catalog.Count == 0) return null;
 
-            var picked = catalog.Boxes[_random.Range(0, catalog.Count)];
+            var candidates = new List<BoxRecord>();
+            foreach (var box in catalog.Boxes)
+            {
+                if (excludedOrders == null || !excludedOrders.Contains(box.OrderNumber)) candidates.Add(box);
+            }
+            if (candidates.Count == 0) return null;
+
+            var picked = candidates[_random.Range(0, candidates.Count)];
             var boxes = new List<BoxId>();
             foreach (var box in catalog.Boxes)
             {

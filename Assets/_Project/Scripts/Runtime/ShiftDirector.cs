@@ -30,6 +30,7 @@ namespace Pvz.Runtime
         [SerializeField] private DifficultyButton[] difficultyButtons = Array.Empty<DifficultyButton>();
 
         private readonly BoxRegistry _registry = new BoxRegistry();
+        private readonly List<QueuedCustomer> _line = new List<QueuedCustomer>();
         private ShiftPresenter _presenter;
         private int _customersSpawned;
         private int _supplySeed;
@@ -46,6 +47,8 @@ namespace Pvz.Runtime
         public HandScanner Scanner => scanner;
         public HandoverZone Zone => handoverZone;
         public IEnumerable<QrBox> RemainingBoxes => _registry.All;
+        /// <summary>Orders of the customers standing in line (the first one is at the counter).</summary>
+        public IReadOnlyList<Order> QueuedOrders => _line.Select(c => c.Order).ToList();
         public IReadOnlyList<DifficultyButton> DifficultyButtons => difficultyButtons;
 
         public event Action ShiftEnded;
@@ -170,10 +173,13 @@ namespace Pvz.Runtime
                 {
                     SpawnDelivery(delivery);
                     yield return new WaitForSeconds(settings.DelayBetweenCustomers);
+                    continue;
                 }
-                else if (Shift.HasOrdersLeft)
+
+                FillQueue();
+                if (_line.Count > 0)
                 {
-                    yield return ServeCustomer(Shift.NextOrder());
+                    yield return ServeFrontCustomer();
                     if (Shift.IsOver) break;
                     _presenter.ShowWaitingForCustomer();
                     yield return new WaitForSeconds(settings.DelayBetweenCustomers);
@@ -182,7 +188,7 @@ namespace Pvz.Runtime
                 {
                     // Nothing to sell until the player accepts the delivery.
                     _presenter.ShowReceiveSupplyHint();
-                    yield return new WaitUntil(() => Shift.HasOrdersLeft || Shift.IsOver);
+                    yield return new WaitUntil(() => Shift.HasUnreservedOrders || Shift.IsDeliveryDue || Shift.IsOver);
                 }
             }
             EndShift();
@@ -199,25 +205,71 @@ namespace Pvz.Runtime
             foreach (var box in supplyDrop.Drop(ids, _supplySeed, settings.DefaultCeilingHeight)) _registry.Register(box);
         }
 
-        private IEnumerator ServeCustomer(Order order)
+        /// <summary>Brings new customers until the line is full; each one reserves a different order.</summary>
+        private void FillQueue()
         {
-            CurrentCustomer = Instantiate(customerPrefab, customerSpawnPoint.position, customerSpawnPoint.rotation);
-            CurrentCustomer.SetLook(_customersSpawned++);
-            _presenter.Customer = CurrentCustomer;
-            _presenter.ShowCustomerApproaching();
-            yield return CurrentCustomer.WalkTo(customerServicePoint.position, customerServicePoint.rotation, settings.CustomerWalkSpeed);
+            while (_line.Count < Mathf.Max(1, settings.QueueLength))
+            {
+                var order = Shift.NextOrder();
+                if (order == null) return;
+                var customer = Instantiate(customerPrefab, customerSpawnPoint.position, customerSpawnPoint.rotation);
+                customer.SetLook(_customersSpawned++);
+                _line.Add(new QueuedCustomer(customer, order));
+                customer.GoTo(SlotPosition(_line.Count - 1), customerServicePoint.rotation, settings.CustomerWalkSpeed);
+            }
+        }
 
-            Desk.OpenOrder(order, Now);
+        private IEnumerator ServeFrontCustomer()
+        {
+            var front = _line[0];
+            CurrentCustomer = front.Customer;
+            _presenter.Customer = front.Customer;
+            _presenter.ShowCustomerApproaching();
+            yield return new WaitUntil(() => !front.Customer.IsWalking);
+
+            Desk.OpenOrder(front.Order, Now);
             HandOverBoxesAlreadyInZone();
 
             yield return new WaitUntil(() => !Desk.HasActiveOrder);
             yield return new WaitForSeconds(settings.ThanksDuration);
 
-            CurrentCustomer.StopTalking();
-            yield return CurrentCustomer.WalkTo(customerSpawnPoint.position, customerSpawnPoint.rotation, settings.CustomerWalkSpeed);
+            _line.RemoveAt(0);
             _presenter.Customer = null;
-            Destroy(CurrentCustomer.gameObject); // takes the handed-over boxes with it
             CurrentCustomer = null;
+            // Leave sideways so the customer does not walk through the line; boxes go with them.
+            front.Customer.LeaveAndVanish(ExitPosition, settings.CustomerWalkSpeed);
+            for (var i = 0; i < _line.Count; i++)
+                _line[i].Customer.GoTo(SlotPosition(i), customerServicePoint.rotation, settings.CustomerWalkSpeed);
+        }
+
+        private Vector3 LineDirection
+        {
+            get
+            {
+                var direction = customerSpawnPoint.position - customerServicePoint.position;
+                direction.y = 0f;
+                return direction.sqrMagnitude > 0.001f ? direction.normalized : Vector3.forward;
+            }
+        }
+
+        /// <summary>Place number <paramref name="index"/> in the line (0 = at the counter).</summary>
+        private Vector3 SlotPosition(int index) => customerServicePoint.position + LineDirection * (QueueSpacing * index);
+
+        private Vector3 ExitPosition => customerServicePoint.position + Vector3.Cross(Vector3.up, LineDirection) * 2.2f
+                                        + LineDirection * 0.8f;
+
+        private const float QueueSpacing = 0.65f;
+
+        private readonly struct QueuedCustomer
+        {
+            public QueuedCustomer(Customer customer, Order order)
+            {
+                Customer = customer;
+                Order = order;
+            }
+
+            public Customer Customer { get; }
+            public Order Order { get; }
         }
 
         private void EndShift()

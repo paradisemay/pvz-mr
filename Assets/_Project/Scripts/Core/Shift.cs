@@ -25,7 +25,14 @@ namespace Pvz.Core
             _supplyPlan = supplyPlan ?? SupplyPlan.None;
             foreach (var box in catalog.Boxes) _orderNumbers.Add(box.OrderNumber);
             HasScheduledDelivery = !_supplyPlan.IsEmpty;
+            // A served order is gone; an abandoned one goes back to the pool for the next customers.
+            Desk.OrderCompleted += OnOrderCompleted;
+            Desk.OrderAbandoned += OnOrderClosed;
         }
+
+        private readonly HashSet<string> _reserved = new HashSet<string>();
+
+        private void OnOrderCompleted(OrderResult result) => OnOrderClosed(result.Order);
 
         /// <summary>A supply box was scanned and moved into the warehouse.</summary>
         public event Action<BoxRecord> BoxReceived;
@@ -106,13 +113,39 @@ namespace Pvz.Core
             set => _generator.BagChancePercent = value;
         }
 
-        /// <summary>Picks the next customer's order, or null when the warehouse is empty.</summary>
+        /// <summary>
+        /// Picks the order for a new customer and reserves it, so two customers in the queue never come for the same
+        /// order. Returns null when every order in the warehouse is already taken by someone.
+        /// </summary>
         public Order NextOrder()
         {
-            if (Desk.HasActiveOrder)
-                throw new InvalidOperationException("The current customer has not been served yet.");
-            return _generator.CreateRandomOrder(Desk.Catalog);
+            var order = _generator.CreateRandomOrder(Desk.Catalog, _reserved);
+            if (order != null) _reserved.Add(order.Number);
+            return order;
         }
+
+        /// <summary>Some order in the warehouse is not promised to any customer yet.</summary>
+        public bool HasUnreservedOrders
+        {
+            get
+            {
+                foreach (var box in Desk.Catalog.Boxes)
+                {
+                    if (!_reserved.Contains(box.OrderNumber)) return true;
+                }
+                return false;
+            }
+        }
+
+        public bool IsReserved(string orderNumber) => _reserved.Contains(orderNumber);
+
+        /// <summary>Makes an order available again (e.g. its customer vanished before reaching the counter).</summary>
+        public void ReleaseReservation(Order order)
+        {
+            if (order != null) _reserved.Remove(order.Number);
+        }
+
+        private void OnOrderClosed(Order order) => _reserved.Remove(order.Number);
 
         /// <summary>If the planned delivery is due, makes it arrive and returns its boxes (to be spawned in the room).</summary>
         public bool TryTakeDueDelivery(out IReadOnlyList<BoxRecord> boxes)
@@ -186,6 +219,8 @@ namespace Pvz.Core
         public void Dispose()
         {
             BoxReceived -= Stats.OnBoxReceived;
+            Desk.OrderCompleted -= OnOrderCompleted;
+            Desk.OrderAbandoned -= OnOrderClosed;
             Stats.Dispose();
         }
     }

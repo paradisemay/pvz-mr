@@ -57,10 +57,44 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
-        public void NextOrder_WhileServing_Throws()
+        public void NextOrder_ReservesOrders_SoQueuedCustomersNeverShareOne()
         {
-            _shift.Desk.OpenOrder(_shift.NextOrder(), 0);
-            Assert.Throws<InvalidOperationException>(() => _shift.NextOrder());
+            var shift = new Shift(TestData.MvpCatalog(), new SystemRandomSource(3));
+            var numbers = new[] { shift.NextOrder().Number, shift.NextOrder().Number, shift.NextOrder().Number };
+            CollectionAssert.AllItemsAreUnique(numbers);
+            Assert.IsFalse(shift.HasUnreservedOrders);
+            Assert.IsNull(shift.NextOrder(), "every order is already promised to someone");
+            shift.Dispose();
+        }
+
+        [Test]
+        public void CompletedOrder_FreesNothing_AbandonedOrder_GoesBackToThePool()
+        {
+            var shift = new Shift(TestData.MvpCatalog(), new FakeRandom(0, 0, 0, 0, 0));
+            var first = shift.NextOrder();
+            var second = shift.NextOrder();
+            Assert.IsTrue(shift.IsReserved(first.Number) && shift.IsReserved(second.Number));
+
+            shift.Desk.OpenOrder(first, 0);
+            shift.Desk.Handover(first.Boxes[0], 1);
+            Assert.IsFalse(shift.IsReserved(first.Number));
+
+            shift.Desk.OpenOrder(second, 2);
+            shift.Desk.Abandon();
+            Assert.IsFalse(shift.IsReserved(second.Number));
+            Assert.IsTrue(shift.HasUnreservedOrders);
+            shift.Dispose();
+        }
+
+        [Test]
+        public void ReleaseReservation_MakesTheOrderAvailableAgain()
+        {
+            var shift = new Shift(new BoxCatalog(new[] { new BoxRecord(TestData.Box1, "1435") }), new FakeRandom(0, 0));
+            var order = shift.NextOrder();
+            Assert.IsNull(shift.NextOrder());
+            shift.ReleaseReservation(order);
+            Assert.AreEqual("1435", shift.NextOrder().Number);
+            shift.Dispose();
         }
 
         [Test]

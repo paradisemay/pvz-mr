@@ -146,6 +146,37 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest, Timeout(60000)]
+        public IEnumerator Queue_TwoCustomersWaitInLine_WithDifferentOrders()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            Assert.AreEqual(2, director.ActiveSettings.QueueLength, "the default (normal) difficulty has a line of two");
+
+            yield return WaitUntil(() => director.Desk.HasActiveOrder, 40f, "first customer at the counter");
+            Assert.AreEqual(2, director.QueuedOrders.Count);
+            Assert.AreNotEqual(director.QueuedOrders[0].Number, director.QueuedOrders[1].Number);
+            Assert.AreEqual(2, Object.FindObjectsByType<Customer>(FindObjectsSortMode.None).Length);
+
+            var front = director.CurrentCustomer;
+            var second = Object.FindObjectsByType<Customer>(FindObjectsSortMode.None).First(c => c != front);
+            Assert.Greater(Vector3.Distance(second.transform.position, director.Zone.transform.position),
+                Vector3.Distance(front.transform.position, director.Zone.transform.position), "the second customer waits behind");
+
+            // Serve the first customer: the second one steps up to the counter.
+            var secondOrder = director.QueuedOrders[1];
+            foreach (var id in director.Desk.ActiveOrder.Boxes)
+            {
+                Assert.IsTrue(director.TryGetBox(id, out var box));
+                yield return MoveTo(box, director.Zone.transform.position + Vector3.up * 0.05f);
+            }
+            if (director.Desk.HasActiveOrder && director.Desk.ActiveSession.AwaitingBag)
+                yield return MoveTo(Object.FindFirstObjectByType<BagDispenser>().Current, director.Zone.transform.position);
+
+            yield return WaitUntil(() => director.Desk.HasActiveOrder && director.Desk.ActiveOrder == secondOrder, 40f,
+                "second customer at the counter");
+            Assert.AreSame(second, director.CurrentCustomer);
+        }
+
+        [UnityTest, Timeout(60000)]
         public IEnumerator ImpatientCustomer_HurriesThenLeaves_AndTheOrderStaysInStock()
         {
             var director = Object.FindFirstObjectByType<ShiftDirector>();
