@@ -136,6 +136,7 @@ namespace Pvz.Editor
             var keeper = new GameObject("Warehouse Layout").AddComponent<WarehouseLayoutKeeper>();
             keeper.Configure(boxes.ToArray(), counter.GetComponentInChildren<HandoverZone>(true));
             CreateResetWarehouseButton(startMenu, keeper, font);
+            director.ConfigureTheme(counter.GetComponentInChildren<CounterSkin>(true), CreateThemeButton(startMenu, director, font));
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
@@ -180,13 +181,29 @@ namespace Pvz.Editor
         {
             var go = new GameObject("Reset Warehouse Button");
             go.transform.SetParent(parent, false);
-            go.transform.position = CounterPosition + new Vector3(-0.15f, PvzPrefabBuilder.CounterHeight + 0.03f, 0.14f);
-            Primitive(PrimitiveType.Cube, "Cap", go.transform, Vector3.zero, new Vector3(0.22f, 0.05f, 0.13f),
+            go.transform.position = CounterPosition + new Vector3(-0.21f, PvzPrefabBuilder.CounterHeight + 0.03f, 0.14f);
+            Primitive(PrimitiveType.Cube, "Cap", go.transform, Vector3.zero, new Vector3(0.11f, 0.05f, 0.13f),
                 Lit("ResetWarehouseButton", new Color(0.95f, 0.6f, 0.25f)), true);
-            Text("Label", go.transform, new Vector3(0, 0.027f, 0), new Vector2(0.21f, 0.11f), "СБРОСИТЬ\nСКЛАД", font,
-                new Color(0.08f, 0.1f, 0.14f), 0.6f, localRot: Quaternion.Euler(90, 0, 0));
+            Text("Label", go.transform, new Vector3(0, 0.027f, 0), new Vector2(0.105f, 0.11f), "СБРОСИТЬ\nСКЛАД", font,
+                new Color(0.08f, 0.1f, 0.14f), 0.45f, localRot: Quaternion.Euler(90, 0, 0));
             go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
             go.AddComponent<ResetWarehouseButton>().Configure(keeper);
+        }
+
+        /// <summary>«ТЕМА» next to «Сбросить склад»: the counter theme opened by the career (T022).</summary>
+        private static ThemeButton CreateThemeButton(Transform parent, ShiftDirector director, TMPro.TMP_FontAsset font)
+        {
+            var go = new GameObject("Theme Button");
+            go.transform.SetParent(parent, false);
+            go.transform.position = CounterPosition + new Vector3(-0.09f, PvzPrefabBuilder.CounterHeight + 0.03f, 0.14f);
+            Primitive(PrimitiveType.Cube, "Cap", go.transform, Vector3.zero, new Vector3(0.11f, 0.05f, 0.13f),
+                Lit("ThemeButton", new Color(0.62f, 0.5f, 0.95f)), true);
+            var label = Text("Label", go.transform, new Vector3(0, 0.027f, 0), new Vector2(0.105f, 0.11f), "ТЕМА:\nКЛАССИКА", font,
+                new Color(0.08f, 0.1f, 0.14f), 0.45f, localRot: Quaternion.Euler(90, 0, 0));
+            go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
+            var button = go.AddComponent<ThemeButton>();
+            button.Configure(director, label);
+            return button;
         }
 
         /// <summary>Three buttons on the player's side of the counter; hidden once the shift starts.</summary>

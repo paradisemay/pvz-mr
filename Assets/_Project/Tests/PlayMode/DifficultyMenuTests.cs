@@ -37,6 +37,25 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest]
+        public IEnumerator ThemeButton_PaintsTheCounter_InAThemeTheCareerOpened()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            var store = new Pvz.Core.MemoryScoreStore();
+            store.Set(Pvz.Core.Career.PointsKey, 1200); // «Мята» is open
+            director.UseScoreStore(store);
+            var button = Object.FindFirstObjectByType<ThemeButton>();
+            Assert.IsNotNull(button, "the menu has a theme button");
+
+            button.Press();
+            yield return null;
+
+            Assert.AreEqual("mint", director.Skin.ThemeId);
+            StringAssert.Contains("МЯТА", button.Label);
+            button.Press();
+            Assert.AreEqual("classic", director.Skin.ThemeId, "«Ночь» is still closed: back to the classic look");
+        }
+
+        [UnityTest]
         public IEnumerator HardButton_StartsAHardShift_AndHidesTheMenu()
         {
             var director = Object.FindFirstObjectByType<ShiftDirector>();

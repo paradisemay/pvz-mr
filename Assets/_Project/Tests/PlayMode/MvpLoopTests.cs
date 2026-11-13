@@ -293,6 +293,7 @@ namespace Pvz.Runtime.Tests
             var summary = Object.FindFirstObjectByType<ShiftSummaryPanel>(FindObjectsInactive.Include);
             StringAssert.Contains("время вышло", summary.Text);
             StringAssert.Contains("Обслужено клиентов: 1/", summary.Text);
+            StringAssert.Contains("Карьера:", summary.Text, "the shift's points go to the career");
         }
 
         [UnityTest, Timeout(60000)]

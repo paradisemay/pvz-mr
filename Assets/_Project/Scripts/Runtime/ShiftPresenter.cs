@@ -185,6 +185,29 @@ namespace Pvz.Runtime
             ShowCurrentHint();
         }
 
+        /// <summary>Career line under the menu: points and how far the next theme is.</summary>
+        public static string CareerText(Career career)
+        {
+            if (career == null) return string.Empty;
+            var next = career.NextLocked;
+            return next == null
+                ? $"Карьера: {career.Points} · все темы открыты"
+                : $"Карьера: {career.Points} · до темы «{next.Name}»: {next.UnlockPoints - career.Points}";
+        }
+
+        /// <summary>The label of the «ТЕМА» button.</summary>
+        public static string ThemeLabel(CounterTheme theme) => $"ТЕМА:\n{(theme?.Name ?? "Классика").ToUpperInvariant()}";
+
+        /// <summary>The career line of the shift summary.</summary>
+        public static string CareerLine(CareerResult result)
+        {
+            var line = $"Карьера: {result.Total} (+{result.Added})";
+            if (result.Unlocked == null || result.Unlocked.Count == 0) return line;
+            var names = new System.Collections.Generic.List<string>();
+            foreach (var theme in result.Unlocked) names.Add($"«{theme.Name}»");
+            return line + $"\n<b>Открыта тема {string.Join(", ", names)}!</b>";
+        }
+
         /// <summary>How many lines the order list on the counter shows.</summary>
         public const int OrderListLines = 7;
 
