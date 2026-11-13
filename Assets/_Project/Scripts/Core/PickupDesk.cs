@@ -25,6 +25,8 @@ namespace Pvz.Core
         public event Action<OrderResult> OrderCompleted;
         /// <summary>Raised for every bag offered, before <see cref="OrderCompleted"/>.</summary>
         public event Action<BagStatus> BagHandedOver;
+        /// <summary>All boxes are handed over and the customer now asks for a bag.</summary>
+        public event Action<Order> BagRequested;
 
         public BoxCatalog Catalog => _catalog;
         public ServiceSession ActiveSession { get; private set; }
@@ -87,8 +89,10 @@ namespace Pvz.Core
             var result = CloseIfComplete(session, now);
 
             var accepted = new HandoverOutcome(HandoverStatus.Accepted, box, result.HasValue);
+            var asksForBag = session.AwaitingBag;
             BoxHandedOver?.Invoke(accepted);
             if (result.HasValue) OrderCompleted?.Invoke(result.Value);
+            else if (asksForBag) BagRequested?.Invoke(session.Order);
             return accepted;
         }
 
@@ -102,10 +106,11 @@ namespace Pvz.Core
             }
 
             var session = ActiveSession;
-            if (!session.DeliverBag())
+            var status = session.DeliverBag();
+            if (status != BagStatus.Accepted)
             {
-                BagHandedOver?.Invoke(BagStatus.NotNeeded);
-                return BagStatus.NotNeeded;
+                BagHandedOver?.Invoke(status);
+                return status;
             }
 
             var result = CloseIfComplete(session, now);

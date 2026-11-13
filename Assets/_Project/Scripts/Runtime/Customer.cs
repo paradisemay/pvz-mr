@@ -65,7 +65,10 @@ namespace Pvz.Runtime
         {
             if (box == null) return;
             box.HandTo(carryAnchor != null ? carryAnchor : transform);
-            box.transform.localPosition = Vector3.up * (0.27f * _carriedBoxes++);
+            var collider = box.GetComponent<BoxCollider>();
+            var height = collider != null ? collider.size.y * box.transform.localScale.y : 0.27f;
+            box.transform.localPosition = Vector3.up * (_stackHeight + height / 2f);
+            _stackHeight += height + 0.005f;
         }
 
         public void Take(ParcelBag bag)
@@ -73,7 +76,7 @@ namespace Pvz.Runtime
             if (bag != null) bag.HandTo(carryAnchor != null ? carryAnchor : transform);
         }
 
-        private int _carriedBoxes;
+        private float _stackHeight;
 
         /// <summary>Walks to <paramref name="target"/> and turns to <paramref name="finalRotation"/>.</summary>
         public IEnumerator WalkTo(Vector3 target, Quaternion finalRotation, float speed)

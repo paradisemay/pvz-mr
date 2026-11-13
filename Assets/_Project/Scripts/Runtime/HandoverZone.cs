@@ -30,6 +30,20 @@ namespace Pvz.Runtime
             }
         }
 
+        /// <summary>Bags currently inside the zone (snapshot).</summary>
+        public IReadOnlyList<ParcelBag> BagsInside
+        {
+            get
+            {
+                var result = new List<ParcelBag>();
+                foreach (var item in _colliderCounts.Keys)
+                {
+                    if (item is ParcelBag bag && bag != null && !bag.IsHandedOver) result.Add(bag);
+                }
+                return result;
+            }
+        }
+
         private void Reset() => GetComponent<Collider>().isTrigger = true;
 
         private void OnTriggerEnter(Collider other)

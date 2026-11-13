@@ -32,6 +32,7 @@ namespace Pvz.Runtime
             _shift.DeliveryExpected += OnDeliveryExpected;
             _shift.BoxReceived += OnBoxReceived;
             _shift.Desk.BagHandedOver += OnBagHandedOver;
+            _shift.Desk.BagRequested += OnBagRequested;
         }
 
         /// <summary>Customer standing at the counter (lines are spoken through them). Set by the director.</summary>
@@ -47,6 +48,7 @@ namespace Pvz.Runtime
             _shift.DeliveryExpected -= OnDeliveryExpected;
             _shift.BoxReceived -= OnBoxReceived;
             _shift.Desk.BagHandedOver -= OnBagHandedOver;
+            _shift.Desk.BagRequested -= OnBagRequested;
         }
 
         public void ShowReceiveSupplyHint()
@@ -100,7 +102,7 @@ namespace Pvz.Runtime
         {
             Say($"Здравствуйте!\nЗаказ №{order.Number}");
             _board.ShowHeadline($"Заказ №{order.Number}", CounterBoard.Accent);
-            _board.ShowStatus(BoxesLeftText(order.Boxes.Count), CounterBoard.Neutral);
+            _board.ShowStatus(BoxesLeftText(order.Boxes.Count, order.Boxes.Count), CounterBoard.Neutral);
         }
 
         private void OnBoxScanned(ScanOutcome outcome)
@@ -130,15 +132,8 @@ namespace Pvz.Runtime
                 case HandoverStatus.Accepted:
                     PlaySound(FeedbackAudio.Sound.Success);
                     if (outcome.OrderCompleted || !_shift.Desk.HasActiveOrder) break;
-                    if (_shift.Desk.ActiveSession.AwaitingBag)
-                    {
-                        Say("Спасибо! Мне ещё\nнужен пакет");
-                        _board.ShowStatus("Клиенту нужен пакет", CounterBoard.Accent);
-                    }
-                    else
-                    {
-                        _board.ShowStatus($"Осталось коробок: {_shift.Desk.ActiveSession.RemainingCount}", CounterBoard.Neutral);
-                    }
+                    var left = _shift.Desk.ActiveSession.RemainingCount;
+                    if (left > 0) _board.ShowStatus(BoxesLeftText(left, _shift.Desk.ActiveOrder.Boxes.Count), CounterBoard.Neutral);
                     break;
                 case HandoverStatus.WrongBox:
                     PlaySound(FeedbackAudio.Sound.Error);
@@ -165,10 +160,19 @@ namespace Pvz.Runtime
                 case BagStatus.NotNeeded:
                     Say("Пакет не нужен,\nспасибо");
                     break;
+                case BagStatus.TooEarly:
+                    Say("Сначала мои\nкоробки, пожалуйста");
+                    break;
                 case BagStatus.NoActiveOrder:
                     _board.ShowStatus("Дождитесь клиента", CounterBoard.Neutral);
                     break;
             }
+        }
+
+        private void OnBagRequested(Order order)
+        {
+            Say("Спасибо! Мне ещё\nнужен пакет");
+            _board.ShowStatus("Клиенту нужен пакет", CounterBoard.Accent);
         }
 
         private void OnOrderCompleted(OrderResult result)
@@ -191,6 +195,11 @@ namespace Pvz.Runtime
             if (Customer != null) Customer.Say(line);
         }
 
-        private static string BoxesLeftText(int count) => count == 1 ? "Найдите коробку" : $"ТОВАРОВ В ЗАКАЗЕ: {count}";
+        /// <summary>One wording for the box counter: «Коробок в заказе: N» at first, then «… осталось N».</summary>
+        private static string BoxesLeftText(int left, int total)
+        {
+            if (total == 1) return "Найдите коробку";
+            return left == total ? $"Коробок в заказе: {total}" : $"Коробок в заказе: осталось {left}";
+        }
     }
 }

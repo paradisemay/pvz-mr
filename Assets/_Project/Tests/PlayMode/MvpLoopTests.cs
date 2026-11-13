@@ -142,6 +142,57 @@ namespace Pvz.Runtime.Tests
             Assert.AreEqual(0, director.Stats.WrongHandovers, "boxes waiting in the zone must not count as mistakes");
         }
 
+        [UnityTest, Timeout(60000)]
+        public IEnumerator BagLeftInZoneTooEarly_IsTakenOnceTheCustomerAsks()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.UseBagChance(100);
+            var dispenser = Object.FindFirstObjectByType<BagDispenser>();
+            yield return WaitUntil(() => director.Desk.HasActiveOrder, 40f, "first customer");
+
+            var bag = dispenser.Current;
+            bag.GetComponent<Rigidbody>().isKinematic = true; // keep it inside the zone
+            yield return MoveTo(bag, director.Zone.transform.position + new Vector3(-0.15f, 0f, 0f));
+            Assert.IsFalse(bag.IsHandedOver, "a bag before the boxes is too early");
+            StringAssert.Contains("коробки", director.CurrentCustomer.LastLine);
+
+            var order = director.Desk.ActiveOrder;
+            foreach (var id in order.Boxes)
+            {
+                Assert.IsTrue(director.TryGetBox(id, out var box));
+                yield return MoveTo(box, director.Zone.transform.position + new Vector3(0.15f, 0.05f, 0f));
+            }
+
+            Assert.IsTrue(bag.IsHandedOver, "the waiting bag is handed over as soon as the customer asks for it");
+            Assert.AreEqual(1, director.Stats.OrdersCompleted);
+            Assert.AreEqual(1, director.Stats.BagsGiven);
+        }
+
+        [UnityTest, Timeout(30000)]
+        public IEnumerator BagDispenser_RefillsOnlyWhenTheSpotIsFree_AndCapsBags()
+        {
+            var dispenser = Object.FindFirstObjectByType<BagDispenser>();
+            yield return null;
+            var first = dispenser.Current;
+            Assert.IsNotNull(first);
+
+            // Hold the bag right above its spot: no new bag may spawn inside it.
+            first.GetComponent<Rigidbody>().isKinematic = true;
+            yield return MoveTo(first, dispenser.transform.position + Vector3.up * 0.27f); // lifted, but still over the spot
+            for (var i = 0; i < 5; i++) yield return null;
+            Assert.AreEqual(1, Object.FindObjectsByType<ParcelBag>(FindObjectsSortMode.None).Length);
+
+            // Take bags away repeatedly: the dispenser never keeps more than 3 around.
+            for (var i = 0; i < 6; i++)
+            {
+                var bag = dispenser.Current;
+                bag.GetComponent<Rigidbody>().isKinematic = true;
+                yield return MoveTo(bag, new Vector3(-2f + i * 0.4f, 0.2f, -2f));
+                for (var f = 0; f < 3; f++) yield return null;
+            }
+            Assert.LessOrEqual(Object.FindObjectsByType<ParcelBag>(FindObjectsSortMode.None).Length, 3);
+        }
+
         [UnityTest, Timeout(30000)]
         public IEnumerator ScannerRaycast_ReadsTheBoxInFront_AndIgnoresItself()
         {

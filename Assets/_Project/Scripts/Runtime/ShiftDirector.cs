@@ -84,6 +84,7 @@ namespace Pvz.Runtime
             scanner.Missed += OnScanMissed;
             handoverZone.BoxEntered += OnBoxEnteredZone;
             handoverZone.BagEntered += OnBagEnteredZone;
+            Desk.BagRequested += OnBagRequested;
         }
 
         private void OnDisable()
@@ -93,6 +94,7 @@ namespace Pvz.Runtime
             scanner.Missed -= OnScanMissed;
             handoverZone.BoxEntered -= OnBoxEnteredZone;
             handoverZone.BagEntered -= OnBagEnteredZone;
+            Desk.BagRequested -= OnBagRequested;
         }
 
         private void OnDestroy()
@@ -204,7 +206,21 @@ namespace Pvz.Runtime
 
         private void OnBagEnteredZone(ParcelBag bag)
         {
-            if (Desk.HandOverBag(Now) != BagStatus.Accepted) return;
+            if (Desk.HandOverBag(Now) == BagStatus.Accepted) GiveToCustomer(bag);
+        }
+
+        /// <summary>The customer asks for a bag: one may already be waiting in the zone.</summary>
+        private void OnBagRequested(Order order)
+        {
+            foreach (var bag in handoverZone.BagsInside)
+            {
+                if (Desk.HandOverBag(Now) == BagStatus.Accepted) GiveToCustomer(bag);
+                break;
+            }
+        }
+
+        private void GiveToCustomer(ParcelBag bag)
+        {
             handoverZone.Forget(bag);
             if (CurrentCustomer != null) CurrentCustomer.Take(bag);
         }

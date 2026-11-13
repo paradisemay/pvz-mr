@@ -11,6 +11,7 @@ namespace Pvz.Core
         private readonly PickupDesk _desk;
         private readonly ScoringRules _rules;
         private double _totalServiceSeconds;
+        private int _bagPointsThisOrder;
 
         public ShiftStats(PickupDesk desk, ScoringRules rules = null)
         {
@@ -70,6 +71,7 @@ namespace Pvz.Core
             if (status != BagStatus.Accepted) return;
             BagsGiven++;
             Score += _rules.BagService;
+            _bagPointsThisOrder += _rules.BagService;
             Changed?.Invoke();
         }
 
@@ -78,8 +80,11 @@ namespace Pvz.Core
             OrdersCompleted++;
             _totalServiceSeconds += result.DurationSeconds;
             if (result.Mistakes == 0) FlawlessOrders++;
-            LastOrderPoints = _rules.PointsForOrder(result.DurationSeconds, result.Mistakes);
-            Score += LastOrderPoints;
+            var orderPoints = _rules.PointsForOrder(result.DurationSeconds, result.Mistakes);
+            Score += orderPoints;
+            // Points shown for the order include the bag, which was already added to the score when handed over.
+            LastOrderPoints = orderPoints + _bagPointsThisOrder;
+            _bagPointsThisOrder = 0;
             Changed?.Invoke();
         }
     }

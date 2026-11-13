@@ -54,6 +54,8 @@ namespace Pvz.Core
         Accepted,
         /// <summary>The customer does not need a bag (or already has one); not a mistake.</summary>
         NotNeeded,
+        /// <summary>The customer needs a bag, but only once all boxes are handed over.</summary>
+        TooEarly,
         /// <summary>No customer is waiting at the desk.</summary>
         NoActiveOrder,
     }

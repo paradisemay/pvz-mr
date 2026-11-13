@@ -30,12 +30,13 @@ namespace Pvz.Core
 
         public bool IsComplete => RemainingCount == 0 && (!Order.NeedsBag || BagDelivered);
 
-        /// <summary>Records the bag; returns false if the customer does not need one (or already has it).</summary>
-        internal bool DeliverBag()
+        /// <summary>Records the bag if the customer is asking for it now (all boxes handed over).</summary>
+        internal BagStatus DeliverBag()
         {
-            if (!Order.NeedsBag || BagDelivered) return false;
+            if (!Order.NeedsBag || BagDelivered) return BagStatus.NotNeeded;
+            if (RemainingCount > 0) return BagStatus.TooEarly;
             BagDelivered = true;
-            return true;
+            return BagStatus.Accepted;
         }
 
         public bool Requires(BoxId id) => Order.Contains(id) && !_delivered.Contains(id);

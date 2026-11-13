@@ -42,12 +42,49 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
-        public void BagGivenEarly_IsKept_AndBoxCompletesTheOrder()
+        public void BagBeforeTheBoxes_IsTooEarly_AndNotCounted()
         {
             _desk.OpenOrder(WithBag(TestData.Box1, "1435"), 0);
-            Assert.AreEqual(BagStatus.Accepted, _desk.HandOverBag(1));
-            Assert.IsFalse(_desk.ActiveSession.AwaitingBag);
-            Assert.IsTrue(_desk.Handover(TestData.Box1, 2).OrderCompleted);
+            Assert.AreEqual(BagStatus.TooEarly, _desk.HandOverBag(1));
+            Assert.AreEqual(0, _stats.BagsGiven);
+            Assert.IsFalse(_desk.Handover(TestData.Box1, 2).OrderCompleted);
+            Assert.IsTrue(_desk.ActiveSession.AwaitingBag);
+        }
+
+        [Test]
+        public void BagRequested_IsRaisedOnce_AfterTheLastBox()
+        {
+            var requested = 0;
+            _desk.BagRequested += _ => requested++;
+            _catalog.Add(new BoxRecord(new BoxId("BOX-004"), "1435"));
+            _desk.OpenOrder(new Order("1435", new[] { TestData.Box1, new BoxId("BOX-004") }, needsBag: true), 0);
+
+            _desk.Handover(TestData.Box1, 1);
+            Assert.AreEqual(0, requested);
+            _desk.Handover(new BoxId("BOX-004"), 2);
+            Assert.AreEqual(1, requested);
+            _desk.HandOverBag(3);
+            Assert.AreEqual(1, requested);
+        }
+
+        [Test]
+        public void BagRequested_IsNotRaised_WhenNoBagIsNeeded()
+        {
+            var requested = 0;
+            _desk.BagRequested += _ => requested++;
+            _desk.OpenOrder(TestData.OrderFor(TestData.Box1, "1435"), 0);
+            _desk.Handover(TestData.Box1, 1);
+            Assert.AreEqual(0, requested);
+        }
+
+        [Test]
+        public void LastOrderPoints_IncludeTheBag()
+        {
+            _desk.OpenOrder(WithBag(TestData.Box1, "1435"), 0);
+            _desk.Handover(TestData.Box1, 5);
+            _desk.HandOverBag(8);
+            Assert.AreEqual(100 + 50 + 50 + 20, _stats.LastOrderPoints);
+            Assert.AreEqual(220, _stats.Score);
         }
 
         [Test]
@@ -60,11 +97,12 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
-        public void SecondBag_IsNotNeeded()
+        public void SecondBag_AfterTheOrderClosed_IsNotCounted()
         {
             _desk.OpenOrder(WithBag(TestData.Box1, "1435"), 0);
-            _desk.HandOverBag(1);
-            Assert.AreEqual(BagStatus.NotNeeded, _desk.HandOverBag(2));
+            _desk.Handover(TestData.Box1, 1);
+            Assert.AreEqual(BagStatus.Accepted, _desk.HandOverBag(2));
+            Assert.AreEqual(BagStatus.NoActiveOrder, _desk.HandOverBag(3));
             Assert.AreEqual(1, _stats.BagsGiven);
         }
 
