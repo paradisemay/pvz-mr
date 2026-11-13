@@ -97,67 +97,11 @@ namespace Pvz.Editor
 
         // ---------- QR textures ----------
 
-        /// <summary>
-        /// A QR-looking label (finder patterns, timing lines, pseudo-random data from the id).
-        /// It is decorative: the game identifies boxes by component, not by decoding the image.
-        /// </summary>
+        /// <summary>Saves the QR label of a box as a PNG asset (same picture as QrTextures.Create at runtime).</summary>
         public static Texture2D QrTexture(string boxId)
         {
-            const int modules = 29;
-            const int quiet = 3;
-            const int scale = 8;
-            var size = (modules + quiet * 2) * scale;
             var path = $"{TexturesDir}/QR_{boxId}.png";
-
-            var grid = new bool[modules, modules];
-            var rng = new System.Random(StableHash(boxId));
-            for (var y = 0; y < modules; y++)
-            for (var x = 0; x < modules; x++)
-                grid[x, y] = rng.Next(100) < 48;
-
-            void Finder(int ox, int oy)
-            {
-                for (var y = -1; y <= 7; y++)
-                for (var x = -1; x <= 7; x++)
-                {
-                    var gx = ox + x;
-                    var gy = oy + y;
-                    if (gx < 0 || gy < 0 || gx >= modules || gy >= modules) continue;
-                    var ring = Mathf.Max(Mathf.Abs(x - 3), Mathf.Abs(y - 3));
-                    grid[gx, gy] = ring != 2 && ring != 4; // 7x7 outer ring, white gap, 3x3 core, white separator
-                }
-            }
-
-            Finder(0, 0);
-            Finder(modules - 7, 0);
-            Finder(0, modules - 7);
-            for (var i = 8; i < modules - 8; i++)
-            {
-                grid[i, 6] = i % 2 == 0;
-                grid[6, i] = i % 2 == 0;
-            }
-            // alignment pattern
-            for (var y = -2; y <= 2; y++)
-            for (var x = -2; x <= 2; x++)
-            {
-                var ring = Mathf.Max(Mathf.Abs(x), Mathf.Abs(y));
-                grid[modules - 7 + x, modules - 7 + y] = ring != 1;
-            }
-
-            var tex = new Texture2D(size, size, TextureFormat.RGB24, false);
-            var black = new Color32(15, 15, 18, 255);
-            var white = new Color32(250, 250, 250, 255);
-            var pixels = new Color32[size * size];
-            for (var py = 0; py < size; py++)
-            for (var px = 0; px < size; px++)
-            {
-                var mx = px / scale - quiet;
-                var my = (size - 1 - py) / scale - quiet; // row 0 at the top of the image
-                var dark = mx >= 0 && my >= 0 && mx < modules && my < modules && grid[mx, my];
-                pixels[py * size + px] = dark ? black : white;
-            }
-            tex.SetPixels32(pixels);
-            tex.Apply();
+            var tex = Pvz.Runtime.QrTextures.Create(boxId);
             File.WriteAllBytes(path, tex.EncodeToPNG());
             Object.DestroyImmediate(tex);
 
@@ -171,16 +115,6 @@ namespace Pvz.Editor
                 importer.SaveAndReimport();
             }
             return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-        }
-
-        private static int StableHash(string s)
-        {
-            unchecked
-            {
-                var h = (int)2166136261;
-                foreach (var c in s) h = (h ^ c) * 16777619;
-                return h;
-            }
         }
 
         // ---------- Font ----------

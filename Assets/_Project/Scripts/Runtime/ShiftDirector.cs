@@ -25,10 +25,12 @@ namespace Pvz.Runtime
         [SerializeField] private ShiftSummaryPanel summaryPanel;
         [SerializeField] private GameObject restartButton;
         [SerializeField] private FeedbackAudio feedback;
+        [SerializeField] private SupplyDrop supplyDrop;
 
         private readonly BoxRegistry _registry = new BoxRegistry();
         private ShiftPresenter _presenter;
         private int _customersSpawned;
+        private int _supplySeed;
 
         public Shift Shift { get; private set; }
         public PickupDesk Desk => Shift.Desk;
@@ -69,8 +71,9 @@ namespace Pvz.Runtime
                 catalog.Add(new BoxRecord(box.Id, orderNumber));
             }
 
-            Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules());
+            Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules(), settings.CreateSupplyPlan());
             _presenter = new ShiftPresenter(Shift, board, scanner, feedback);
+            _supplySeed = settings.CreateRandomSource().Range(1, int.MaxValue);
         }
 
         private void OnEnable()
@@ -104,21 +107,50 @@ namespace Pvz.Runtime
         }
 
         /// <summary>Fixes the order sequence (tests). Call before the first customer arrives.</summary>
-        internal void UseRandomSeed(int seed) => Shift.UseRandomSource(new SystemRandomSource(seed));
+        internal void UseRandomSeed(int seed)
+        {
+            Shift.UseRandomSource(new SystemRandomSource(seed));
+            _supplySeed = seed;
+        }
 
         public bool TryGetBox(BoxId id, out QrBox box) => _registry.TryGet(id, out box);
 
         private IEnumerator RunShift()
         {
             yield return new WaitForSeconds(settings.FirstCustomerDelay);
-            while (Shift.HasOrdersLeft)
+            while (!Shift.IsOver)
             {
-                yield return ServeCustomer(Shift.NextOrder());
-                if (!Shift.HasOrdersLeft) break;
-                _presenter.ShowWaitingForCustomer();
-                yield return new WaitForSeconds(settings.DelayBetweenCustomers);
+                if (Shift.TryTakeDueDelivery(out var delivery))
+                {
+                    SpawnDelivery(delivery);
+                    yield return new WaitForSeconds(settings.DelayBetweenCustomers);
+                }
+                else if (Shift.HasOrdersLeft)
+                {
+                    yield return ServeCustomer(Shift.NextOrder());
+                    if (Shift.IsOver) break;
+                    _presenter.ShowWaitingForCustomer();
+                    yield return new WaitForSeconds(settings.DelayBetweenCustomers);
+                }
+                else
+                {
+                    // Nothing to sell until the player accepts the delivery.
+                    _presenter.ShowReceiveSupplyHint();
+                    yield return new WaitUntil(() => Shift.HasOrdersLeft || Shift.IsOver);
+                }
             }
             EndShift();
+        }
+
+        private void SpawnDelivery(IReadOnlyList<BoxRecord> delivery)
+        {
+            if (supplyDrop == null)
+            {
+                Debug.LogError("[ShiftDirector] A delivery arrived but there is no SupplyDrop in the scene.", this);
+                return;
+            }
+            var ids = delivery.Select(b => b.Id.Value).ToArray();
+            foreach (var box in supplyDrop.Drop(ids, _supplySeed, settings.DefaultCeilingHeight)) _registry.Register(box);
         }
 
         private IEnumerator ServeCustomer(Order order)
@@ -153,7 +185,7 @@ namespace Pvz.Runtime
 
         private void OnBoxScanned(QrBox box)
         {
-            if (box != null) Desk.Scan(box.Id);
+            if (box != null) Shift.Scan(box.Id);
         }
 
         private void OnScanMissed() => _presenter.ShowScanMissed();
@@ -200,8 +232,9 @@ namespace Pvz.Runtime
 
         internal void Configure(ShiftSettings shiftSettings, QrBox[] sceneBoxes, HandScanner handScanner, HandoverZone zone,
             Customer prefab, Transform spawn, Transform service, CounterBoard counterBoard, ShiftSummaryPanel summary,
-            GameObject restart, FeedbackAudio audio)
+            GameObject restart, FeedbackAudio audio, SupplyDrop supply)
         {
+            supplyDrop = supply;
             settings = shiftSettings;
             boxes = sceneBoxes;
             scanner = handScanner;

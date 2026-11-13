@@ -29,6 +29,8 @@ namespace Pvz.Runtime
             _shift.Desk.BoxHandedOver += OnBoxHandedOver;
             _shift.Desk.OrderCompleted += OnOrderCompleted;
             _shift.Stats.Changed += RefreshScore;
+            _shift.DeliveryExpected += OnDeliveryExpected;
+            _shift.BoxReceived += OnBoxReceived;
         }
 
         /// <summary>Customer standing at the counter (lines are spoken through them). Set by the director.</summary>
@@ -41,6 +43,30 @@ namespace Pvz.Runtime
             _shift.Desk.BoxHandedOver -= OnBoxHandedOver;
             _shift.Desk.OrderCompleted -= OnOrderCompleted;
             _shift.Stats.Changed -= RefreshScore;
+            _shift.DeliveryExpected -= OnDeliveryExpected;
+            _shift.BoxReceived -= OnBoxReceived;
+        }
+
+        public void ShowReceiveSupplyHint()
+        {
+            _board.ShowHeadline("Примите поставку", CounterBoard.Accent);
+            _board.ShowStatus($"Отсканируйте новые коробки: {_shift.PendingIntakeCount} ост.", CounterBoard.Neutral);
+        }
+
+        private void OnDeliveryExpected(System.Collections.Generic.IReadOnlyList<BoxRecord> delivery)
+        {
+            PlaySound(FeedbackAudio.Sound.Beep);
+            _board.ShowHeadline("ПОСТАВКА!", CounterBoard.Accent);
+            _board.ShowStatus($"Отсканируйте новые коробки: {_shift.DeliveryReceived}/{_shift.DeliverySize}", CounterBoard.Neutral);
+            RefreshScore(); // the orders total grew
+        }
+
+        private void OnBoxReceived(BoxRecord box)
+        {
+            PlaySound(FeedbackAudio.Sound.Success);
+            _scanner.ShowResult($"Заказ №{box.OrderNumber}\nПРИНЯТО НА СКЛАД", CounterBoard.Good);
+            if (!_shift.Desk.HasActiveOrder)
+                _board.ShowStatus($"Принято коробок: {_shift.DeliveryReceived}/{_shift.DeliverySize}", CounterBoard.Good);
         }
 
         public void ShowShiftStarting()
