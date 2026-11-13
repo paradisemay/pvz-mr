@@ -337,6 +337,7 @@ namespace Pvz.Runtime.Tests
             }
             yield return WaitUntil(() => director.Stats.OrdersCompleted == 1, 10f, "order handed over");
             Assert.AreEqual(celebrations + 1, director.Effects.Celebrations, "confetti for the served order");
+            Assert.Greater(director.Effects.ParticlesAlive, 0, "the confetti really flies");
         }
 
         [UnityTest, Timeout(60000)]

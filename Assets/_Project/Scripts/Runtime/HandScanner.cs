@@ -31,7 +31,6 @@ namespace Pvz.Runtime
         private bool _flashing;
         private MaterialPropertyBlock _block;
         private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
-        private static readonly Color ScreenDark = new Color(0.03f, 0.05f, 0.06f);
 
         /// <summary>How many times the screen flashed (tests).</summary>
         public int Flashes { get; private set; }
@@ -113,8 +112,8 @@ namespace Pvz.Runtime
         /// <summary>Lights the screen in <paramref name="color"/> for a moment (visual confirmation of a scan).</summary>
         public void Flash(Color color)
         {
-            Flashes++;
             if (screenBack == null) return;
+            Flashes++;
             _flashColor = color;
             _flashUntil = Time.time + flashSeconds;
             _flashing = true;
@@ -124,11 +123,18 @@ namespace Pvz.Runtime
         private void UpdateFlash()
         {
             var left = Mathf.Clamp01((_flashUntil - Time.time) / flashSeconds);
+            if (left <= 0f)
+            {
+                // Done: drop the override, so the screen shows its material (whatever an artist made it) again.
+                screenBack.SetPropertyBlock(null);
+                _flashing = false;
+                return;
+            }
+            var material = screenBack.sharedMaterial;
+            var rest = material != null && material.HasProperty(BaseColor) ? material.GetColor(BaseColor) : Color.black;
             if (_block == null) _block = new MaterialPropertyBlock();
-            screenBack.GetPropertyBlock(_block);
-            _block.SetColor(BaseColor, Color.Lerp(ScreenDark, _flashColor * 0.55f, left));
+            _block.SetColor(BaseColor, Color.Lerp(rest, _flashColor * 0.55f, left));
             screenBack.SetPropertyBlock(_block);
-            if (left <= 0f) _flashing = false;
         }
 
         private QrBox FindBox(Vector3 origin, Vector3 direction, out Vector3 endPoint)

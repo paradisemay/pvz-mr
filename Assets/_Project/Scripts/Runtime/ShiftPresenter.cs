@@ -20,8 +20,10 @@ namespace Pvz.Runtime
 
         private TutorialStep _step;
 
-        public ShiftPresenter(Shift shift, CounterBoard board, HandScanner scanner, FeedbackAudio audio, bool tutorial = false,
-            FeedbackEffects effects = null)
+        /// <param name="audio">Sounds; null = silent.</param>
+        /// <param name="effects">Confetti and other visual confirmation; null = none (e.g. a scene without them).</param>
+        public ShiftPresenter(Shift shift, CounterBoard board, HandScanner scanner, FeedbackAudio audio, FeedbackEffects effects,
+            bool tutorial = false)
         {
             _shift = shift ?? throw new ArgumentNullException(nameof(shift));
             // Explicit Unity null checks: serialized references may be "fake null" objects in the editor.
@@ -228,7 +230,7 @@ namespace Pvz.Runtime
             PlaySound(FeedbackAudio.Sound.Beep);
             var (text, color) = ScanResultText(outcome);
             _scanner.ShowResult(text, color);
-            if (outcome.Status == ScanStatus.Matches || outcome.Status == ScanStatus.OtherOrder) _scanner.Flash(color);
+            if (outcome.Status != ScanStatus.NoActiveOrder) _scanner.Flash(color); // every judged scan is confirmed visually
             var tutorialScanning = _step == TutorialStep.Scan || _step == TutorialStep.TakeScanner;
             if (outcome.Status == ScanStatus.Matches && tutorialScanning) { _step = TutorialStep.Carry; ShowCurrentHint(); }
             else if (outcome.Status == ScanStatus.OtherOrder && tutorialScanning) ShowHint(HintWrongBox);

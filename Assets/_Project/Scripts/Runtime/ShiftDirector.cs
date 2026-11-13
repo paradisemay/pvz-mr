@@ -166,7 +166,7 @@ namespace Pvz.Runtime
                 Debug.LogError("[ShiftDirector] Returns are enabled but there is no return box prefab; returns are turned off. Rebuild the scene.", this);
                 Shift.ReturnChancePercent = 0;
             }
-            _presenter = new ShiftPresenter(Shift, board, scanner, feedback, settings.ShowTutorial, effects);
+            _presenter = new ShiftPresenter(Shift, board, scanner, feedback, effects, settings.ShowTutorial);
             _supplySeed = settings.CreateRandomSource().Range(1, int.MaxValue);
             Subscribe();
 

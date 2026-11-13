@@ -308,7 +308,8 @@ namespace Pvz.Editor
             voiceSource.spatialBlend = 1f;
             voiceSource.minDistance = 0.6f;
             voiceSource.maxDistance = 8f;
-            voiceSource.volume = 0.7f;
+            voiceSource.volume = 0.8f;
+            voiceSource.dopplerLevel = 0f; // the listener is the head: turning it must not bend the voice
             var voice = root.AddComponent<CustomerVoice>();
             voice.Configure(voiceSource);
             customer.ConfigureVoice(voice);

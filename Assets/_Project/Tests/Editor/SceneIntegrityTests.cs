@@ -58,11 +58,15 @@ namespace Pvz.Editor.Tests
         {
             var prefab = AssetDatabase.LoadAssetAtPath<Customer>("Assets/_Project/Prefabs/Customer.prefab");
             Assert.IsNotNull(prefab);
-            var it = new SerializedObject(prefab).GetIterator();
-            while (it.NextVisible(true))
+            foreach (var component in new Component[] { prefab, prefab.GetComponent<CustomerVoice>() })
             {
-                if (it.propertyType == SerializedPropertyType.ObjectReference)
-                    Assert.IsNotNull(it.objectReferenceValue, $"Customer.{it.propertyPath} is not assigned");
+                Assert.IsNotNull(component, "the customer has a voice");
+                var it = new SerializedObject(component).GetIterator();
+                while (it.NextVisible(true))
+                {
+                    if (it.propertyType == SerializedPropertyType.ObjectReference)
+                        Assert.IsNotNull(it.objectReferenceValue, $"{component.GetType().Name}.{it.propertyPath} is not assigned");
+                }
             }
         }
 

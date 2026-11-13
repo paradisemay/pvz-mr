@@ -16,9 +16,13 @@ namespace Pvz.Runtime
 
         public void Celebrate()
         {
+            if (confetti == null) return;
+            confetti.Emit(confettiCount);
             Celebrations++;
-            if (confetti != null) confetti.Emit(confettiCount);
         }
+
+        /// <summary>Confetti pieces flying right now (tests).</summary>
+        public int ParticlesAlive => confetti != null ? confetti.particleCount : 0;
 
         internal void Configure(ParticleSystem particles) => confetti = particles;
     }
