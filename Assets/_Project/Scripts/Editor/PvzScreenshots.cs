@@ -112,13 +112,13 @@ namespace Pvz.Editor
 
             // A returning customer has put a box on the counter.
             var returnPrefab = AssetDatabase.LoadAssetAtPath<QrBox>(PvzAssetFactory.PrefabsDir + "/Box_Supply.prefab");
-            var zoneTransform = Object.FindFirstObjectByType<HandoverZone>().transform;
-            var returnBox = Object.Instantiate(returnPrefab, zoneTransform.position + Vector3.down * 0.07f, zoneTransform.rotation);
+            var spot = Object.FindFirstObjectByType<HandoverZone>().ReturnSpot;
+            var returnBox = Object.Instantiate(returnPrefab, spot.position, spot.rotation);
             returnBox.AssignId("BOX-001", QrTextures.Create("BOX-001"));
             customer.Say("Хочу вернуть товар\nиз заказа №1435");
             customer.ShowPatience(null);
             board.ShowHeadline("Возврат: заказ №1435", CounterBoard.Accent);
-            board.ShowStatus("Отсканируйте коробку клиента в зоне выдачи", CounterBoard.Neutral);
+            board.ShowStatus("Отсканируйте коробку клиента на стойке", CounterBoard.Neutral);
             scanner.ShowResult("Заказ №1435\nВОЗВРАТ ПРИНЯТ", CounterBoard.Good);
             Capture("10_return", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.25f, 1.25f, 1.3f), 70f);
             Object.DestroyImmediate(returnBox.gameObject);

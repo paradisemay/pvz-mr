@@ -210,9 +210,12 @@ namespace Pvz.Runtime.Tests
 
             var request = director.Desk.ActiveReturn;
             StringAssert.Contains("вернуть", director.CurrentCustomer.LastLine);
-            var returned = Object.FindObjectsByType<QrBox>(FindObjectsSortMode.None).First(b => b.Id == request.Box);
-            Assert.Less(Vector3.Distance(returned.transform.position, director.Zone.transform.position), 0.3f,
-                "the box is put on the counter in the zone");
+            var returned = director.CurrentReturnBox;
+            Assert.IsNotNull(returned, "the customer put their box on the counter");
+            Assert.AreEqual(request.Box, returned.Id);
+            Assert.Less(Vector3.Distance(returned.transform.position, director.Zone.ReturnSpot.position), 0.01f,
+                "the box lies next to the handover zone");
+            Assert.IsFalse(director.Zone.BoxesInside.Contains(returned), "the returned box is not stock to hand over");
 
             director.Scanner.ScanDirect(returned);
             StringAssert.Contains("ВОЗВРАТ ПРИНЯТ", director.Scanner.ScreenText);

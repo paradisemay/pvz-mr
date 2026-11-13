@@ -55,6 +55,8 @@ namespace Pvz.Runtime
         /// <summary>Orders of the customers standing in line (the first one is at the counter).</summary>
         public IReadOnlyList<Order> QueuedOrders => Shift.QueuedOrders;
         public IReadOnlyList<Visit> QueuedVisits => Shift.QueuedVisits;
+        /// <summary>The box a returning customer put on the counter (null when no return is being processed).</summary>
+        public QrBox CurrentReturnBox { get; private set; }
 
         /// <summary>Sets how often customers come to return a box (tests).</summary>
         internal void UseReturnChance(int percent) => Shift.ReturnChancePercent = percent;
@@ -140,6 +142,11 @@ namespace Pvz.Runtime
                 QueueLength = settings.QueueLength,
                 ReturnChancePercent = settings.ReturnChancePercent,
             };
+            if (Shift.ReturnChancePercent > 0 && returnBoxPrefab == null)
+            {
+                Debug.LogError("[ShiftDirector] Returns are enabled but there is no return box prefab; returns are turned off. Rebuild the scene.", this);
+                Shift.ReturnChancePercent = 0;
+            }
             _presenter = new ShiftPresenter(Shift, board, scanner, feedback, settings.ShowTutorial);
             _supplySeed = settings.CreateRandomSource().Range(1, int.MaxValue);
             Subscribe();
@@ -159,6 +166,7 @@ namespace Pvz.Runtime
             handoverZone.BoxEntered += OnBoxEnteredZone;
             handoverZone.BagEntered += OnBagEnteredZone;
             Desk.BagRequested += OnBagRequested;
+            Desk.ReturnOpened += OnReturnOpened;
         }
 
         private void Unsubscribe()
@@ -170,6 +178,7 @@ namespace Pvz.Runtime
             handoverZone.BoxEntered -= OnBoxEnteredZone;
             handoverZone.BagEntered -= OnBagEnteredZone;
             Desk.BagRequested -= OnBagRequested;
+            Desk.ReturnOpened -= OnReturnOpened;
         }
 
         /// <summary>Fixes the order sequence (tests). Call before the first customer arrives.</summary>
@@ -264,11 +273,6 @@ namespace Pvz.Runtime
         /// <summary>The box a returning customer carries: a generic box given the returned id and its QR.</summary>
         private QrBox SpawnReturnBox(Customer customer, ReturnRequest request)
         {
-            if (returnBoxPrefab == null)
-            {
-                Debug.LogWarning("[ShiftDirector] No return box prefab; the return can still be accepted by scanning nothing.", this);
-                return null;
-            }
             var box = Instantiate(returnBoxPrefab, customer.CarryAnchor.position, customer.CarryAnchor.rotation);
             box.AssignId(request.Box.Value, QrTextures.Create(request.Box.Value));
             customer.Take(box);
@@ -290,22 +294,14 @@ namespace Pvz.Runtime
                 yield break;
             }
 
-            Shift.OpenNext(Now);
-            if (front.Visit.IsReturn)
-            {
-                // The customer puts the box on the counter, inside the green zone, to be scanned.
-                if (front.ReturnBox != null)
-                    front.ReturnBox.PresentForScan(handoverZone.transform.position + Vector3.down * 0.07f, handoverZone.transform.rotation);
-                else
-                    Shift.Scan(front.Visit.Return.Box); // no box to show: accept so the shift never gets stuck
-            }
-            else
-            {
-                HandOverBoxesAlreadyInZone();
-            }
+            Shift.OpenNext(Now); // a return puts its box on the counter (OnReturnOpened)
+            // Boxes the player prepared before the customer arrived are handed over at once (outside the
+            // OrderOpened event, so Core never re-enters itself).
+            if (Desk.HasActiveOrder) HandOverBoxesAlreadyInZone();
 
             yield return new WaitUntil(() => !Desk.HasCustomer);
             if (front.ReturnBox != null) Destroy(front.ReturnBox.gameObject); // taken back and written off
+            CurrentReturnBox = null;
             yield return new WaitForSeconds(settings.ThanksDuration);
 
             _line.RemoveAt(0);
@@ -371,6 +367,16 @@ namespace Pvz.Runtime
         }
 
         private void OnScanMissed() => _presenter.ShowScanMissed();
+
+        /// <summary>The returning customer at the counter puts their box next to the handover zone to be scanned.</summary>
+        private void OnReturnOpened(ReturnRequest request)
+        {
+            var queued = _line.Find(q => q.Visit.Return == request);
+            if (queued.ReturnBox == null) return;
+            var spot = handoverZone.ReturnSpot;
+            queued.ReturnBox.PresentForScan(spot.position, spot.rotation);
+            CurrentReturnBox = queued.ReturnBox;
+        }
 
         private void OnBoxEnteredZone(QrBox box)
         {

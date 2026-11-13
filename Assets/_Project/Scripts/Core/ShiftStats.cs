@@ -46,8 +46,8 @@ namespace Pvz.Core
         /// <summary>Returns taken back from customers.</summary>
         public int ReturnsAccepted { get; private set; }
 
-        /// <summary>Points the last accepted return gave.</summary>
-        public int LastReturnPoints => _rules.ReturnService;
+        /// <summary>Points every accepted return gives.</summary>
+        public int PointsPerReturn => _rules.ReturnService;
 
         /// <summary>Handler for <see cref="Shift.BoxReceived"/>: a supply box was accepted into the warehouse.</summary>
         internal void OnBoxReceived(BoxRecord box)

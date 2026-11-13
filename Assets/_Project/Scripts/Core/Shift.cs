@@ -34,12 +34,17 @@ namespace Pvz.Core
 
         private readonly List<Visit> _line = new List<Visit>();
         private readonly List<BoxRecord> _returnable = new List<BoxRecord>();
+        private readonly HashSet<BoxId> _soldIds = new HashSet<BoxId>();
         private IRandomSource _random;
 
         private void OnOrderCompleted(OrderResult result)
         {
             // Handed-over boxes may come back later in the shift as returns.
-            foreach (var box in result.Order.Boxes) _returnable.Add(new BoxRecord(box, result.Order.Number));
+            foreach (var box in result.Order.Boxes)
+            {
+                _returnable.Add(new BoxRecord(box, result.Order.Number));
+                _soldIds.Add(box);
+            }
             OnOrderClosed(result.Order);
         }
 
@@ -156,7 +161,7 @@ namespace Pvz.Core
         public IReadOnlyList<Visit> QueuedVisits => _line;
 
         /// <summary>Orders of the pickup customers in line, oldest first.</summary>
-        public IReadOnlyList<Order> QueuedOrders => _line.FindAll(v => !v.IsReturn).ConvertAll(v => v.Order);
+        public IReadOnlyList<Order> QueuedOrders => _line.FindAll(v => v.Kind == VisitKind.Pickup).ConvertAll(v => v.Order);
 
         public bool CanEnqueue => _line.Count < Math.Max(1, QueueLength) && HasUnreservedOrders;
 
@@ -208,8 +213,11 @@ namespace Pvz.Core
         {
             if (_line.Count == 0) throw new InvalidOperationException("Nobody is waiting in line.");
             var visit = _line[0];
-            if (visit.IsReturn) Desk.OpenReturn(visit.Return);
-            else Desk.OpenOrder(visit.Order, now);
+            switch (visit.Kind)
+            {
+                case VisitKind.Return: Desk.OpenReturn(visit.Return); break;
+                default: Desk.OpenOrder(visit.Order, now); break;
+            }
             return visit;
         }
 
@@ -227,21 +235,23 @@ namespace Pvz.Core
             }
         }
 
-        public bool IsReserved(string orderNumber) => _line.Exists(v => !v.IsReturn && v.Order.Number == orderNumber);
+        public bool IsReserved(string orderNumber) => _line.Exists(v => v.ReservedOrderNumber == orderNumber);
 
         /// <summary>A customer left the line before reaching the counter; their order (or return) is dropped.</summary>
         public void LeaveQueue(Visit visit)
         {
             if (visit == null) return;
-            if (!visit.IsReturn && Desk.HasActiveOrder && Desk.ActiveOrder == visit.Order) return;
-            if (visit.IsReturn && Desk.ActiveReturn == visit.Return) return;
+            var atCounter = visit.Kind == VisitKind.Pickup
+                ? Desk.HasActiveOrder && Desk.ActiveOrder == visit.Order
+                : Desk.ActiveReturn == visit.Return;
+            if (atCounter) return;
             _line.Remove(visit);
         }
 
         /// <summary>Same as <see cref="LeaveQueue(Visit)"/> for a pickup customer.</summary>
         public void LeaveQueue(Order order)
         {
-            var visit = _line.Find(v => !v.IsReturn && v.Order == order);
+            var visit = _line.Find(v => v.Kind == VisitKind.Pickup && v.Order == order);
             if (visit != null) LeaveQueue(visit);
         }
 
@@ -250,12 +260,12 @@ namespace Pvz.Core
             var numbers = new HashSet<string>();
             foreach (var visit in _line)
             {
-                if (!visit.IsReturn) numbers.Add(visit.Order.Number);
+                if (visit.ReservedOrderNumber != null) numbers.Add(visit.ReservedOrderNumber);
             }
             return numbers;
         }
 
-        private void OnOrderClosed(Order order) => _line.RemoveAll(v => !v.IsReturn && v.Order == order);
+        private void OnOrderClosed(Order order) => _line.RemoveAll(v => v.Kind == VisitKind.Pickup && v.Order == order);
 
         /// <summary>If the planned delivery is due, makes it arrive and returns its boxes (to be spawned in the room).</summary>
         public bool TryTakeDueDelivery(out IReadOnlyList<BoxRecord> boxes)
@@ -281,7 +291,7 @@ namespace Pvz.Core
             foreach (var box in delivery)
             {
                 if (box == null) throw new ArgumentException("Delivery contains a null box.", nameof(boxes));
-                if (!ids.Add(box.Id) || Desk.Catalog.Contains(box.Id) || _pendingIntake.ContainsKey(box.Id))
+                if (!ids.Add(box.Id) || Desk.Catalog.Contains(box.Id) || _pendingIntake.ContainsKey(box.Id) || _soldIds.Contains(box.Id))
                     throw new ArgumentException($"Box {box.Id} is duplicated, already in the warehouse or on its way.", nameof(boxes));
                 // A delivery brings new orders only; topping up an existing order would let it be issued incomplete.
                 if (_orderNumbers.Contains(box.OrderNumber))
@@ -302,6 +312,8 @@ namespace Pvz.Core
         /// </summary>
         public ScanOutcome Scan(BoxId id)
         {
+            // The box a returning customer brought wins over everything else.
+            if (Desk.HasActiveReturn && Desk.ActiveReturn.Box == id) return Desk.Scan(id);
             if (!_pendingIntake.TryGetValue(id, out var record)) return Desk.Scan(id);
 
             _pendingIntake.Remove(id);

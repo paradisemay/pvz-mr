@@ -118,6 +118,35 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void SoldBox_CannotArriveAgain_InADelivery()
+        {
+            using (var shift = NewShift())
+            {
+                var sold = ServeFirstOrder(shift, 0);
+                Assert.Throws<ArgumentException>(() =>
+                    shift.ExpectDelivery(new[] { new BoxRecord(sold.Boxes[0], "9001") }),
+                    "the id of a sold box may come back only as a return");
+            }
+        }
+
+        [Test]
+        public void ReturnIsAccepted_WhileADeliveryWaitsToBeScanned()
+        {
+            using (var shift = NewShift())
+            {
+                ServeFirstOrder(shift, 0);
+                shift.ReturnChancePercent = 100;
+                shift.TryEnqueue(out var visit);
+                shift.ExpectDelivery(new[] { new BoxRecord(new BoxId("BOX-900"), "9001") });
+                Assert.IsTrue(shift.HasPendingIntake, "the delivery waits to be scanned");
+
+                shift.OpenNext(10);
+                Assert.AreEqual(ScanStatus.ReturnAccepted, shift.Scan(visit.Return.Box).Status);
+                Assert.AreEqual(1, shift.Stats.ReturnsAccepted);
+            }
+        }
+
+        [Test]
         public void ShiftIsNotOver_WhileAReturnIsQueued()
         {
             using (var shift = new Shift(new BoxCatalog(new[]
