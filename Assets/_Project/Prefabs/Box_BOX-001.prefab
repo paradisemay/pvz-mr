@@ -321,6 +321,12 @@ MonoBehaviour:
   boxId: BOX-001
   grabInteractable: {fileID: 5462453451798912657}
   body: {fileID: 1088130871742765587}
+  labelRenderers:
+  - {fileID: 344899472758811642}
+  - {fileID: 7561793889807005531}
+  - {fileID: 5637799926886002675}
+  - {fileID: 2812699117108160673}
+  - {fileID: 4162296027649790483}
   lostBelowY: -1
   lostBeyondMeters: 6
 --- !u!1 &4066195177960860459

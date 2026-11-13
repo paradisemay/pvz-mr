@@ -35,26 +35,39 @@ namespace Pvz.Runtime.Tests
             yield return null;
         }
 
-        [UnityTest, Timeout(180000)]
+        [UnityTest, Timeout(240000)]
         public IEnumerator FullShift_ServesEveryCustomer_AndShowsSummary()
         {
             var director = Object.FindFirstObjectByType<ShiftDirector>();
             Assert.IsNotNull(director, "ShiftDirector missing in the Game scene");
             Assert.AreEqual(3, director.OrdersTotal);
+            director.UseBagChance(100); // every customer also asks for a bag
+            var dispenser = Object.FindFirstObjectByType<BagDispenser>();
 
             var wrongBoxTried = false;
+            var received = 0;
+            var multiBoxOrders = 0;
+            bool HasUnreceivedBoxes() => director.RemainingBoxes.Any(b => director.Shift.IsPendingIntake(b.Id));
+
             while (!director.IsShiftOver)
             {
-                yield return WaitUntil(() => director.Desk.HasActiveOrder || director.IsShiftOver, 40f, "customer at the desk");
+                yield return WaitUntil(() => director.Desk.HasActiveOrder || director.IsShiftOver || HasUnreceivedBoxes(),
+                    60f, "customer at the desk or a supply delivery");
                 if (director.IsShiftOver) break;
 
-                var wanted = director.Desk.ActiveOrder.Boxes[0];
-                Assert.IsTrue(director.TryGetBox(wanted, out var box), $"box {wanted} not found in the scene");
+                // Supply delivery: boxes fell from the ceiling; accept each one with the scanner.
+                foreach (var supplyBox in director.RemainingBoxes.Where(b => director.Shift.IsPendingIntake(b.Id)).ToArray())
+                {
+                    director.Scanner.ScanDirect(supplyBox);
+                    StringAssert.Contains("ПРИНЯТО", director.Scanner.ScreenText);
+                    received++;
+                }
+                if (!director.Desk.HasActiveOrder) continue;
 
-                director.Scanner.ScanDirect(box);
-                StringAssert.Contains("НУЖНАЯ", director.Scanner.ScreenText);
+                var order = director.Desk.ActiveOrder;
+                if (order.Boxes.Count > 1) multiBoxOrders++;
 
-                var other = director.RemainingBoxes.FirstOrDefault(b => b.Id != wanted);
+                var other = director.RemainingBoxes.FirstOrDefault(b => !order.Contains(b.Id) && !director.Shift.IsPendingIntake(b.Id));
                 if (!wrongBoxTried && other != null)
                 {
                     director.Scanner.ScanDirect(other);
@@ -70,26 +83,50 @@ namespace Pvz.Runtime.Tests
                 }
 
                 var completedBefore = director.Stats.OrdersCompleted;
-                yield return PlaceInZone(director, box);
+                foreach (var wanted in order.Boxes)
+                {
+                    Assert.IsTrue(director.TryGetBox(wanted, out var box), $"box {wanted} not found in the scene");
+                    director.Scanner.ScanDirect(box);
+                    StringAssert.Contains("НУЖНАЯ", director.Scanner.ScreenText);
+                    yield return PlaceInZone(director, box);
+                    Assert.IsTrue(box.IsHandedOver);
+                }
+
+                Assert.IsTrue(director.Desk.HasActiveOrder, "the customer still waits for a bag");
+                Assert.IsTrue(director.Desk.ActiveSession.AwaitingBag);
+                StringAssert.Contains("пакет", director.CurrentCustomer.LastLine);
+                var bag = dispenser.Current;
+                Assert.IsNotNull(bag, "the dispenser always offers a bag");
+                yield return MoveTo(bag, director.Zone.transform.position + Vector3.up * 0.05f);
+                Assert.IsTrue(bag.IsHandedOver);
+
                 Assert.AreEqual(completedBefore + 1, director.Stats.OrdersCompleted);
-                Assert.IsTrue(box.IsHandedOver);
                 Assert.IsFalse(director.Desk.HasActiveOrder);
+                yield return null; // let the dispenser refill
             }
 
             Assert.IsTrue(wrongBoxTried);
-            Assert.AreEqual(3, director.Stats.OrdersCompleted);
+            Assert.AreEqual(3, received, "the supply delivery has 3 boxes");
+            Assert.AreEqual(1, multiBoxOrders, "BOX-101 and BOX-102 form one order");
+            Assert.AreEqual(5, director.OrdersTotal);
+            Assert.AreEqual(5, director.Stats.OrdersCompleted);
+            Assert.AreEqual(5, director.Stats.BagsGiven);
+            Assert.AreEqual(3, director.Stats.BoxesReceived);
             Assert.Greater(director.Stats.Score, 0);
             Assert.AreEqual(0, director.Desk.Catalog.Count);
 
             var summary = Object.FindFirstObjectByType<ShiftSummaryPanel>(FindObjectsInactive.Include);
             Assert.IsTrue(summary.IsVisible, "shift summary should be visible");
-            StringAssert.Contains("Обслужено клиентов: 3/3", summary.Text);
+            StringAssert.Contains("Обслужено клиентов: 5/5", summary.Text);
+            StringAssert.Contains("Принято из поставки: 3", summary.Text);
+            StringAssert.Contains("Выдано пакетов: 5", summary.Text);
         }
 
         [UnityTest, Timeout(60000)]
         public IEnumerator BoxPlacedBeforeCustomerArrives_IsHandedOverOnArrival()
         {
             var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.UseBagChance(0); // only boxes: the first order completes as soon as the customer arrives
             Assert.IsFalse(director.Desk.HasActiveOrder);
 
             // Put every box on the counter before anyone arrives: the first customer should take theirs at once.
@@ -103,6 +140,57 @@ namespace Pvz.Runtime.Tests
 
             yield return WaitUntil(() => director.Stats.OrdersCompleted >= 1, 40f, "first order completed automatically");
             Assert.AreEqual(0, director.Stats.WrongHandovers, "boxes waiting in the zone must not count as mistakes");
+        }
+
+        [UnityTest, Timeout(60000)]
+        public IEnumerator BagLeftInZoneTooEarly_IsTakenOnceTheCustomerAsks()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.UseBagChance(100);
+            var dispenser = Object.FindFirstObjectByType<BagDispenser>();
+            yield return WaitUntil(() => director.Desk.HasActiveOrder, 40f, "first customer");
+
+            var bag = dispenser.Current;
+            bag.GetComponent<Rigidbody>().isKinematic = true; // keep it inside the zone
+            yield return MoveTo(bag, director.Zone.transform.position + new Vector3(-0.15f, 0f, 0f));
+            Assert.IsFalse(bag.IsHandedOver, "a bag before the boxes is too early");
+            StringAssert.Contains("коробки", director.CurrentCustomer.LastLine);
+
+            var order = director.Desk.ActiveOrder;
+            foreach (var id in order.Boxes)
+            {
+                Assert.IsTrue(director.TryGetBox(id, out var box));
+                yield return MoveTo(box, director.Zone.transform.position + new Vector3(0.15f, 0.05f, 0f));
+            }
+
+            Assert.IsTrue(bag.IsHandedOver, "the waiting bag is handed over as soon as the customer asks for it");
+            Assert.AreEqual(1, director.Stats.OrdersCompleted);
+            Assert.AreEqual(1, director.Stats.BagsGiven);
+        }
+
+        [UnityTest, Timeout(30000)]
+        public IEnumerator BagDispenser_RefillsOnlyWhenTheSpotIsFree_AndCapsBags()
+        {
+            var dispenser = Object.FindFirstObjectByType<BagDispenser>();
+            yield return null;
+            var first = dispenser.Current;
+            Assert.IsNotNull(first);
+
+            // Hold the bag right above its spot: no new bag may spawn inside it.
+            first.GetComponent<Rigidbody>().isKinematic = true;
+            yield return MoveTo(first, dispenser.transform.position + Vector3.up * 0.27f); // lifted, but still over the spot
+            for (var i = 0; i < 5; i++) yield return null;
+            Assert.AreEqual(1, Object.FindObjectsByType<ParcelBag>(FindObjectsSortMode.None).Length);
+
+            // Take bags away repeatedly: the dispenser never keeps more than 3 around.
+            for (var i = 0; i < 6; i++)
+            {
+                var bag = dispenser.Current;
+                bag.GetComponent<Rigidbody>().isKinematic = true;
+                yield return MoveTo(bag, new Vector3(-2f + i * 0.4f, 0.2f, -2f));
+                for (var f = 0; f < 3; f++) yield return null;
+            }
+            Assert.LessOrEqual(Object.FindObjectsByType<ParcelBag>(FindObjectsSortMode.None).Length, 3);
         }
 
         [UnityTest, Timeout(30000)]
@@ -145,12 +233,38 @@ namespace Pvz.Runtime.Tests
             Assert.Less(Vector3.Distance(start, box.transform.position), 0.3f);
         }
 
+        [UnityTest, Timeout(30000)]
+        public IEnumerator SupplyDrop_PlacesBoxesWhereThePlayerCanReachThem()
+        {
+            var drop = Object.FindFirstObjectByType<SupplyDrop>();
+            var counter = Object.FindFirstObjectByType<HandoverZone>().transform.parent;
+            yield return null;
+
+            for (var seed = 1; seed <= 5; seed++)
+            {
+                var ids = Enumerable.Range(0, 5).Select(i => $"BOX-T{seed}{i}").ToArray();
+                var boxes = drop.Drop(ids, seed, 2.4f);
+                foreach (var box in boxes)
+                {
+                    var p = box.transform.position;
+                    Assert.Less(Mathf.Abs(p.x), 3.3f, $"{box.RawId} outside the mock room");
+                    Assert.Less(Mathf.Abs(p.z), 3.3f, $"{box.RawId} outside the mock room");
+                    var toCounter = new Vector2(p.x - counter.position.x, p.z - counter.position.z).magnitude;
+                    Assert.Greater(toCounter, 1.0f, $"{box.RawId} dropped onto the counter");
+                    Assert.IsFalse(Mathf.Abs(p.x) < 0.6f && p.z > 1.0f, $"{box.RawId} dropped onto the customers' walkway");
+                    Assert.Greater(p.y, 1.5f, "boxes start under the ceiling");
+                }
+                foreach (var box in boxes) Object.Destroy(box.gameObject);
+                yield return null;
+            }
+        }
+
         private static IEnumerator PlaceInZone(ShiftDirector director, QrBox box)
         {
             yield return MoveTo(box, director.Zone.transform.position + Vector3.up * 0.05f);
         }
 
-        private static IEnumerator MoveTo(QrBox box, Vector3 position)
+        private static IEnumerator MoveTo(Component box, Vector3 position)
         {
             var body = box.GetComponent<Rigidbody>();
             if (!body.isKinematic)

@@ -23,7 +23,21 @@ namespace Pvz.Core
         public int Mistakes { get; private set; }
         public int DeliveredCount => _delivered.Count;
         public int RemainingCount => Order.Boxes.Count - _delivered.Count;
-        public bool IsComplete => RemainingCount == 0;
+        public bool BagDelivered { get; private set; }
+
+        /// <summary>All boxes are handed over and the customer now asks for a bag.</summary>
+        public bool AwaitingBag => RemainingCount == 0 && Order.NeedsBag && !BagDelivered;
+
+        public bool IsComplete => RemainingCount == 0 && (!Order.NeedsBag || BagDelivered);
+
+        /// <summary>Records the bag if the customer is asking for it now (all boxes handed over).</summary>
+        internal BagStatus DeliverBag()
+        {
+            if (!Order.NeedsBag || BagDelivered) return BagStatus.NotNeeded;
+            if (RemainingCount > 0) return BagStatus.TooEarly;
+            BagDelivered = true;
+            return BagStatus.Accepted;
+        }
 
         public bool Requires(BoxId id) => Order.Contains(id) && !_delivered.Contains(id);
 

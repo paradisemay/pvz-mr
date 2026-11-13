@@ -48,6 +48,8 @@ namespace Pvz.Editor
             var counterPath = prefabs.Counter();
             var customerPath = prefabs.Customer();
             var planePath = prefabs.ArPlane();
+            var supplyBoxPath = prefabs.SupplyBox();
+            var bagPath = prefabs.Bag();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
@@ -56,6 +58,8 @@ namespace Pvz.Editor
             var counterPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(counterPath);
             var customerPrefab = Load<Customer>(customerPath);
             var planePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(planePath);
+            var supplyBoxPrefab = Load<QrBox>(supplyBoxPath);
+            var bagPrefab = Load<ParcelBag>(bagPath);
 
             CreateLighting();
             var (camera, simulator, locomotion) = CreateMrRig(planePrefab);
@@ -90,6 +94,16 @@ namespace Pvz.Editor
             var spawn = Marker("CustomerSpawn", points, CustomerSpawnPosition, 180f);
             var service = Marker("CustomerService", points, CustomerServicePosition, 180f);
 
+            var dispenser = new GameObject("Bag Dispenser").AddComponent<BagDispenser>();
+            dispenser.transform.SetParent(playArea, false);
+            dispenser.transform.SetPositionAndRotation(CounterPosition + new Vector3(-0.58f, PvzPrefabBuilder.CounterHeight + 0.17f, 0.18f),
+                Quaternion.Euler(0f, 20f, 0f));
+            dispenser.Configure(bagPrefab);
+
+            var supplyDrop = new GameObject("Supply Drop").AddComponent<SupplyDrop>();
+            supplyDrop.transform.SetParent(playArea, false);
+            supplyDrop.Configure(supplyBoxPrefab, camera.transform, counter.transform, spawn, Object.FindFirstObjectByType<ARPlaneManager>());
+
             var director = new GameObject("Shift Director").AddComponent<ShiftDirector>();
             director.Configure(settings, boxes.ToArray(), scanner,
                 counter.GetComponentInChildren<HandoverZone>(true),
@@ -97,7 +111,8 @@ namespace Pvz.Editor
                 counter.GetComponentInChildren<CounterBoard>(true),
                 counter.GetComponentInChildren<ShiftSummaryPanel>(true),
                 counter.GetComponentInChildren<RestartButton>(true).gameObject,
-                counter.GetComponentInChildren<FeedbackAudio>(true));
+                counter.GetComponentInChildren<FeedbackAudio>(true),
+                supplyDrop);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };

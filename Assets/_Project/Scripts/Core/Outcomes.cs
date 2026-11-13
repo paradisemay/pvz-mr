@@ -10,6 +10,8 @@ namespace Pvz.Core
         UnknownBox,
         /// <summary>The box is known but no customer is waiting at the desk.</summary>
         NoActiveOrder,
+        /// <summary>A box from a supply delivery was scanned for the first time and is now in the warehouse.</summary>
+        Received,
     }
 
     public readonly struct ScanOutcome
@@ -44,6 +46,18 @@ namespace Pvz.Core
         public double DurationSeconds { get; }
         /// <summary>Wrong boxes offered to the customer while serving this order.</summary>
         public int Mistakes { get; }
+    }
+
+    public enum BagStatus
+    {
+        /// <summary>The customer needed a bag and took it.</summary>
+        Accepted,
+        /// <summary>The customer does not need a bag (or already has one); not a mistake.</summary>
+        NotNeeded,
+        /// <summary>The customer needs a bag, but only once all boxes are handed over.</summary>
+        TooEarly,
+        /// <summary>No customer is waiting at the desk.</summary>
+        NoActiveOrder,
     }
 
     public enum HandoverStatus

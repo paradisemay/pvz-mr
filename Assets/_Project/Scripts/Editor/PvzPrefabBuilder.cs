@@ -46,10 +46,14 @@ namespace Pvz.Editor
             _button = Lit("RestartButton", new Color(0.95f, 0.45f, 0.15f));
         }
 
-        public string Box(string boxId)
+        /// <summary>Generic box for supply deliveries: its id and QR texture are assigned at runtime.</summary>
+        public string SupplyBox() => Box("BOX-SUPPLY", Unlit("QR_Supply", Color.white), "Box_Supply");
+
+        public string Box(string boxId) => Box(boxId, Unlit($"QR_{boxId}", Color.white, QrTexture(boxId)), $"Box_{boxId}");
+
+        private string Box(string boxId, Material qrMat, string prefabName)
         {
-            var qrMat = Unlit($"QR_{boxId}", Color.white, QrTexture(boxId));
-            var root = new GameObject($"Box_{boxId}");
+            var root = new GameObject(prefabName);
             var rb = root.AddComponent<Rigidbody>();
             rb.mass = 1.2f;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
@@ -64,15 +68,16 @@ namespace Pvz.Editor
             var hx = BoxSize.x / 2f + 0.002f;
             var hy = BoxSize.y / 2f + 0.003f;
             var hz = BoxSize.z / 2f + 0.002f;
-            Primitive(PrimitiveType.Quad, "QR_Top", root.transform, new Vector3(0.09f, hy, 0.06f), Vector3.one * label * 0.8f, qrMat,
-                localRot: Quaternion.Euler(90, 0, 0));
-            Primitive(PrimitiveType.Quad, "QR_Front", root.transform, new Vector3(0, 0, -hz), Vector3.one * label, qrMat);
-            Primitive(PrimitiveType.Quad, "QR_Back", root.transform, new Vector3(0, 0, hz), Vector3.one * label, qrMat,
-                localRot: Quaternion.Euler(0, 180, 0));
-            Primitive(PrimitiveType.Quad, "QR_Left", root.transform, new Vector3(-hx, 0, 0), Vector3.one * label, qrMat,
-                localRot: Quaternion.Euler(0, 90, 0));
-            Primitive(PrimitiveType.Quad, "QR_Right", root.transform, new Vector3(hx, 0, 0), Vector3.one * label, qrMat,
-                localRot: Quaternion.Euler(0, -90, 0));
+            var labels = new System.Collections.Generic.List<Renderer>();
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Top", root.transform, new Vector3(0.09f, hy, 0.06f), Vector3.one * label * 0.8f, qrMat,
+                localRot: Quaternion.Euler(90, 0, 0)).GetComponent<Renderer>());
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Front", root.transform, new Vector3(0, 0, -hz), Vector3.one * label, qrMat).GetComponent<Renderer>());
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Back", root.transform, new Vector3(0, 0, hz), Vector3.one * label, qrMat,
+                localRot: Quaternion.Euler(0, 180, 0)).GetComponent<Renderer>());
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Left", root.transform, new Vector3(-hx, 0, 0), Vector3.one * label, qrMat,
+                localRot: Quaternion.Euler(0, 90, 0)).GetComponent<Renderer>());
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Right", root.transform, new Vector3(hx, 0, 0), Vector3.one * label, qrMat,
+                localRot: Quaternion.Euler(0, -90, 0)).GetComponent<Renderer>());
 
             var grab = root.AddComponent<XRGrabInteractable>();
             grab.useDynamicAttach = true;
@@ -80,8 +85,8 @@ namespace Pvz.Editor
             grab.throwOnDetach = false;
 
             var box = root.AddComponent<QrBox>();
-            box.Configure(boxId, grab, rb);
-            return SavePrefab(root, $"Box_{boxId}");
+            box.Configure(boxId, grab, rb, labels.ToArray());
+            return SavePrefab(root, prefabName);
         }
 
         public string Scanner()
@@ -174,7 +179,7 @@ namespace Pvz.Editor
             boardGo.transform.localPosition = new Vector3(0, 2.2f, 0.15f);
             Primitive(PrimitiveType.Cube, "Panel", boardGo.transform, Vector3.zero, new Vector3(1.4f, 0.56f, 0.03f), _boardBack);
             Primitive(PrimitiveType.Cube, "Frame", boardGo.transform, new Vector3(0, -0.295f, 0), new Vector3(1.4f, 0.03f, 0.035f), _accent);
-            foreach (var side in new[] { -0.72f, 0.72f })
+            foreach (var side in new[] { -0.76f, 0.76f })
                 Primitive(PrimitiveType.Cube, "Post", boardGo.transform, new Vector3(side, -0.58f, 0.0f), new Vector3(0.04f, 1.16f, 0.04f), _counterBody);
             var headline = Text("Headline", boardGo.transform, new Vector3(0, 0.14f, -0.02f), new Vector2(1.3f, 0.2f),
                 "Заказ №1435", _font, CounterBoard.Accent, 3f);
@@ -238,13 +243,13 @@ namespace Pvz.Editor
 
             var bubbleGo = new GameObject("SpeechBubble");
             bubbleGo.transform.SetParent(root.transform, false);
-            bubbleGo.transform.localPosition = new Vector3(-0.62f, 1.68f, 0); // beside the head, below the counter board
+            bubbleGo.transform.localPosition = new Vector3(-0.47f, 1.68f, 0); // beside the head, below the counter board
             // Customers face the player, so the bubble is turned around to read correctly before the billboard kicks in.
             bubbleGo.transform.localRotation = Quaternion.Euler(0, 180, 0);
             var bubbleRoot = new GameObject("Content");
             bubbleRoot.transform.SetParent(bubbleGo.transform, false);
-            Primitive(PrimitiveType.Quad, "Background", bubbleRoot.transform, Vector3.zero, new Vector3(0.78f, 0.28f, 1f), _bubble);
-            var bubbleText = Text("Text", bubbleRoot.transform, new Vector3(0, 0, -0.002f), new Vector2(0.72f, 0.24f),
+            Primitive(PrimitiveType.Quad, "Background", bubbleRoot.transform, Vector3.zero, new Vector3(0.6f, 0.26f, 1f), _bubble);
+            var bubbleText = Text("Text", bubbleRoot.transform, new Vector3(0, 0, -0.002f), new Vector2(0.56f, 0.22f),
                 "Здравствуйте!", _font, new Color(0.1f, 0.1f, 0.12f), 1.2f);
             var bubble = bubbleGo.AddComponent<SpeechBubble>();
             bubble.Configure(bubbleRoot, bubbleText);
@@ -253,6 +258,33 @@ namespace Pvz.Editor
             var customer = root.AddComponent<Customer>();
             customer.Configure(bubble, carry, body, new[] { torso.GetComponent<Renderer>(), armL.GetComponent<Renderer>(), armR.GetComponent<Renderer>() });
             return SavePrefab(root, "Customer");
+        }
+
+        public string Bag()
+        {
+            var root = new GameObject("ParcelBag");
+            var rb = root.AddComponent<Rigidbody>();
+            rb.mass = 0.2f;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
+            var size = new Vector3(0.28f, 0.3f, 0.08f);
+            root.AddComponent<BoxCollider>().size = size;
+
+            var bagMat = Lit("Bag", new Color(0.96f, 0.96f, 0.93f), 0.5f);
+            Primitive(PrimitiveType.Cube, "Body", root.transform, Vector3.zero, size, bagMat);
+            Primitive(PrimitiveType.Cube, "HandleL", root.transform, new Vector3(-0.06f, size.y / 2f + 0.03f, 0f), new Vector3(0.015f, 0.06f, 0.015f), bagMat);
+            Primitive(PrimitiveType.Cube, "HandleR", root.transform, new Vector3(0.06f, size.y / 2f + 0.03f, 0f), new Vector3(0.015f, 0.06f, 0.015f), bagMat);
+            Primitive(PrimitiveType.Cube, "HandleTop", root.transform, new Vector3(0f, size.y / 2f + 0.06f, 0f), new Vector3(0.135f, 0.015f, 0.015f), bagMat);
+            Primitive(PrimitiveType.Cube, "Stripe", root.transform, new Vector3(0f, -0.06f, 0f), new Vector3(size.x + 0.002f, 0.04f, size.z + 0.002f), _accent);
+            Text("Logo", root.transform, new Vector3(0, 0.04f, -size.z / 2f - 0.002f), new Vector2(0.24f, 0.08f), "ПАКЕТ", _font,
+                new Color(0.2f, 0.24f, 0.3f), 0.5f);
+
+            var grab = root.AddComponent<XRGrabInteractable>();
+            grab.useDynamicAttach = true;
+            grab.movementType = XRBaseInteractable.MovementType.VelocityTracking;
+            grab.throwOnDetach = false;
+
+            root.AddComponent<ParcelBag>().Configure(grab, rb);
+            return SavePrefab(root, "ParcelBag");
         }
 
         /// <summary>Invisible plane with a collider so virtual boxes can rest on real tables/floor detected by the headset.</summary>

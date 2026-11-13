@@ -10,6 +10,8 @@ namespace Pvz.Core
         public double OkThresholdSeconds { get; set; } = 60;
         public int OkBonus { get; set; } = 25;
         public int WrongHandoverPenalty { get; set; } = 25;
+        public int IntakeBox { get; set; } = 10;
+        public int BagService { get; set; } = 20;
 
         public static ScoringRules Default => new ScoringRules();
 

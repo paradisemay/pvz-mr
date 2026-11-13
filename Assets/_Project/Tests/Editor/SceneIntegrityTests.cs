@@ -30,6 +30,8 @@ namespace Pvz.Editor.Tests
         [TestCase(typeof(CounterBoard))]
         [TestCase(typeof(ShiftSummaryPanel))]
         [TestCase(typeof(MrSessionSetup))]
+        [TestCase(typeof(SupplyDrop))]
+        [TestCase(typeof(BagDispenser))]
         public void AllObjectReferencesAreAssigned(System.Type componentType)
         {
             var components = Object.FindObjectsByType(componentType, FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -93,6 +95,19 @@ namespace Pvz.Editor.Tests
                 Assert.IsTrue(box.transform.IsChildOf(playArea), box.name);
             Assert.IsTrue(Object.FindFirstObjectByType<HandScanner>().transform.IsChildOf(playArea));
             Assert.IsTrue(Object.FindFirstObjectByType<HandoverZone>().transform.IsChildOf(playArea));
+        }
+
+        [Test]
+        public void ShiftSettings_DeliveryIsValidForTheWarehouse()
+        {
+            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(PvzSceneBuilder.SettingsPath);
+            var catalog = new Core.BoxCatalog(settings.Boxes.Select(b => new Core.BoxRecord(new Core.BoxId(b.boxId), b.orderNumber)));
+            var plan = settings.CreateSupplyPlan();
+            using (var shift = new Core.Shift(catalog, new Core.SystemRandomSource(1), settings.CreateScoringRules(), plan))
+            {
+                Assert.DoesNotThrow(() => shift.ExpectDelivery(plan.Boxes),
+                    "supply boxes must have unique ids and new order numbers");
+            }
         }
 
         [Test]

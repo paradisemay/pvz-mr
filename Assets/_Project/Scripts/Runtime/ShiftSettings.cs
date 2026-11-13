@@ -37,6 +37,21 @@ namespace Pvz.Runtime
             new BoxDefinition("BOX-003", "5812", new Vector3(-1.55f, 0.61f, -1.45f), 40f),  // bed, behind-left
         };
 
+        [Header("Supply delivery")]
+        [Tooltip("The delivery arrives after this many customers were served; 0 = no delivery this shift.")]
+        [SerializeField, Min(0)] private int supplyAfterOrders = 1;
+        [Tooltip("Boxes of the delivery (start position is ignored: they fall from the ceiling).")]
+        [SerializeField] private BoxDefinition[] supplyBoxes =
+        {
+            new BoxDefinition("BOX-101", "3307", Vector3.zero, 0f), // two boxes, one order:
+            new BoxDefinition("BOX-102", "3307", Vector3.zero, 0f), // «товаров в заказе: 2»
+            new BoxDefinition("BOX-103", "6021", Vector3.zero, 0f),
+        };
+
+        [Header("Extra requests")]
+        [Tooltip("Chance (0..100) that a customer also asks for a carrier bag.")]
+        [SerializeField, Range(0, 100)] private int bagChancePercent = 50;
+
         [Header("Pacing (seconds, m/s)")]
         [SerializeField, Min(0)] private float firstCustomerDelay = 2f;
         [SerializeField, Min(0)] private float delayBetweenCustomers = 2f;
@@ -55,8 +70,23 @@ namespace Pvz.Runtime
         [SerializeField] private float okThresholdSeconds = 60f;
         [SerializeField] private int okBonus = 25;
         [SerializeField] private int wrongHandoverPenalty = 25;
+        [SerializeField] private int intakePoints = 10;
+        [SerializeField] private int bagPoints = 20;
+
+        [Header("Room")]
+        [Tooltip("Used for the supply drop when the headset has not found the ceiling.")]
+        [SerializeField, Min(1.5f)] private float defaultCeilingHeight = 2.4f;
 
         public BoxDefinition[] Boxes => boxes;
+        public int SupplyAfterOrders => supplyAfterOrders;
+        public BoxDefinition[] SupplyBoxes => supplyBoxes;
+        public bool HasSupply => supplyAfterOrders > 0 && supplyBoxes != null && supplyBoxes.Length > 0;
+        public float DefaultCeilingHeight => defaultCeilingHeight;
+        public int BagChancePercent => bagChancePercent;
+
+        public SupplyPlan CreateSupplyPlan() => !HasSupply
+            ? SupplyPlan.None
+            : new SupplyPlan(supplyAfterOrders, System.Linq.Enumerable.Select(supplyBoxes, d => new BoxRecord(new BoxId(d.boxId), d.orderNumber)));
         public float FirstCustomerDelay => firstCustomerDelay;
         public float DelayBetweenCustomers => delayBetweenCustomers;
         public float ThanksDuration => thanksDuration;
@@ -74,6 +104,8 @@ namespace Pvz.Runtime
             OkThresholdSeconds = okThresholdSeconds,
             OkBonus = okBonus,
             WrongHandoverPenalty = wrongHandoverPenalty,
+            IntakeBox = intakePoints,
+            BagService = bagPoints,
         };
 
         public bool TryGetOrderNumber(BoxId id, out string orderNumber)
