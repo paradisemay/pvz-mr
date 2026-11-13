@@ -10,7 +10,8 @@ namespace Pvz.Core
     {
         /// <summary>Farther than this from the play area centre a saved place is treated as damaged data.</summary>
         public const float MaxDistance = 6f;
-        public const float MinHeight = -0.2f;
+        /// <summary>Box centres lower than this would be in the floor (a box is at least ~0.1 m tall).</summary>
+        public const float MinHeight = 0.05f;
         public const float MaxHeight = 3f;
 
         public BoxPlacement(BoxId box, float x, float y, float z, float yaw)

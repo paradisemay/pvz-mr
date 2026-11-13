@@ -33,6 +33,9 @@ namespace Pvz.Runtime
         /// <summary>True once the box was handed over and belongs to a customer.</summary>
         public bool IsHandedOver { get; private set; }
 
+        /// <summary>The player let the box go and it came to rest (see <see cref="PlacedLocalPosition"/>).</summary>
+        public event System.Action<QrBox> Placed;
+
         /// <summary>The player has put the box down at least once (see <see cref="PlacedLocalPosition"/>).</summary>
         public bool HasPlacement { get; private set; }
 
@@ -40,6 +43,16 @@ namespace Pvz.Runtime
         public Vector3 PlacedLocalPosition { get; private set; }
 
         public float PlacedYaw { get; private set; }
+
+        /// <summary>Radius of a sphere around the box centre that contains the whole box.</summary>
+        public float Reach
+        {
+            get
+            {
+                var shape = GetComponentInChildren<BoxCollider>();
+                return shape == null ? 0.25f : Vector3.Scale(shape.size, shape.transform.lossyScale).magnitude * 0.5f;
+            }
+        }
 
         /// <summary><see cref="PlacedLocalPosition"/> in world space (valid even after the box was handed over).</summary>
         public Vector3 PlacedWorldPosition =>
@@ -96,9 +109,29 @@ namespace Pvz.Runtime
             PlacedLocalPosition = _startParent != null ? _startParent.InverseTransformPoint(transform.position) : transform.position;
             PlacedYaw = (_startParent != null ? Quaternion.Inverse(_startParent.rotation) * transform.rotation : transform.rotation).eulerAngles.y;
             HasPlacement = true;
-            // A box lost later (fallen through the floor) comes back here, not to where the shift began.
-            _startLocalPosition = transform.localPosition;
-            _startLocalRotation = transform.localRotation;
+            Placed?.Invoke(this);
+            // The return point for a lost box stays where the session started: a resting place can be a bad one
+            // (inside the handover zone, on top of another box), the start place is known to be free.
+        }
+
+        /// <summary>
+        /// Nothing solid (another box, the counter, the scanner) is where this box would stand at the given place.
+        /// The box is shrunk a little, so the floor or a shelf it rests on does not count.
+        /// </summary>
+        public bool IsSpotFree(Vector3 localPosition, float yaw)
+        {
+            var shape = GetComponentInChildren<BoxCollider>();
+            if (shape == null) return true;
+            var parent = _startParent;
+            var centre = parent != null ? parent.TransformPoint(localPosition) : localPosition;
+            var rotation = (parent != null ? parent.rotation : Quaternion.identity) * Quaternion.Euler(0f, yaw, 0f);
+            var halfExtents = Vector3.Scale(shape.size, shape.transform.lossyScale) * (0.5f * 0.9f);
+            centre += rotation * Vector3.Scale(shape.center, shape.transform.lossyScale);
+            foreach (var hit in Physics.OverlapBox(centre, halfExtents, rotation, ~0, QueryTriggerInteraction.Ignore))
+            {
+                if (hit.GetComponentInParent<QrBox>() != this) return false;
+            }
+            return true;
         }
 
         /// <summary>Puts the box where the player left it in an earlier session (upright, at the saved yaw).</summary>
@@ -117,6 +150,7 @@ namespace Pvz.Runtime
                 body.position = transform.position;
                 body.rotation = transform.rotation;
             }
+            Physics.SyncTransforms(); // the next box checking its spot must see this one already moved
             RememberStartPose();
             PlacedLocalPosition = localPosition;
             PlacedYaw = yaw;

@@ -35,7 +35,6 @@ namespace Pvz.Runtime
 
         private readonly BoxRegistry _registry = new BoxRegistry();
         private BestScores _bestScores;
-        private WarehouseLayoutStore _layoutStore;
         private readonly List<QueuedCustomer> _line = new List<QueuedCustomer>();
         private ShiftPresenter _presenter;
         private int _customersSpawned;
@@ -82,7 +81,6 @@ namespace Pvz.Runtime
         {
             if (!ValidateReferences()) enabled = false;
             _bestScores = new BestScores(new PlayerPrefsScoreStore());
-            _layoutStore = new WarehouseLayoutStore(new PlayerPrefsTextStore());
         }
 
         private void OnEnable()
@@ -106,7 +104,6 @@ namespace Pvz.Runtime
         private void Start()
         {
             if (Shift != null) return; // already started (e.g. by a test) before the first frame
-            ApplySavedLayout();
             summaryPanel.Hide();
             restartButton.SetActive(false);
             if (HasDifficultyMenu) ShiftPresenter.ShowDifficultyMenu(board, MenuRecords());
@@ -212,62 +209,6 @@ namespace Pvz.Runtime
 
         /// <summary>Sets how often customers ask for a bag (tests).</summary>
         internal void UseBagChance(int percent) => Shift.BagChancePercent = percent;
-
-        /// <summary>Replaces where the warehouse layout is kept (tests: in memory instead of PlayerPrefs).</summary>
-        internal void UseLayoutStore(ITextStore store)
-        {
-            _layoutStore = new WarehouseLayoutStore(store);
-            _layout = null;
-        }
-
-        private WarehouseLayout _layout;
-
-        /// <summary>The arrangement being kept: loaded once, updated as the player puts boxes down.</summary>
-        private WarehouseLayout Layout => _layout ?? (_layout = _layoutStore.Load());
-
-        /// <summary>
-        /// Puts the scene boxes where the player left them in an earlier session (concept: «сохранение расположения
-        /// склада»). Only before the shift starts. Returns how many boxes were moved.
-        /// </summary>
-        internal int ApplySavedLayout()
-        {
-            if (Shift != null) return 0;
-            var moved = 0;
-            foreach (var box in boxes)
-            {
-                if (box == null || !Layout.TryGet(box.Id, out var place)) continue;
-                box.MoveToSavedPlace(new Vector3(place.X, place.Y, place.Z), place.Yaw);
-                moved++;
-            }
-            return moved;
-        }
-
-        /// <summary>
-        /// Remembers where the player put the scene boxes down. A box left in the handover zone is not a warehouse
-        /// place; boxes not touched this session keep their earlier place.
-        /// </summary>
-        internal void SaveLayout()
-        {
-            foreach (var box in boxes) RememberPlacement(box);
-            _layoutStore.Save(Layout);
-        }
-
-        /// <summary>
-        /// Takes the place of a scene box into the layout. Called for every box at save time and for each box as it is
-        /// handed over (the customer takes it away, so it would be gone by the end of the shift).
-        /// </summary>
-        private void RememberPlacement(QrBox box)
-        {
-            if (box == null || !box.HasPlacement || Array.IndexOf(boxes, box) < 0) return; // only the warehouse stock
-            if (handoverZone.Contains(box.PlacedWorldPosition)) return;
-            var p = box.PlacedLocalPosition;
-            Layout.Set(new BoxPlacement(box.Id, p.x, p.y, p.z, box.PlacedYaw));
-        }
-
-        private void OnApplicationPause(bool paused)
-        {
-            if (paused && enabled) SaveLayout(); // the headset was taken off: keep the arrangement
-        }
 
         /// <summary>Replaces where best scores are kept (tests: in memory instead of PlayerPrefs).</summary>
         internal void UseScoreStore(IScoreStore store) => _bestScores = new BestScores(store);
@@ -451,7 +392,6 @@ namespace Pvz.Runtime
         {
             IsShiftOver = true;
             _presenter.ShowShiftOver();
-            SaveLayout();
             RecordResult? record = null;
             try { record = _bestScores.Submit(settings.DifficultyId, Stats.Score); }
             catch (Exception e) { Debug.LogException(e, this); } // never leave the player without the summary and restart
@@ -518,7 +458,6 @@ namespace Pvz.Runtime
 
         private void GiveToCustomer(QrBox box)
         {
-            RememberPlacement(box); // where it stood in the warehouse, before the customer carries it away
             handoverZone.Forget(box);
             _registry.Unregister(box.Id);
             if (CurrentCustomer != null) CurrentCustomer.Take(box);

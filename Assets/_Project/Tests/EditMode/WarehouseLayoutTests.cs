@@ -73,6 +73,7 @@ namespace Pvz.Core.Tests
         }
 
         [TestCase(0f, -0.5f, 0f, false, TestName = "Under the floor")]
+        [TestCase(0f, 0f, 0f, false, TestName = "Centre in the floor")]
         [TestCase(0f, 3.5f, 0f, false, TestName = "Above the ceiling")]
         [TestCase(5f, 0.1f, 5f, false, TestName = "Out of reach")]
         [TestCase(1f, 0.1f, -1f, true, TestName = "On the floor nearby")]
@@ -86,8 +87,8 @@ namespace Pvz.Core.Tests
         public void TheLastPlace_Wins()
         {
             var layout = WarehouseLayout.Empty;
-            layout.Set(new BoxPlacement(TestData.Box1, 1f, 0f, 1f, 0f));
-            layout.Set(new BoxPlacement(TestData.Box1, -1f, 0f, -1f, 0f));
+            layout.Set(new BoxPlacement(TestData.Box1, 1f, 0.13f, 1f, 0f));
+            layout.Set(new BoxPlacement(TestData.Box1, -1f, 0.13f, -1f, 0f));
             Assert.AreEqual(1, layout.Count);
             Assert.IsTrue(layout.TryGet(TestData.Box1, out var p));
             Assert.AreEqual(-1f, p.X);

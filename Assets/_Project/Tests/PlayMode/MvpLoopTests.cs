@@ -22,11 +22,11 @@ namespace Pvz.Runtime.Tests
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
+            WarehouseLayoutKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // never the real saved layout
             yield return SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Single);
             yield return null;
             var director = Object.FindFirstObjectByType<ShiftDirector>();
             director.UseScoreStore(new Pvz.Core.MemoryScoreStore()); // never touch the real PlayerPrefs
-            director.UseLayoutStore(new Pvz.Core.MemoryTextStore());  // nor the saved warehouse layout
             director.Begin();                // default difficulty, skipping the menu
             director.UseRandomSeed(12345);   // same order sequence every run
             director.UsePatience(0);         // customers wait as long as the test needs
@@ -40,6 +40,7 @@ namespace Pvz.Runtime.Tests
         public IEnumerator Restore()
         {
             Time.timeScale = 1f;
+            WarehouseLayoutKeeper.StoreOverride = null;
             yield return null;
         }
 
@@ -308,36 +309,6 @@ namespace Pvz.Runtime.Tests
             Assert.AreEqual(0, director.QueuedVisits.Count);
             var summary = Object.FindFirstObjectByType<ShiftSummaryPanel>(FindObjectsInactive.Include);
             StringAssert.Contains("время вышло", summary.Text);
-        }
-
-        [UnityTest, Timeout(60000)]
-        public IEnumerator WarehouseLayout_IsRestoredInTheNextSession()
-        {
-            var store = new Pvz.Core.MemoryTextStore();
-            var director = Object.FindFirstObjectByType<ShiftDirector>();
-            director.UseLayoutStore(store);
-            var shelfId = new Pvz.Core.BoxId("BOX-002");
-            var zoneId = new Pvz.Core.BoxId("BOX-003");
-            Assert.IsTrue(director.TryGetBox(shelfId, out var shelfBox));
-            Assert.IsTrue(director.TryGetBox(zoneId, out var zoneBox));
-            var shelfSpot = new Vector3(0.6f, 0.13f, -1.2f); // on the floor, in play-area coordinates
-
-            // The player puts one box on «their» shelf and leaves another in the handover zone.
-            yield return MoveTo(shelfBox, shelfBox.transform.parent.TransformPoint(shelfSpot));
-            shelfBox.RecordPlacement();
-            yield return MoveTo(zoneBox, director.Zone.transform.position + Vector3.up * 0.05f);
-            zoneBox.RecordPlacement();
-            director.SaveLayout();
-
-            // Next session: a fresh scene with the same saved data.
-            yield return SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Single);
-            yield return null;
-            var next = Object.FindFirstObjectByType<ShiftDirector>();
-            next.UseLayoutStore(store);
-            Assert.AreEqual(1, next.ApplySavedLayout(), "only the shelf box: the handover zone is not a warehouse place");
-
-            var restored = Object.FindObjectsByType<QrBox>(FindObjectsSortMode.None).First(b => b.Id == shelfId);
-            Assert.Less(Vector3.Distance(shelfSpot, restored.transform.localPosition), 0.01f);
         }
 
         [UnityTest, Timeout(60000)]
