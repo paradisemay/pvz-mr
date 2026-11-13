@@ -25,7 +25,7 @@ namespace Pvz.Editor
         private const string FontCharacters =
             "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя" +
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
-            " .,:;!?-–—+−=/\\()[]«»\"'№%*#@&_<>…";
+            " .,:;!?-–—+−=/\\()[]«»\"'№%*#@&_<>…·";
 
         public static void EnsureFolders()
         {

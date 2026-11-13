@@ -86,6 +86,9 @@ namespace Pvz.Runtime
         [SerializeField, Min(1.5f)] private float defaultCeilingHeight = 2.4f;
 
         public string DisplayName => displayName;
+
+        /// <summary>Stable id for saved records: the asset name (ShiftSettings_Easy…), not the translatable display name.</summary>
+        public string DifficultyId => name;
         public float PatienceSeconds => patienceSeconds;
         public int QueueLength => queueLength;
         public BoxDefinition[] Boxes => boxes;

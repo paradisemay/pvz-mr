@@ -25,6 +25,7 @@ namespace Pvz.Runtime.Tests
             yield return SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Single);
             yield return null;
             var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.UseScoreStore(new Pvz.Core.MemoryScoreStore()); // never touch the real PlayerPrefs
             director.Begin();                // default difficulty, skipping the menu
             director.UseRandomSeed(12345);   // same order sequence every run
             director.UsePatience(0);         // customers wait as long as the test needs
@@ -123,6 +124,8 @@ namespace Pvz.Runtime.Tests
             StringAssert.Contains("Обслужено клиентов: 5/5", summary.Text);
             StringAssert.Contains("Принято из поставки: 3", summary.Text);
             StringAssert.Contains("Выдано пакетов: 5", summary.Text);
+            StringAssert.Contains("НОВЫЙ РЕКОРД", summary.Text, "the first shift on an empty store is a record");
+            Assert.AreEqual(director.Stats.Score, director.BestScores.Get(director.ActiveSettings.DifficultyId));
         }
 
         [UnityTest, Timeout(60000)]

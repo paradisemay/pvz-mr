@@ -32,6 +32,7 @@ namespace Pvz.Runtime
         [SerializeField] private GameObject startMenu;
 
         private readonly BoxRegistry _registry = new BoxRegistry();
+        private BestScores _bestScores;
         private readonly List<QueuedCustomer> _line = new List<QueuedCustomer>();
         private ShiftPresenter _presenter;
         private int _customersSpawned;
@@ -60,6 +61,7 @@ namespace Pvz.Runtime
         private void Awake()
         {
             if (!ValidateReferences()) enabled = false;
+            _bestScores = new BestScores(new PlayerPrefsScoreStore());
         }
 
         private void OnEnable()
@@ -85,7 +87,7 @@ namespace Pvz.Runtime
             if (Shift != null) return; // already started (e.g. by a test) before the first frame
             summaryPanel.Hide();
             restartButton.SetActive(false);
-            if (HasDifficultyMenu) ShiftPresenter.ShowDifficultyMenu(board);
+            if (HasDifficultyMenu) ShiftPresenter.ShowDifficultyMenu(board, MenuRecords());
             else Begin();
         }
 
@@ -164,6 +166,23 @@ namespace Pvz.Runtime
 
         /// <summary>Sets how often customers ask for a bag (tests).</summary>
         internal void UseBagChance(int percent) => Shift.BagChancePercent = percent;
+
+        /// <summary>Replaces where best scores are kept (tests: in memory instead of PlayerPrefs).</summary>
+        internal void UseScoreStore(IScoreStore store) => _bestScores = new BestScores(store);
+
+        public BestScores BestScores => _bestScores;
+
+        private IEnumerable<(string name, int best)> MenuRecords()
+        {
+            var records = new List<(string name, int best)>();
+            foreach (var button in difficultyButtons)
+            {
+                if (button == null || button.Settings == null) continue;
+                try { records.Add((button.Settings.DisplayName, _bestScores.Get(button.Settings.DifficultyId))); }
+                catch (ArgumentException e) { Debug.LogException(e, button); }
+            }
+            return records;
+        }
 
         /// <summary>Sets how long customers wait (tests).</summary>
         internal void UsePatience(double seconds) => Shift.PatienceSeconds = seconds;
@@ -294,7 +313,10 @@ namespace Pvz.Runtime
         {
             IsShiftOver = true;
             _presenter.ShowShiftOver();
-            summaryPanel.Show(Stats, OrdersTotal);
+            RecordResult? record = null;
+            try { record = _bestScores.Submit(settings.DifficultyId, Stats.Score); }
+            catch (Exception e) { Debug.LogException(e, this); } // never leave the player without the summary and restart
+            summaryPanel.Show(Stats, OrdersTotal, record, settings.DisplayName);
             restartButton.SetActive(true);
             ShiftEnded?.Invoke();
         }
