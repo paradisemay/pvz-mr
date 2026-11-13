@@ -25,6 +25,7 @@ namespace Pvz.Runtime.Tests
             Assert.IsFalse(director.IsStarted);
             Assert.AreEqual(3, director.DifficultyButtons.Count);
             Assert.IsTrue(director.DifficultyButtons.All(b => b.gameObject.activeInHierarchy));
+            StringAssert.StartsWith("Рекорды:", Object.FindFirstObjectByType<CounterBoard>().Status, "the menu shows best scores");
         }
 
         [UnityTest]
