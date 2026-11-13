@@ -110,6 +110,20 @@ namespace Pvz.Editor
             Capture("09_queue", new Vector3(-1.3f, 1.75f, -0.4f), new Vector3(0f, 1.2f, 2.0f), 62f);
             foreach (var waiting in queued) Object.DestroyImmediate(waiting.gameObject);
 
+            // A returning customer has put a box on the counter.
+            var returnPrefab = AssetDatabase.LoadAssetAtPath<QrBox>(PvzAssetFactory.PrefabsDir + "/Box_Supply.prefab");
+            var spot = Object.FindFirstObjectByType<HandoverZone>().ReturnSpot;
+            var returnBox = Object.Instantiate(returnPrefab, spot.position, spot.rotation);
+            returnBox.AssignId("BOX-001", QrTextures.Create("BOX-001"));
+            customer.Say("Хочу вернуть товар\nиз заказа №1435");
+            customer.ShowPatience(null);
+            board.ShowHeadline("Возврат: заказ №1435", CounterBoard.Accent);
+            board.ShowStatus("Отсканируйте коробку клиента на стойке", CounterBoard.Neutral);
+            scanner.ShowResult("Заказ №1435\nВОЗВРАТ ПРИНЯТ", CounterBoard.Good);
+            Capture("10_return", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.25f, 1.25f, 1.3f), 70f);
+            Object.DestroyImmediate(returnBox.gameObject);
+            customer.ShowPatience(0.55);
+
             // Supply delivery: boxes just appeared under the ceiling.
             var supply = Object.FindFirstObjectByType<SupplyDrop>();
             var dropped = supply.Drop(new[] { "BOX-101", "BOX-102", "BOX-103" }, 7, 2.4f);

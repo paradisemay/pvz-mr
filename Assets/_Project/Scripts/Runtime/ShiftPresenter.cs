@@ -40,6 +40,8 @@ namespace Pvz.Runtime
             _shift.Desk.BagRequested += OnBagRequested;
             _shift.CustomerHurried += OnCustomerHurried;
             _shift.OrderAbandoned += OnOrderAbandoned;
+            _shift.Desk.ReturnOpened += OnReturnOpened;
+            _shift.Desk.ReturnAccepted += OnReturnAccepted;
             _step = tutorial ? TutorialStep.TakeScanner : TutorialStep.Off;
             _scanner.Grabbed += OnScannerGrabbed;
         }
@@ -61,6 +63,8 @@ namespace Pvz.Runtime
             _shift.Desk.BagRequested -= OnBagRequested;
             _shift.CustomerHurried -= OnCustomerHurried;
             _shift.OrderAbandoned -= OnOrderAbandoned;
+            _shift.Desk.ReturnOpened -= OnReturnOpened;
+            _shift.Desk.ReturnAccepted -= OnReturnAccepted;
             _scanner.Grabbed -= OnScannerGrabbed;
         }
 
@@ -82,7 +86,7 @@ namespace Pvz.Runtime
         {
             PlaySound(FeedbackAudio.Sound.Success);
             _scanner.ShowResult($"Заказ №{box.OrderNumber}\nПРИНЯТО НА СКЛАД", CounterBoard.Good);
-            if (!_shift.Desk.HasActiveOrder)
+            if (!_shift.Desk.HasCustomer)
                 _board.ShowStatus($"Принято коробок: {_shift.DeliveryReceived}/{_shift.DeliverySize}", CounterBoard.Good);
         }
 
@@ -186,6 +190,9 @@ namespace Pvz.Runtime
                     _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}\nНЕ ТОТ ЗАКАЗ", CounterBoard.Bad);
                     if (_step == TutorialStep.Scan || _step == TutorialStep.TakeScanner) ShowHint(HintWrongBox);
                     break;
+                case ScanStatus.ReturnAccepted:
+                    _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}\nВОЗВРАТ ПРИНЯТ", CounterBoard.Good);
+                    break;
                 case ScanStatus.NoActiveOrder:
                     _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}", CounterBoard.Neutral);
                     break;
@@ -211,7 +218,7 @@ namespace Pvz.Runtime
                     _board.ShowStatus(outcome.IsRepeat ? "Эту коробку клиент уже вернул" : "Неверная коробка: штраф", CounterBoard.Bad);
                     break;
                 case HandoverStatus.NoActiveOrder:
-                    _board.ShowStatus("Дождитесь клиента", CounterBoard.Neutral);
+                    _board.ShowStatus(NoOrderText, CounterBoard.Neutral);
                     break;
                 case HandoverStatus.UnknownBox:
                     _board.ShowStatus("Этой коробки нет на складе", CounterBoard.Bad);
@@ -234,15 +241,33 @@ namespace Pvz.Runtime
                     Say("Сначала мои\nкоробки, пожалуйста");
                     break;
                 case BagStatus.NoActiveOrder:
-                    _board.ShowStatus("Дождитесь клиента", CounterBoard.Neutral);
+                    _board.ShowStatus(NoOrderText, CounterBoard.Neutral);
                     break;
             }
         }
+
+        /// <summary>Something was handed over while no order is open: either nobody is there or it is a return.</summary>
+        private string NoOrderText => _shift.Desk.HasActiveReturn ? "Сейчас идёт возврат: отсканируйте коробку клиента" : "Дождитесь клиента";
 
         private void OnBagRequested(Order order)
         {
             Say("Спасибо! Мне ещё\nнужен пакет");
             _board.ShowStatus("Клиенту нужен пакет", CounterBoard.Accent);
+        }
+
+        private void OnReturnOpened(ReturnRequest request)
+        {
+            Say($"Хочу вернуть товар\nиз заказа №{request.OrderNumber}");
+            _board.ShowHeadline($"Возврат: заказ №{request.OrderNumber}", CounterBoard.Accent);
+            _board.ShowStatus("Отсканируйте коробку клиента на стойке", CounterBoard.Neutral);
+        }
+
+        private void OnReturnAccepted(ReturnRequest request)
+        {
+            PlaySound(FeedbackAudio.Sound.Success);
+            Say("Спасибо!\nВсего доброго!");
+            _board.ShowHeadline("Возврат принят", CounterBoard.Good);
+            _board.ShowStatus($"+{_shift.Stats.PointsPerReturn} очков", CounterBoard.Good);
         }
 
         private void OnCustomerHurried(Order order)

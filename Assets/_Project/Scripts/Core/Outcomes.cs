@@ -12,6 +12,8 @@ namespace Pvz.Core
         NoActiveOrder,
         /// <summary>A box from a supply delivery was scanned for the first time and is now in the warehouse.</summary>
         Received,
+        /// <summary>The box a returning customer brought was scanned: the return is accepted.</summary>
+        ReturnAccepted,
     }
 
     public readonly struct ScanOutcome

@@ -44,6 +44,15 @@ namespace Pvz.Runtime
             }
         }
 
+        /// <summary>
+        /// Where a returning customer puts their box: on the counter next to the zone (towards the middle, on the
+        /// customer's side), so it neither enters the zone nor pushes boxes the player left there.
+        /// </summary>
+        public Pose ReturnSpot => new Pose(transform.TransformPoint(ReturnSpotLocal), transform.rotation);
+
+        /// <summary>Zone-local offset of <see cref="ReturnSpot"/>: box resting on the counter top, left of the zone.</summary>
+        private static readonly Vector3 ReturnSpotLocal = new Vector3(-0.51f, -0.07f, 0.1f);
+
         private void Reset() => GetComponent<Collider>().isTrigger = true;
 
         private void OnTriggerEnter(Collider other)

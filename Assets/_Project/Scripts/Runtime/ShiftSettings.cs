@@ -60,6 +60,8 @@ namespace Pvz.Runtime
         [Header("Extra requests")]
         [Tooltip("Chance (0..100) that a customer also asks for a carrier bag.")]
         [SerializeField, Range(0, 100)] private int bagChancePercent = 50;
+        [Tooltip("Chance (0..100) that a new customer brings back a box sold earlier in the shift.")]
+        [SerializeField, Range(0, 100)] private int returnChancePercent = 20;
 
         [Header("Pacing (seconds, m/s)")]
         [SerializeField, Min(0)] private float firstCustomerDelay = 2f;
@@ -82,6 +84,7 @@ namespace Pvz.Runtime
         [SerializeField] private int intakePoints = 10;
         [SerializeField] private int bagPoints = 20;
         [SerializeField] private int abandonPenalty = 50;
+        [SerializeField] private int returnPoints = 30;
 
         [Header("Room")]
         [Tooltip("Used for the supply drop when the headset has not found the ceiling.")]
@@ -105,8 +108,9 @@ namespace Pvz.Runtime
 
         /// <summary>Used by the editor builder to create the difficulty presets.</summary>
         internal void ConfigureDifficulty(string name, float patience, int supplyAfter, int bagChance,
-            float walkSpeed, float betweenCustomers, int queue, bool tutorial = false)
+            float walkSpeed, float betweenCustomers, int queue, bool tutorial = false, int returnChance = 0)
         {
+            returnChancePercent = returnChance;
             queueLength = queue;
             showTutorial = tutorial;
             displayName = name;
@@ -121,6 +125,7 @@ namespace Pvz.Runtime
         public bool HasSupply => supplyAfterOrders > 0 && supplyBoxes != null && supplyBoxes.Length > 0;
         public float DefaultCeilingHeight => defaultCeilingHeight;
         public int BagChancePercent => bagChancePercent;
+        public int ReturnChancePercent => returnChancePercent;
 
         public SupplyPlan CreateSupplyPlan() => !HasSupply
             ? SupplyPlan.None
@@ -145,6 +150,7 @@ namespace Pvz.Runtime
             IntakeBox = intakePoints,
             BagService = bagPoints,
             AbandonPenalty = abandonPenalty,
+            ReturnService = returnPoints,
         };
 
         public bool TryGetOrderNumber(BoxId id, out string orderNumber)

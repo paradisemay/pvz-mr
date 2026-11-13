@@ -23,6 +23,7 @@ namespace Pvz.Core
             _desk.BagHandedOver += OnBagHandedOver;
             _desk.OrderAbandoned += OnOrderAbandoned;
             _desk.BoxHandedOver += OnBoxHandedOver;
+            _desk.ReturnAccepted += OnReturnAccepted;
         }
 
         public event Action Changed;
@@ -42,6 +43,12 @@ namespace Pvz.Core
         /// <summary>Boxes handed over to customers (each box of a multi-box order counts).</summary>
         public int BoxesHandedOver { get; private set; }
 
+        /// <summary>Returns taken back from customers.</summary>
+        public int ReturnsAccepted { get; private set; }
+
+        /// <summary>Points every accepted return gives.</summary>
+        public int PointsPerReturn => _rules.ReturnService;
+
         /// <summary>Handler for <see cref="Shift.BoxReceived"/>: a supply box was accepted into the warehouse.</summary>
         internal void OnBoxReceived(BoxRecord box)
         {
@@ -58,6 +65,7 @@ namespace Pvz.Core
             _desk.BagHandedOver -= OnBagHandedOver;
             _desk.OrderAbandoned -= OnOrderAbandoned;
             _desk.BoxHandedOver -= OnBoxHandedOver;
+            _desk.ReturnAccepted -= OnReturnAccepted;
         }
 
         private void OnBoxScanned(ScanOutcome outcome)
@@ -80,6 +88,13 @@ namespace Pvz.Core
             BagsGiven++;
             Score += _rules.BagService;
             _bagPointsThisOrder += _rules.BagService;
+            Changed?.Invoke();
+        }
+
+        private void OnReturnAccepted(ReturnRequest request)
+        {
+            ReturnsAccepted++;
+            Score += _rules.ReturnService;
             Changed?.Invoke();
         }
 
