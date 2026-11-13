@@ -135,7 +135,7 @@ namespace Pvz.Editor
         private static void SetSummaryDemoText(ShiftSummaryPanel summary)
         {
             var text = summary.GetComponentInChildren<TMP_Text>(true);
-            text.text = "<b>СМЕНА ЗАВЕРШЕНА</b>\nОбслужено клиентов: 3/3\nОшибочных выдач: 1\nНеверных сканирований: 2\n" +
+            text.text = "<b>СМЕНА ЗАВЕРШЕНА</b>\nОбслужено клиентов: 5/5\nОбработано товаров: 6\nМакс. очередь: 2\nОшибочных выдач: 1\nНеверных сканирований: 2\n" +
                         "Среднее время выдачи: 24.6 с\nОчки: 525\nРейтинг смены: <b>Хорошо</b>\n<b>НОВЫЙ РЕКОРД!</b> Было: 450";
         }
 

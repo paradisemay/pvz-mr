@@ -134,6 +134,9 @@ namespace Pvz.Core
         /// <summary>How many customers may wait in line (including the one at the counter).</summary>
         public int QueueLength { get; set; } = 1;
 
+        /// <summary>Most customers that stood in line at the same time during the shift.</summary>
+        public int MaxQueueLength { get; private set; }
+
         /// <summary>Orders of the customers in line, oldest first; the first one is served next.</summary>
         public IReadOnlyList<Order> QueuedOrders => _line;
 
@@ -156,7 +159,9 @@ namespace Pvz.Core
         public Order NextOrder()
         {
             var order = _generator.CreateRandomOrder(Desk.Catalog, ReservedNumbers());
-            if (order != null) _line.Add(order);
+            if (order == null) return null;
+            _line.Add(order);
+            MaxQueueLength = Math.Max(MaxQueueLength, _line.Count);
             return order;
         }
 

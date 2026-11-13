@@ -83,6 +83,15 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void BoxesHandedOver_CountsEveryAcceptedBox_NotWrongOnes()
+        {
+            _desk.OpenOrder(TestData.OrderFor(TestData.Box1, "1435"), 0);
+            _desk.Handover(TestData.Box2, 1); // wrong box
+            _desk.Handover(TestData.Box1, 2);
+            Assert.AreEqual(1, _stats.BoxesHandedOver);
+        }
+
+        [Test]
         public void Dispose_StopsCounting()
         {
             _stats.Dispose();
