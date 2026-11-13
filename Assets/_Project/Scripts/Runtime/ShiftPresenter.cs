@@ -48,6 +48,7 @@ namespace Pvz.Runtime
             _shift.Desk.ReturnOpened += OnReturnOpened;
             _shift.Desk.ReturnAccepted += OnReturnAccepted;
             _shift.TimeUp += OnTimeUp;
+            _shift.Book.Changed += RefreshOrders;
             _step = tutorial ? TutorialStep.TakeScanner : TutorialStep.Off;
             _scanner.Grabbed += OnScannerGrabbed;
         }
@@ -72,6 +73,7 @@ namespace Pvz.Runtime
             _shift.Desk.ReturnOpened -= OnReturnOpened;
             _shift.Desk.ReturnAccepted -= OnReturnAccepted;
             _shift.TimeUp -= OnTimeUp;
+            _shift.Book.Changed -= RefreshOrders;
             _scanner.Grabbed -= OnScannerGrabbed;
         }
 
@@ -117,6 +119,7 @@ namespace Pvz.Runtime
 
         public void ShowShiftStarting(string difficulty = null)
         {
+            RefreshOrders(); // empty: the list appears with the first customer
             _board.ShowHeadline(string.IsNullOrEmpty(difficulty) ? "Смена начинается" : $"Смена: {difficulty}", CounterBoard.Accent);
             _board.ShowStatus("Возьмите сканер со стойки", CounterBoard.Neutral);
             _scanner.ShowResult("Наведите на QR\nи нажмите курок", CounterBoard.Neutral);
@@ -181,6 +184,51 @@ namespace Pvz.Runtime
             if (_step == TutorialStep.TakeScanner && _scanner.IsHeld) _step = TutorialStep.Scan;
             ShowCurrentHint();
         }
+
+        /// <summary>How many lines the order list on the counter shows.</summary>
+        public const int OrderListLines = 7;
+
+        private void RefreshOrders() => _board.ShowOrders(OrderListText(_shift.Book.Entries, OrderListLines));
+
+        /// <summary>
+        /// The order list: open visits first (at the counter, then the line in order), then finished ones, newest
+        /// first; at most <paramref name="maxLines"/> visits under the title. Empty when nobody came yet.
+        /// </summary>
+        public static string OrderListText(System.Collections.Generic.IReadOnlyList<OrderBookEntry> entries, int maxLines)
+        {
+            if (entries == null || entries.Count == 0) return string.Empty;
+            var ordered = new System.Collections.Generic.List<OrderBookEntry>();
+            foreach (var e in entries) if (e.State == VisitState.AtCounter) ordered.Add(e);
+            foreach (var e in entries) if (e.State == VisitState.Waiting) ordered.Add(e);
+            for (var i = entries.Count - 1; i >= 0; i--) if (!entries[i].IsOpen) ordered.Add(entries[i]);
+            var text = new System.Text.StringBuilder("<b>ЗАКАЗЫ</b>");
+            for (var i = 0; i < ordered.Count && i < maxLines; i++) text.Append('\n').Append(OrderLine(ordered[i]));
+            return text.ToString();
+        }
+
+        private static string OrderLine(OrderBookEntry entry)
+        {
+            var visit = entry.Visit;
+            string name;
+            if (visit.IsReturn) name = $"Возврат №{visit.Return.OrderNumber}";
+            else
+            {
+                // A forgetful customer's number is revealed only once the order is handed over.
+                name = "№" + (entry.State == VisitState.Served ? visit.Order.Number : SpokenNumber(visit.Order));
+                if (visit.Order.IsUrgent) name += " · срочно";
+            }
+            switch (entry.State)
+            {
+                case VisitState.AtCounter: return Colored($"{name} — у стойки", CounterBoard.Accent);
+                case VisitState.Waiting: return $"{name} — ждёт";
+                case VisitState.Served: return Colored($"{name} — {(visit.IsReturn ? "принят" : "выдан")}", CounterBoard.Good);
+                case VisitState.Abandoned: return Colored($"{name} — ушёл без заказа", CounterBoard.Bad);
+                default: return Colored($"{name} — ушёл из очереди", CounterBoard.Muted);
+            }
+        }
+
+        private static string Colored(string text, UnityEngine.Color color) =>
+            $"<color=#{UnityEngine.ColorUtility.ToHtmlStringRGB(color)}>{text}</color>";
 
         /// <summary>The order number as the customer says it: a forgetful one only knows the end («••81»).</summary>
         internal static string SpokenNumber(Order order) => order.ForgotNumber ? "••" + order.NumberHint : order.Number;

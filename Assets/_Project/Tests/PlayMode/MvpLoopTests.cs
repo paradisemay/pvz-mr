@@ -337,6 +337,8 @@ namespace Pvz.Runtime.Tests
             }
             yield return WaitUntil(() => director.Stats.OrdersCompleted == 1, 10f, "order handed over");
             Assert.AreEqual(celebrations + 1, director.Effects.Celebrations, "confetti for the served order");
+            var board = Object.FindFirstObjectByType<CounterBoard>();
+            StringAssert.Contains($"№{order.Number} — выдан", board.Orders, "the order list on the counter follows the shift");
             Assert.Greater(director.Effects.ParticlesAlive, 0, "the confetti really flies");
         }
 
