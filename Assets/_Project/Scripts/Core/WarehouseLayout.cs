@@ -8,12 +8,6 @@ namespace Pvz.Core
     /// <summary>Where the player last put a box down, in the play area's coordinates (metres, yaw in degrees).</summary>
     public readonly struct BoxPlacement
     {
-        /// <summary>Farther than this from the play area centre a saved place is treated as damaged data.</summary>
-        public const float MaxDistance = 6f;
-        /// <summary>Box centres lower than this would be in the floor (a box is at least ~0.1 m tall).</summary>
-        public const float MinHeight = 0.05f;
-        public const float MaxHeight = 3f;
-
         public BoxPlacement(BoxId box, float x, float y, float z, float yaw)
         {
             Box = box;
@@ -29,10 +23,10 @@ namespace Pvz.Core
         public float Z { get; }
         public float Yaw { get; }
 
-        /// <summary>Inside the room the game can use: not under the floor, not on the ceiling, not out of reach.</summary>
+        /// <summary>Inside the room the game can use (<see cref="WarehouseBounds"/>); damaged data never is.</summary>
         public bool IsPlausible =>
             !Box.IsEmpty && IsFinite(X) && IsFinite(Y) && IsFinite(Z) && IsFinite(Yaw) &&
-            Y >= MinHeight && Y <= MaxHeight && X * X + Z * Z <= MaxDistance * MaxDistance;
+            WarehouseBounds.IsPlausiblePlace(X, Y, Z);
 
         private static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
 

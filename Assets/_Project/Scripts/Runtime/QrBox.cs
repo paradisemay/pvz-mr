@@ -17,7 +17,6 @@ namespace Pvz.Runtime
         [SerializeField] private Rigidbody body;
         [SerializeField] private Renderer[] labelRenderers = System.Array.Empty<Renderer>();
         [SerializeField] private float lostBelowY = -1f;
-        [SerializeField] private float lostBeyondMeters = 6f;
 
         private static readonly int BaseMap = Shader.PropertyToID("_BaseMap");
 
@@ -73,7 +72,9 @@ namespace Pvz.Runtime
             var origin = _startParent != null ? _startParent.position : Vector3.zero;
             var offset = transform.position - origin;
             offset.y = 0f;
-            if (transform.position.y < lostBelowY || offset.magnitude > lostBeyondMeters) ReturnToStart();
+            // Fell through the floor, or thrown out of the player's reach — measured from where the box lives (the boxes
+            // root of the play area, the same rule as for saved places; a box with no parent, e.g. a return box, from the origin).
+            if (transform.position.y < lostBelowY || !Pvz.Core.WarehouseBounds.IsWithinReach(offset.x, offset.z)) ReturnToStart();
         }
 
         /// <summary>Puts the box back where the shift started (relative to the play area).</summary>
