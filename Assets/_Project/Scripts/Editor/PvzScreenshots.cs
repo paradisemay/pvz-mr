@@ -22,6 +22,15 @@ namespace Pvz.Editor
         public static void CaptureAll()
         {
             if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+            // Otherwise shaders not compiled yet render as the cyan async-compilation placeholder.
+            var asyncCompilation = ShaderUtil.allowAsyncCompilation;
+            ShaderUtil.allowAsyncCompilation = false;
+            try { CaptureAllInternal(); }
+            finally { ShaderUtil.allowAsyncCompilation = asyncCompilation; }
+        }
+
+        private static void CaptureAllInternal()
+        {
             Directory.CreateDirectory(OutputDir);
             var scene = EditorSceneManager.OpenScene(PvzSceneBuilder.ScenePath, OpenSceneMode.Single);
             HideEditorOnlyClutter();

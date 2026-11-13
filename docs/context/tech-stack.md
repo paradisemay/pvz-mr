@@ -29,6 +29,10 @@ Unity.exe -batchmode -quit -projectPath . -buildTarget Android -logFile Logs/bat
 Unity.exe -batchmode -quit -projectPath . -executeMethod Pvz.Editor.PvzSceneBuilder.BuildAll -logFile Logs/build_scene.log
 # применить настройки проекта (OpenXR-фичи Meta, Player Settings, URP)
 Unity.exe -batchmode -quit -projectPath . -executeMethod Pvz.Editor.PvzProjectSetup.Apply -logFile Logs/setup.log
+# скриншоты для PR (обязательно с целью Standalone: под Android Unlit-шейдеры в редакторе рендерятся заглушкой)
+./tools/run-unity.ps1 -Method Pvz.Editor.PvzScreenshots.CaptureAll -Extra '-buildTarget','Win64'
+# APK для Quest
+./tools/run-unity.ps1 -Method Pvz.Editor.PvzBuild.BuildQuestApk -NoQuit -Extra '-buildTarget','Android'
 # тесты (без -quit: редактор сам завершится с кодом 0/1)
 Unity.exe -batchmode -projectPath . -executeMethod Pvz.Editor.PvzTestRunner.RunEditMode -pvzResults Logs/editmode.xml -logFile Logs/editmode.log
 Unity.exe -batchmode -projectPath . -executeMethod Pvz.Editor.PvzTestRunner.RunPlayMode -pvzResults Logs/playmode.xml -logFile Logs/playmode.log

@@ -76,6 +76,11 @@ namespace Pvz.Editor
 
             var mrSetup = new GameObject("MR Session Setup").AddComponent<MrSessionSetup>();
             mrSetup.Configure(camera, mockRoom, simulator, locomotion, playArea);
+            // Room planes need the USE_SCENE permission on Quest; plane detection waits for it.
+            // Saved disabled: Meta requires USE_SCENE before plane detection starts; the gate enables it.
+            var planeManager = Object.FindFirstObjectByType<ARPlaneManager>();
+            planeManager.enabled = false;
+            mrSetup.gameObject.AddComponent<ScenePermissionGate>().Configure(planeManager);
 
             var counter = (GameObject)PrefabUtility.InstantiatePrefab(counterPrefab, playArea);
             counter.transform.localPosition = CounterPosition;
@@ -109,6 +114,9 @@ namespace Pvz.Editor
             supplyDrop.transform.SetParent(playArea, false);
             supplyDrop.Configure(supplyBoxPrefab, camera.transform, counter.transform, spawn, Object.FindFirstObjectByType<ARPlaneManager>());
 
+            var startMenu = new GameObject("Start Menu").transform;
+            startMenu.SetParent(playArea, false);
+
             var director = new GameObject("Shift Director").AddComponent<ShiftDirector>();
             director.Configure(settings, boxes.ToArray(), scanner,
                 counter.GetComponentInChildren<HandoverZone>(true),
@@ -118,7 +126,9 @@ namespace Pvz.Editor
                 counter.GetComponentInChildren<RestartButton>(true).gameObject,
                 counter.GetComponentInChildren<FeedbackAudio>(true),
                 supplyDrop,
-                CreateDifficultyButtons(playArea, new[] { easy, settings, hard }, font));
+                CreateDifficultyButtons(startMenu, new[] { easy, settings, hard }, font));
+            CreateRecenterButton(startMenu, mrSetup, font);
+            director.ConfigureStartMenu(startMenu.gameObject);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
@@ -142,6 +152,20 @@ namespace Pvz.Editor
             configureNew(settings);
             AssetDatabase.CreateAsset(settings, path);
             return settings;
+        }
+
+        /// <summary>«Стойку ко мне»: moves the play area in front of the player before the shift starts.</summary>
+        private static void CreateRecenterButton(Transform parent, MrSessionSetup session, TMPro.TMP_FontAsset font)
+        {
+            var go = new GameObject("Recenter Button");
+            go.transform.SetParent(parent, false);
+            go.transform.position = CounterPosition + new Vector3(-0.15f, PvzPrefabBuilder.CounterHeight + 0.03f, -0.04f);
+            Primitive(PrimitiveType.Cube, "Cap", go.transform, Vector3.zero, new Vector3(0.22f, 0.05f, 0.13f),
+                Lit("RecenterButton", new Color(0.35f, 0.6f, 0.95f)), true);
+            Text("Label", go.transform, new Vector3(0, 0.027f, 0), new Vector2(0.21f, 0.11f), "СТОЙКУ\nКО МНЕ", font,
+                new Color(0.08f, 0.1f, 0.14f), 0.6f, localRot: Quaternion.Euler(90, 0, 0));
+            go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
+            go.AddComponent<RecenterButton>().Configure(session);
         }
 
         /// <summary>Three buttons on the player's side of the counter; hidden once the shift starts.</summary>
