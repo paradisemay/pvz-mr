@@ -13,7 +13,15 @@ namespace Pvz.Runtime.Tests
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
+            WarehouseLayoutKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // never the real saved layout
             yield return SceneManager.LoadSceneAsync("Game", LoadSceneMode.Single);
+            yield return null;
+        }
+
+        [UnityTearDown]
+        public IEnumerator ForgetTestStore()
+        {
+            WarehouseLayoutKeeper.StoreOverride = null;
             yield return null;
         }
 

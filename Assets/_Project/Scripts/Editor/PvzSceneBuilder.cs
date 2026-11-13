@@ -131,6 +131,10 @@ namespace Pvz.Editor
             director.ConfigureStartMenu(startMenu.gameObject);
             director.ConfigureReturns(supplyBoxPrefab); // returned boxes use the generic box with a runtime QR
 
+            // The player's arrangement of the stock boxes is kept between sessions (T017).
+            new GameObject("Warehouse Layout").AddComponent<WarehouseLayoutKeeper>()
+                .Configure(boxes.ToArray(), counter.GetComponentInChildren<HandoverZone>(true));
+
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();

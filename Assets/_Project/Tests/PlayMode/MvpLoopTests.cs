@@ -22,6 +22,7 @@ namespace Pvz.Runtime.Tests
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
+            WarehouseLayoutKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // never the real saved layout
             yield return SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Single);
             yield return null;
             var director = Object.FindFirstObjectByType<ShiftDirector>();
@@ -39,6 +40,7 @@ namespace Pvz.Runtime.Tests
         public IEnumerator Restore()
         {
             Time.timeScale = 1f;
+            WarehouseLayoutKeeper.StoreOverride = null;
             yield return null;
         }
 
