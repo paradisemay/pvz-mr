@@ -13,13 +13,17 @@ namespace Pvz.Runtime
         private readonly CounterBoard _board;
         private readonly HandScanner _scanner;
         private readonly FeedbackAudio _audio;
+        private readonly FeedbackEffects _effects;
 
         /// <summary>First-order tutorial: steps only move forward, so re-grabbing the scanner never rewinds a hint.</summary>
         private enum TutorialStep { Off, TakeScanner, Scan, Carry }
 
         private TutorialStep _step;
 
-        public ShiftPresenter(Shift shift, CounterBoard board, HandScanner scanner, FeedbackAudio audio, bool tutorial = false)
+        /// <param name="audio">Sounds; null = silent.</param>
+        /// <param name="effects">Confetti and other visual confirmation; null = none (e.g. a scene without them).</param>
+        public ShiftPresenter(Shift shift, CounterBoard board, HandScanner scanner, FeedbackAudio audio, FeedbackEffects effects,
+            bool tutorial = false)
         {
             _shift = shift ?? throw new ArgumentNullException(nameof(shift));
             // Explicit Unity null checks: serialized references may be "fake null" objects in the editor.
@@ -28,6 +32,7 @@ namespace Pvz.Runtime
             _board = board;
             _scanner = scanner;
             _audio = audio != null ? audio : null;
+            _effects = effects != null ? effects : null;
 
             _shift.Desk.OrderOpened += OnOrderOpened;
             _shift.Desk.BoxScanned += OnBoxScanned;
@@ -225,6 +230,7 @@ namespace Pvz.Runtime
             PlaySound(FeedbackAudio.Sound.Beep);
             var (text, color) = ScanResultText(outcome);
             _scanner.ShowResult(text, color);
+            if (outcome.Status != ScanStatus.NoActiveOrder) _scanner.Flash(color); // every judged scan is confirmed visually
             var tutorialScanning = _step == TutorialStep.Scan || _step == TutorialStep.TakeScanner;
             if (outcome.Status == ScanStatus.Matches && tutorialScanning) { _step = TutorialStep.Carry; ShowCurrentHint(); }
             else if (outcome.Status == ScanStatus.OtherOrder && tutorialScanning) ShowHint(HintWrongBox);
@@ -318,6 +324,7 @@ namespace Pvz.Runtime
         {
             PlaySound(FeedbackAudio.Sound.Success);
             Say("Спасибо!\nВсего доброго!");
+            Celebrate();
             _board.ShowHeadline("Возврат принят", CounterBoard.Good);
             _board.ShowStatus($"+{_shift.Stats.PointsPerReturn} очков", CounterBoard.Good);
         }
@@ -342,11 +349,17 @@ namespace Pvz.Runtime
 
             Say("Спасибо!\nХорошего дня!");
             _board.ShowHeadline("Заказ выдан", CounterBoard.Good);
+            Celebrate();
             // ShiftStats subscribed to the desk before the presenter, so LastOrderPoints is already updated.
             _board.ShowStatus($"+{_shift.Stats.LastOrderPoints} очков", CounterBoard.Good);
         }
 
         private void RefreshScore() => _board.ShowScore(_shift.Stats.Score, _shift.Stats.OrdersCompleted, _shift.OrdersTotal, _clock);
+
+        private void Celebrate()
+        {
+            if (_effects != null) _effects.Celebrate();
+        }
 
         private void PlaySound(FeedbackAudio.Sound sound)
         {

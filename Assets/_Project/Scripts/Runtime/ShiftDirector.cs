@@ -32,6 +32,8 @@ namespace Pvz.Runtime
         [SerializeField] private GameObject startMenu;
         [Tooltip("Generic box prefab carried by customers who come to return something.")]
         [SerializeField] private QrBox returnBoxPrefab;
+        [Tooltip("Optional: confetti over the handover zone when an order is done.")]
+        [SerializeField] private FeedbackEffects effects;
 
         private readonly BoxRegistry _registry = new BoxRegistry();
         private BestScores _bestScores;
@@ -164,7 +166,7 @@ namespace Pvz.Runtime
                 Debug.LogError("[ShiftDirector] Returns are enabled but there is no return box prefab; returns are turned off. Rebuild the scene.", this);
                 Shift.ReturnChancePercent = 0;
             }
-            _presenter = new ShiftPresenter(Shift, board, scanner, feedback, settings.ShowTutorial);
+            _presenter = new ShiftPresenter(Shift, board, scanner, feedback, effects, settings.ShowTutorial);
             _supplySeed = settings.CreateRandomSource().Range(1, int.MaxValue);
             Subscribe();
 
@@ -483,6 +485,10 @@ namespace Pvz.Runtime
         internal void ConfigureStartMenu(GameObject menuRoot) => startMenu = menuRoot;
 
         internal void ConfigureReturns(QrBox boxPrefab) => returnBoxPrefab = boxPrefab;
+
+        internal void ConfigureEffects(FeedbackEffects feedbackEffects) => effects = feedbackEffects;
+
+        public FeedbackEffects Effects => effects;
 
         internal void Configure(ShiftSettings shiftSettings, QrBox[] sceneBoxes, HandScanner handScanner, HandoverZone zone,
             Customer prefab, Transform spawn, Transform service, CounterBoard counterBoard, ShiftSummaryPanel summary,

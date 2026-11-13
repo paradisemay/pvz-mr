@@ -111,7 +111,7 @@ namespace Pvz.Editor
             // at 75° its lower edge is 0.0375 * cos 75° ≈ 0.01 below the centre.
             screenRoot.localPosition = new Vector3(0, 0.052f, -0.005f);
             screenRoot.localRotation = Quaternion.Euler(75, 0, 0);
-            Primitive(PrimitiveType.Quad, "ScreenBack", screenRoot, Vector3.zero, new Vector3(0.06f, 0.075f, 1f), _screen,
+            var screenBack = Primitive(PrimitiveType.Quad, "ScreenBack", screenRoot, Vector3.zero, new Vector3(0.06f, 0.075f, 1f), _screen,
                 localRot: Quaternion.identity);
             var screenText = Text("ScreenText", screenRoot, new Vector3(0, 0, -0.001f), new Vector2(0.055f, 0.068f),
                 "Наведите на QR", _font, Color.white, 0.25f);
@@ -142,7 +142,48 @@ namespace Pvz.Editor
 
             var scanner = root.AddComponent<HandScanner>();
             scanner.Configure(muzzle, beam, screenText);
+            scanner.ConfigureScreenBack(screenBack.GetComponent<Renderer>());
             return SavePrefab(root, "HandScanner");
+        }
+
+        /// <summary>Confetti that bursts up from the handover zone and falls back (emitted on demand, never looping).</summary>
+        private static ParticleSystem Confetti(Transform zone)
+        {
+            var go = new GameObject("Confetti");
+            go.transform.SetParent(zone, false);
+            go.transform.localPosition = new Vector3(0f, -0.15f, 0f);
+            go.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f); // emit upwards
+            var particles = go.AddComponent<ParticleSystem>();
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = particles.main;
+            main.playOnAwake = false;
+            main.loop = false;
+            main.duration = 1f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.9f, 1.4f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(1.2f, 2.2f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.015f, 0.03f);
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.gravityModifier = 0.9f;
+            main.maxParticles = 200;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.startColor = new ParticleSystem.MinMaxGradient(new Gradient
+            {
+                colorKeys = new[]
+                {
+                    new GradientColorKey(new Color(0.35f, 0.9f, 0.45f), 0f), new GradientColorKey(new Color(1f, 0.8f, 0.3f), 0.33f),
+                    new GradientColorKey(new Color(0.3f, 0.6f, 1f), 0.66f), new GradientColorKey(new Color(1f, 0.42f, 0.35f), 1f),
+                },
+            }) { mode = ParticleSystemGradientMode.RandomColor };
+            var emission = particles.emission;
+            emission.enabled = false; // only explicit bursts (FeedbackEffects.Celebrate)
+            var shape = particles.shape;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 25f;
+            shape.radius = 0.12f;
+            var renderer = go.GetComponent<ParticleSystemRenderer>();
+            renderer.sharedMaterial = PvzAssetFactory.ParticlesUnlit("Confetti");
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            return particles;
         }
 
         public string Counter()
@@ -174,6 +215,7 @@ namespace Pvz.Editor
                 new Vector3(0.58f, 0.52f, 1f), _zone, localRot: Quaternion.Euler(90, 0, 0));
             Text("ZoneLabel", zoneGo.transform, new Vector3(0, -0.197f, -0.2f), new Vector2(0.55f, 0.08f), "ЗОНА ВЫДАЧИ",
                 _font, Color.white, 1f, localRot: Quaternion.Euler(90, 0, 0));
+            zoneGo.AddComponent<FeedbackEffects>().Configure(Confetti(zoneGo.transform));
 
             // Board above the counter
             var boardGo = new GameObject("CounterBoard");
@@ -260,6 +302,17 @@ namespace Pvz.Editor
 
             var customer = root.AddComponent<Customer>();
             customer.Configure(bubble, carry, body, new[] { torso.GetComponent<Renderer>(), armL.GetComponent<Renderer>(), armR.GetComponent<Renderer>() });
+            // Voice from where the customer stands: 3D sound, heard across a room.
+            var voiceSource = root.AddComponent<AudioSource>();
+            voiceSource.playOnAwake = false;
+            voiceSource.spatialBlend = 1f;
+            voiceSource.minDistance = 0.6f;
+            voiceSource.maxDistance = 8f;
+            voiceSource.volume = 0.8f;
+            voiceSource.dopplerLevel = 0f; // the listener is the head: turning it must not bend the voice
+            var voice = root.AddComponent<CustomerVoice>();
+            voice.Configure(voiceSource);
+            customer.ConfigureVoice(voice);
             // Patience bar above the head (hidden until the customer is at the counter and patience is ticking).
             var barGo = new GameObject("PatienceBar");
             barGo.transform.SetParent(root.transform, false);
