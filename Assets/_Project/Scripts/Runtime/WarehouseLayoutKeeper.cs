@@ -52,15 +52,24 @@ namespace Pvz.Runtime
         {
             _layout = WarehouseLayout.Empty;
             Save();
-            var moved = 0;
+            var moved = new System.Collections.Generic.List<int>();
             for (var i = 0; i < boxes.Length; i++)
             {
                 var box = boxes[i];
-                if (box == null || box.IsHandedOver) continue;
+                // A box in the player's hand stays there: the hand owns it (and its parent) until it is let go.
+                if (box == null || box.IsHandedOver || box.IsHeld) continue;
                 box.MoveToSavedPlace(_defaults[i].position, _defaults[i].yaw);
-                moved++;
+                moved.Add(i);
             }
-            return moved;
+            // Only after all boxes moved (they never collide with each other at their defaults): if something else now
+            // stands on a default place (the scanner, a bag), the box is put just above it and settles, not shoved.
+            foreach (var i in moved)
+            {
+                var (position, yaw) = _defaults[i];
+                if (boxes[i].IsSpotFree(position, yaw)) continue;
+                boxes[i].MoveToSavedPlace(position + Vector3.up * (boxes[i].Reach + 0.05f), yaw);
+            }
+            return moved.Count;
         }
 
         private void OnEnable()

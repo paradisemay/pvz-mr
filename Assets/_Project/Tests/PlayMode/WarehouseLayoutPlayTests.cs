@@ -85,6 +85,28 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest]
+        public IEnumerator Reset_OntoAnOccupiedDefaultPlace_PutsTheBoxAboveIt_InsteadOfInsideIt()
+        {
+            var box = Box("BOX-001");
+            var defaultPlace = box.transform.localPosition;
+            PutDown(box, box.transform.parent.TransformPoint(new Vector3(0.7f, 0.13f, -1.3f)));
+            // The player left the scanner exactly where the box used to stand.
+            var scanner = Object.FindFirstObjectByType<HandScanner>();
+            var scannerBody = scanner.GetComponent<Rigidbody>();
+            scannerBody.isKinematic = true;
+            scanner.transform.position = box.transform.parent.TransformPoint(defaultPlace);
+            Physics.SyncTransforms();
+
+            Object.FindFirstObjectByType<ResetWarehouseButton>(FindObjectsInactive.Include).Press();
+
+            var local = Box("BOX-001").transform.localPosition;
+            Assert.Less(Vector2.Distance(new Vector2(defaultPlace.x, defaultPlace.z), new Vector2(local.x, local.z)), 0.01f,
+                "back over its place");
+            Assert.Greater(local.y, defaultPlace.y + 0.2f, "above the scanner, not inside it");
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator TwoBoxesSavedOnTheSameSpot_OnlyOneIsRestoredThere()
         {
             var spot = new Vector3(-0.4f, 0.13f, -1.4f);
