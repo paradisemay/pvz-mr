@@ -174,6 +174,8 @@ namespace Pvz.Runtime.Tests
             yield return WaitUntil(() => director.Desk.HasActiveOrder && director.Desk.ActiveOrder == secondOrder, 40f,
                 "second customer at the counter");
             Assert.AreSame(second, director.CurrentCustomer);
+            yield return WaitUntil(() => front == null, 20f, "the served customer leaves and vanishes");
+            Assert.AreEqual(2, director.QueuedOrders.Count, "a new customer joined the end of the line");
         }
 
         [UnityTest, Timeout(60000)]

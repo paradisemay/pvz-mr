@@ -30,7 +30,7 @@ namespace Pvz.Core
             Desk.OrderAbandoned += OnOrderClosed;
         }
 
-        private readonly HashSet<string> _reserved = new HashSet<string>();
+        private readonly List<Order> _line = new List<Order>();
 
         private void OnOrderCompleted(OrderResult result) => OnOrderClosed(result.Order);
 
@@ -113,14 +113,41 @@ namespace Pvz.Core
             set => _generator.BagChancePercent = value;
         }
 
+        /// <summary>How many customers may wait in line (including the one at the counter).</summary>
+        public int QueueLength { get; set; } = 1;
+
+        /// <summary>Orders of the customers in line, oldest first; the first one is served next.</summary>
+        public IReadOnlyList<Order> QueuedOrders => _line;
+
+        public bool CanEnqueue => _line.Count < Math.Max(1, QueueLength) && HasUnreservedOrders;
+
         /// <summary>
-        /// Picks the order for a new customer and reserves it, so two customers in the queue never come for the same
-        /// order. Returns null when every order in the warehouse is already taken by someone.
+        /// A new customer joins the line: picks an order nobody in line has yet and reserves it,
+        /// so two customers never come for the same order. False when the line is full or nothing is left.
+        /// </summary>
+        public bool TryEnqueue(out Order order)
+        {
+            order = CanEnqueue ? NextOrder() : null;
+            return order != null;
+        }
+
+        /// <summary>
+        /// Reserves an order for a new customer regardless of <see cref="QueueLength"/> (tests and single-customer use).
+        /// Returns null when every order in the warehouse is already taken by someone.
         /// </summary>
         public Order NextOrder()
         {
-            var order = _generator.CreateRandomOrder(Desk.Catalog, _reserved);
-            if (order != null) _reserved.Add(order.Number);
+            var order = _generator.CreateRandomOrder(Desk.Catalog, ReservedNumbers());
+            if (order != null) _line.Add(order);
+            return order;
+        }
+
+        /// <summary>The first customer in line reached the counter: their order is opened.</summary>
+        public Order OpenNext(double now)
+        {
+            if (_line.Count == 0) throw new InvalidOperationException("Nobody is waiting in line.");
+            var order = _line[0];
+            Desk.OpenOrder(order, now);
             return order;
         }
 
@@ -129,23 +156,32 @@ namespace Pvz.Core
         {
             get
             {
+                var reserved = ReservedNumbers();
                 foreach (var box in Desk.Catalog.Boxes)
                 {
-                    if (!_reserved.Contains(box.OrderNumber)) return true;
+                    if (!reserved.Contains(box.OrderNumber)) return true;
                 }
                 return false;
             }
         }
 
-        public bool IsReserved(string orderNumber) => _reserved.Contains(orderNumber);
+        public bool IsReserved(string orderNumber) => _line.Exists(o => o.Number == orderNumber);
 
-        /// <summary>Makes an order available again (e.g. its customer vanished before reaching the counter).</summary>
-        public void ReleaseReservation(Order order)
+        /// <summary>A customer left the line before reaching the counter; their order becomes available again.</summary>
+        public void LeaveQueue(Order order)
         {
-            if (order != null) _reserved.Remove(order.Number);
+            if (order == null || (Desk.HasActiveOrder && Desk.ActiveOrder == order)) return;
+            _line.Remove(order);
         }
 
-        private void OnOrderClosed(Order order) => _reserved.Remove(order.Number);
+        private HashSet<string> ReservedNumbers()
+        {
+            var numbers = new HashSet<string>();
+            foreach (var order in _line) numbers.Add(order.Number);
+            return numbers;
+        }
+
+        private void OnOrderClosed(Order order) => _line.Remove(order);
 
         /// <summary>If the planned delivery is due, makes it arrive and returns its boxes (to be spawned in the room).</summary>
         public bool TryTakeDueDelivery(out IReadOnlyList<BoxRecord> boxes)

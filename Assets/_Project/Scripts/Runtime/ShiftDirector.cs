@@ -48,7 +48,7 @@ namespace Pvz.Runtime
         public HandoverZone Zone => handoverZone;
         public IEnumerable<QrBox> RemainingBoxes => _registry.All;
         /// <summary>Orders of the customers standing in line (the first one is at the counter).</summary>
-        public IReadOnlyList<Order> QueuedOrders => _line.Select(c => c.Order).ToList();
+        public IReadOnlyList<Order> QueuedOrders => Shift.QueuedOrders;
         public IReadOnlyList<DifficultyButton> DifficultyButtons => difficultyButtons;
 
         public event Action ShiftEnded;
@@ -117,7 +117,7 @@ namespace Pvz.Runtime
             }
 
             Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules(), settings.CreateSupplyPlan(),
-                settings.BagChancePercent) { PatienceSeconds = settings.PatienceSeconds };
+                settings.BagChancePercent) { PatienceSeconds = settings.PatienceSeconds, QueueLength = settings.QueueLength };
             _presenter = new ShiftPresenter(Shift, board, scanner, feedback);
             _supplySeed = settings.CreateRandomSource().Range(1, int.MaxValue);
             Subscribe();
@@ -176,7 +176,7 @@ namespace Pvz.Runtime
                     continue;
                 }
 
-                FillQueue();
+                yield return FillQueue();
                 if (_line.Count > 0)
                 {
                     yield return ServeFrontCustomer();
@@ -205,17 +205,19 @@ namespace Pvz.Runtime
             foreach (var box in supplyDrop.Drop(ids, _supplySeed, settings.DefaultCeilingHeight)) _registry.Register(box);
         }
 
-        /// <summary>Brings new customers until the line is full; each one reserves a different order.</summary>
-        private void FillQueue()
+        /// <summary>
+        /// Brings new customers one by one (so they do not walk inside each other) until the line is full.
+        /// Which order each customer wants is decided by Core (<see cref="Shift.TryEnqueue"/>).
+        /// </summary>
+        private IEnumerator FillQueue()
         {
-            while (_line.Count < Mathf.Max(1, settings.QueueLength))
+            while (Shift.TryEnqueue(out var order))
             {
-                var order = Shift.NextOrder();
-                if (order == null) return;
                 var customer = Instantiate(customerPrefab, customerSpawnPoint.position, customerSpawnPoint.rotation);
                 customer.SetLook(_customersSpawned++);
                 _line.Add(new QueuedCustomer(customer, order));
                 customer.GoTo(SlotPosition(_line.Count - 1), customerServicePoint.rotation, settings.CustomerWalkSpeed);
+                if (Shift.CanEnqueue) yield return new WaitForSeconds(QueueSpacing / settings.CustomerWalkSpeed + 0.2f);
             }
         }
 
@@ -225,9 +227,16 @@ namespace Pvz.Runtime
             CurrentCustomer = front.Customer;
             _presenter.Customer = front.Customer;
             _presenter.ShowCustomerApproaching();
-            yield return new WaitUntil(() => !front.Customer.IsWalking);
+            yield return new WaitUntil(() => front.Customer == null || !front.Customer.IsWalking);
+            if (front.Customer == null)
+            {
+                // The customer vanished on the way (should not happen): free their order for someone else.
+                Shift.LeaveQueue(front.Order);
+                _line.RemoveAt(0);
+                yield break;
+            }
 
-            Desk.OpenOrder(front.Order, Now);
+            Shift.OpenNext(Now);
             HandOverBoxesAlreadyInZone();
 
             yield return new WaitUntil(() => !Desk.HasActiveOrder);
@@ -239,7 +248,10 @@ namespace Pvz.Runtime
             // Leave sideways so the customer does not walk through the line; boxes go with them.
             front.Customer.LeaveAndVanish(ExitPosition, settings.CustomerWalkSpeed);
             for (var i = 0; i < _line.Count; i++)
-                _line[i].Customer.GoTo(SlotPosition(i), customerServicePoint.rotation, settings.CustomerWalkSpeed);
+            {
+                if (_line[i].Customer != null)
+                    _line[i].Customer.GoTo(SlotPosition(i), customerServicePoint.rotation, settings.CustomerWalkSpeed);
+            }
         }
 
         private Vector3 LineDirection

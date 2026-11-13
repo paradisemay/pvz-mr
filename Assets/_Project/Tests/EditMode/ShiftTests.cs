@@ -68,7 +68,7 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
-        public void CompletedOrder_FreesNothing_AbandonedOrder_GoesBackToThePool()
+        public void CompletedAndAbandonedOrders_LeaveTheLine()
         {
             var shift = new Shift(TestData.MvpCatalog(), new FakeRandom(0, 0, 0, 0, 0));
             var first = shift.NextOrder();
@@ -87,13 +87,40 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
-        public void ReleaseReservation_MakesTheOrderAvailableAgain()
+        public void LeaveQueue_MakesTheOrderAvailableAgain()
         {
             var shift = new Shift(new BoxCatalog(new[] { new BoxRecord(TestData.Box1, "1435") }), new FakeRandom(0, 0));
             var order = shift.NextOrder();
             Assert.IsNull(shift.NextOrder());
-            shift.ReleaseReservation(order);
+            shift.LeaveQueue(order);
             Assert.AreEqual("1435", shift.NextOrder().Number);
+            shift.Dispose();
+        }
+
+        [Test]
+        public void TryEnqueue_RespectsTheLineLength()
+        {
+            var shift = new Shift(TestData.MvpCatalog(), new SystemRandomSource(5)) { QueueLength = 2 };
+            Assert.IsTrue(shift.TryEnqueue(out _));
+            Assert.IsTrue(shift.TryEnqueue(out _));
+            Assert.IsFalse(shift.TryEnqueue(out var third), "the line is full");
+            Assert.IsNull(third);
+            Assert.AreEqual(2, shift.QueuedOrders.Count);
+            shift.Dispose();
+        }
+
+        [Test]
+        public void OpenNext_ServesTheLineInArrivalOrder()
+        {
+            var shift = new Shift(TestData.MvpCatalog(), new SystemRandomSource(9)) { QueueLength = 3 };
+            shift.TryEnqueue(out var first);
+            shift.TryEnqueue(out var second);
+
+            Assert.AreSame(first, shift.OpenNext(0));
+            shift.Desk.Handover(first.Boxes[0], 1);
+            Assert.AreSame(second, shift.QueuedOrders[0], "the second customer steps up");
+            Assert.AreSame(second, shift.OpenNext(2));
+            Assert.Throws<InvalidOperationException>(() => { shift.Desk.Handover(second.Boxes[0], 3); shift.OpenNext(4); });
             shift.Dispose();
         }
 
