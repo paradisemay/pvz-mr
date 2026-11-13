@@ -42,6 +42,7 @@ namespace Pvz.Runtime
             _shift.OrderAbandoned += OnOrderAbandoned;
             _shift.Desk.ReturnOpened += OnReturnOpened;
             _shift.Desk.ReturnAccepted += OnReturnAccepted;
+            _shift.TimeUp += OnTimeUp;
             _step = tutorial ? TutorialStep.TakeScanner : TutorialStep.Off;
             _scanner.Grabbed += OnScannerGrabbed;
         }
@@ -65,6 +66,7 @@ namespace Pvz.Runtime
             _shift.OrderAbandoned -= OnOrderAbandoned;
             _shift.Desk.ReturnOpened -= OnReturnOpened;
             _shift.Desk.ReturnAccepted -= OnReturnAccepted;
+            _shift.TimeUp -= OnTimeUp;
             _scanner.Grabbed -= OnScannerGrabbed;
         }
 
@@ -135,6 +137,32 @@ namespace Pvz.Runtime
         public void UpdatePatience(double now)
         {
             if (Customer != null) Customer.ShowPatience(_shift.PatienceRemaining(now));
+        }
+
+        private string _clock;
+
+        /// <summary>Shift clock on the board (called every frame; the text changes once a second).</summary>
+        public void UpdateClock(double now)
+        {
+            var clock = ClockText(_shift.TimeLeft(now));
+            if (clock == _clock) return;
+            _clock = clock;
+            RefreshScore();
+        }
+
+        /// <summary>«3:12» (seconds rounded up, so «0:00» means the time is really up), or null without a limit.</summary>
+        public static string ClockText(double? secondsLeft)
+        {
+            if (secondsLeft == null) return null;
+            var total = (int)Math.Ceiling(secondsLeft.Value);
+            return $"{total / 60}:{total % 60:00}";
+        }
+
+        private void OnTimeUp(System.Collections.Generic.IReadOnlyList<Visit> sentAway)
+        {
+            PlaySound(FeedbackAudio.Sound.Error);
+            _board.ShowHeadline("Время смены вышло!", CounterBoard.Bad);
+            _board.ShowStatus(_shift.Desk.HasCustomer ? "Обслужите последнего клиента" : "Касса закрывается", CounterBoard.Neutral);
         }
 
         public void ShowScanMissed() => _scanner.ShowResult("Нет кода\nв прицеле", CounterBoard.Neutral);
@@ -309,7 +337,7 @@ namespace Pvz.Runtime
             _board.ShowStatus($"+{_shift.Stats.LastOrderPoints} очков", CounterBoard.Good);
         }
 
-        private void RefreshScore() => _board.ShowScore(_shift.Stats.Score, _shift.Stats.OrdersCompleted, _shift.OrdersTotal);
+        private void RefreshScore() => _board.ShowScore(_shift.Stats.Score, _shift.Stats.OrdersCompleted, _shift.OrdersTotal, _clock);
 
         private void PlaySound(FeedbackAudio.Sound sound)
         {

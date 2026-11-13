@@ -31,6 +31,7 @@ namespace Pvz.Runtime.Tests
             director.UsePatience(0);         // customers wait as long as the test needs
             director.UseReturnChance(0);     // only pickups unless a test asks for returns
             director.UseEventChances(0, 0);  // no urgent or forgetful customers unless a test asks for them
+            director.UseTimeLimit(0);        // the shift lasts as long as the test needs
             Time.timeScale = TimeScale;
         }
 
@@ -260,6 +261,36 @@ namespace Pvz.Runtime.Tests
                 yield return MoveTo(box, director.Zone.transform.position + Vector3.up * 0.05f);
             }
             yield return WaitUntil(() => director.Stats.OrdersCompleted == 1, 10f, "order handed over");
+        }
+
+        [UnityTest, Timeout(90000)]
+        public IEnumerator WhenTimeRunsOut_TheLineGoesHome_AndTheShiftEndsAfterTheLastCustomer()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            var board = Object.FindFirstObjectByType<CounterBoard>();
+            director.UseBagChance(0);
+            yield return WaitUntil(() => director.Desk.HasActiveOrder && director.QueuedVisits.Count == 2, 40f,
+                "a customer at the counter and one waiting in line");
+            var waiting = director.QueuedVisits[1];
+
+            // The time runs out half a second from now.
+            director.UseTimeLimit(Time.timeAsDouble - director.Shift.StartedAt.Value + 0.5);
+            yield return WaitUntil(() => director.Shift.IsTimeUp, 5f, "time up");
+            StringAssert.Contains("Время смены вышло", board.Headline);
+            Assert.AreEqual(1, director.QueuedVisits.Count, "only the customer at the counter stays");
+            CollectionAssert.DoesNotContain(director.QueuedVisits, waiting);
+
+            var order = director.Desk.ActiveOrder;
+            foreach (var id in order.Boxes)
+            {
+                Assert.IsTrue(director.TryGetBox(id, out var box));
+                yield return MoveTo(box, director.Zone.transform.position + Vector3.up * 0.05f);
+            }
+            yield return WaitUntil(() => director.IsShiftOver, 20f, "the shift ends after the last customer");
+            Assert.IsTrue(director.Shift.HasOrdersLeft, "unserved orders stayed in the warehouse");
+            var summary = Object.FindFirstObjectByType<ShiftSummaryPanel>(FindObjectsInactive.Include);
+            StringAssert.Contains("время вышло", summary.Text);
+            StringAssert.Contains("Обслужено клиентов: 1/", summary.Text);
         }
 
         [UnityTest, Timeout(60000)]

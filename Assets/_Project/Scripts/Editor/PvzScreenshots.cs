@@ -133,6 +133,14 @@ namespace Pvz.Editor
             Capture("11_events", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.1f, 1.55f, 1.3f), 70f);
             customer.ShowPatience(0.55);
 
+            // Shift timer: the time ran out, the last customer is still served.
+            customer.Say("Здравствуйте!\nЗаказ №2781");
+            board.ShowHeadline("Время смены вышло!", CounterBoard.Bad);
+            board.ShowStatus("Обслужите последнего клиента", CounterBoard.Neutral);
+            board.ShowScore(475, 3, 5, ShiftPresenter.ClockText(0));
+            Capture("12_time_up", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.1f, 1.55f, 1.3f), 70f);
+            board.ShowScore(150, 1, 3);
+
             // Supply delivery: boxes just appeared under the ceiling.
             var supply = Object.FindFirstObjectByType<SupplyDrop>();
             var dropped = supply.Drop(new[] { "BOX-101", "BOX-102", "BOX-103" }, 7, 2.4f);

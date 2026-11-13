@@ -62,6 +62,9 @@ namespace Pvz.Runtime
         internal void UseReturnChance(int percent) => Shift.ReturnChancePercent = percent;
 
         /// <summary>Sets how often customers are in a hurry or forget the order number (tests).</summary>
+        /// <summary>Sets the shift length, counted from the start of the shift (tests; 0 = no limit).</summary>
+        internal void UseTimeLimit(double seconds) => Shift.TimeLimitSeconds = seconds;
+
         internal void UseEventChances(int urgentPercent, int forgotNumberPercent)
         {
             Shift.UrgentChancePercent = urgentPercent;
@@ -111,6 +114,7 @@ namespace Pvz.Runtime
             if (Shift == null) return;
             Shift.Tick(Now);
             _presenter.UpdatePatience(Now);
+            _presenter.UpdateClock(Now);
         }
 
         private bool HasDifficultyMenu => difficultyButtons.Any(b => b != null);
@@ -151,7 +155,9 @@ namespace Pvz.Runtime
                 UrgentChancePercent = settings.UrgentChancePercent,
                 UrgentPatienceFactor = settings.UrgentPatienceFactor,
                 ForgotNumberChancePercent = settings.ForgotNumberChancePercent,
+                TimeLimitSeconds = settings.ShiftDurationSeconds,
             };
+            Shift.Start(Now);
             if (Shift.ReturnChancePercent > 0 && returnBoxPrefab == null)
             {
                 Debug.LogError("[ShiftDirector] Returns are enabled but there is no return box prefab; returns are turned off. Rebuild the scene.", this);
@@ -177,6 +183,7 @@ namespace Pvz.Runtime
             handoverZone.BagEntered += OnBagEnteredZone;
             Desk.BagRequested += OnBagRequested;
             Desk.ReturnOpened += OnReturnOpened;
+            Shift.TimeUp += OnTimeUp;
         }
 
         private void Unsubscribe()
@@ -189,6 +196,7 @@ namespace Pvz.Runtime
             handoverZone.BagEntered -= OnBagEnteredZone;
             Desk.BagRequested -= OnBagRequested;
             Desk.ReturnOpened -= OnReturnOpened;
+            Shift.TimeUp -= OnTimeUp;
         }
 
         /// <summary>Fixes the order sequence (tests). Call before the first customer arrives.</summary>
@@ -295,7 +303,14 @@ namespace Pvz.Runtime
             CurrentCustomer = front.Customer;
             _presenter.Customer = front.Customer;
             _presenter.ShowCustomerApproaching();
-            yield return new WaitUntil(() => front.Customer == null || !front.Customer.IsWalking);
+            yield return new WaitUntil(() => front.Customer == null || !front.Customer.IsWalking || !IsStillQueued(front));
+            if (!IsStillQueued(front))
+            {
+                // The shift time ran out on the way: OnTimeUp already sent this customer home.
+                _presenter.Customer = null;
+                CurrentCustomer = null;
+                yield break;
+            }
             if (front.Customer == null)
             {
                 // The customer vanished on the way (should not happen): free their order for someone else.
@@ -314,7 +329,7 @@ namespace Pvz.Runtime
             CurrentReturnBox = null;
             yield return new WaitForSeconds(settings.ThanksDuration);
 
-            _line.RemoveAt(0);
+            _line.RemoveAll(q => q.Visit == front.Visit);
             _presenter.Customer = null;
             CurrentCustomer = null;
             // Leave sideways so the customer does not walk through the line; boxes go with them.
@@ -323,6 +338,18 @@ namespace Pvz.Runtime
             {
                 if (_line[i].Customer != null)
                     _line[i].Customer.GoTo(SlotPosition(i), customerServicePoint.rotation, settings.CustomerWalkSpeed);
+            }
+        }
+
+        private bool IsStillQueued(QueuedCustomer queued) => Shift.QueuedVisits.Contains(queued.Visit);
+
+        /// <summary>The shift time ran out: everybody still waiting in line goes home (Core already dropped their visits).</summary>
+        private void OnTimeUp(IReadOnlyList<Visit> sentAway)
+        {
+            foreach (var queued in _line.Where(q => sentAway.Contains(q.Visit)).ToArray())
+            {
+                _line.Remove(queued);
+                if (queued.Customer != null) queued.Customer.LeaveAndVanish(ExitPosition, settings.CustomerWalkSpeed);
             }
         }
 
@@ -366,7 +393,7 @@ namespace Pvz.Runtime
             RecordResult? record = null;
             try { record = _bestScores.Submit(settings.DifficultyId, Stats.Score); }
             catch (Exception e) { Debug.LogException(e, this); } // never leave the player without the summary and restart
-            summaryPanel.Show(Stats, OrdersTotal, record, settings.DisplayName, Shift.MaxQueueLength);
+            summaryPanel.Show(Stats, OrdersTotal, record, settings.DisplayName, Shift.MaxQueueLength, Shift.IsTimeUp);
             restartButton.SetActive(true);
             ShiftEnded?.Invoke();
         }

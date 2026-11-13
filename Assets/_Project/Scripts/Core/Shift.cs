@@ -79,12 +79,61 @@ namespace Pvz.Core
         /// The planned delivery should arrive now: enough customers were served, or there is nothing left to sell.
         /// Never due while a customer is being served.
         /// </summary>
-        public bool IsDeliveryDue => HasScheduledDelivery && !Desk.HasCustomer &&
+        public bool IsDeliveryDue => HasScheduledDelivery && !IsTimeUp && !Desk.HasCustomer &&
                                      (Stats.OrdersCompleted >= _supplyPlan.AfterOrders || !HasOrdersLeft);
 
         public bool IsPendingIntake(BoxId id) => _pendingIntake.ContainsKey(id);
 
-        public bool IsOver => !HasOrdersLeft && !Desk.HasCustomer && !HasPendingIntake && !HasScheduledDelivery && _line.Count == 0;
+        /// <summary>
+        /// Everything is sold and received — or the shift time ran out and the last customer at the counter is done
+        /// (orders left in the warehouse simply stay unserved).
+        /// </summary>
+        public bool IsOver => IsTimeUp
+            ? !Desk.HasCustomer
+            : !HasOrdersLeft && !Desk.HasCustomer && !HasPendingIntake && !HasScheduledDelivery && _line.Count == 0;
+
+        /// <summary>Length of the shift, seconds; 0 = no time limit (the shift lasts until everything is sold).</summary>
+        public double TimeLimitSeconds { get; set; }
+
+        /// <summary>When <see cref="Start"/> was called, or null before that.</summary>
+        public double? StartedAt { get; private set; }
+
+        /// <summary>The shift time ran out: nobody new joins the line and no delivery comes any more.</summary>
+        public bool IsTimeUp { get; private set; }
+
+        /// <summary>
+        /// The shift time ran out (raised once). The argument lists the customers who were still waiting in line and
+        /// went home; the one already at the counter is served to the end.
+        /// </summary>
+        public event Action<IReadOnlyList<Visit>> TimeUp;
+
+        /// <summary>Starts the shift clock (only the first call counts).</summary>
+        public void Start(double now)
+        {
+            if (StartedAt == null) StartedAt = now;
+        }
+
+        /// <summary>Seconds of the shift left, or null when there is no time limit or the clock has not started.</summary>
+        public double? TimeLeft(double now) => TimeLimitSeconds <= 0 || StartedAt == null
+            ? (double?)null
+            : Math.Max(0.0, StartedAt.Value + TimeLimitSeconds - now);
+
+        private void CheckTime(double now)
+        {
+            if (IsTimeUp || TimeLeft(now) != 0) return;
+            var sentAway = new List<Visit>();
+            foreach (var visit in _line)
+            {
+                if (!IsAtCounter(visit)) sentAway.Add(visit);
+            }
+            foreach (var visit in sentAway) _line.Remove(visit);
+            IsTimeUp = true; // committed before the event
+            TimeUp?.Invoke(sentAway);
+        }
+
+        private bool IsAtCounter(Visit visit) => visit.Kind == VisitKind.Pickup
+            ? Desk.HasActiveOrder && Desk.ActiveOrder == visit.Order
+            : Desk.ActiveReturn == visit.Return;
 
         /// <summary>Replaces the randomness (e.g. a fixed seed in tests). Affects orders created afterwards.</summary>
         public void UseRandomSource(IRandomSource random)
@@ -137,6 +186,7 @@ namespace Pvz.Core
         /// </summary>
         public void Tick(double now)
         {
+            CheckTime(now);
             if (!Desk.HasActiveOrder) return;
             var session = Desk.ActiveSession;
             var patience = PatienceFor(session.Order);
@@ -200,7 +250,7 @@ namespace Pvz.Core
         /// <summary>Orders of the pickup customers in line, oldest first.</summary>
         public IReadOnlyList<Order> QueuedOrders => _line.FindAll(v => v.Kind == VisitKind.Pickup).ConvertAll(v => v.Order);
 
-        public bool CanEnqueue => _line.Count < Math.Max(1, QueueLength) && HasUnreservedOrders;
+        public bool CanEnqueue => !IsTimeUp && _line.Count < Math.Max(1, QueueLength) && HasUnreservedOrders;
 
         /// <summary>
         /// A new customer joins the line. Usually they come for an order nobody in line has yet (it is reserved,
@@ -278,10 +328,7 @@ namespace Pvz.Core
         public void LeaveQueue(Visit visit)
         {
             if (visit == null) return;
-            var atCounter = visit.Kind == VisitKind.Pickup
-                ? Desk.HasActiveOrder && Desk.ActiveOrder == visit.Order
-                : Desk.ActiveReturn == visit.Return;
-            if (atCounter) return;
+            if (IsAtCounter(visit)) return;
             _line.Remove(visit);
         }
 
