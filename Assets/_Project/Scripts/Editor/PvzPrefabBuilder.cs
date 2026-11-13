@@ -231,7 +231,21 @@ namespace Pvz.Editor
                 "Найдите коробку", _font, CounterBoard.Neutral, 2f);
             var score = Text("Score", boardGo.transform, new Vector3(0, -0.2f, -0.02f), new Vector2(1.3f, 0.09f),
                 "Очки: 0    Выдано: 0/3", _font, new Color(0.7f, 0.75f, 0.82f), 1.4f);
-            boardGo.AddComponent<CounterBoard>().Configure(headline, status, score);
+            var board = boardGo.AddComponent<CounterBoard>();
+            board.Configure(headline, status, score);
+
+            // Order list to the right of the board, turned a little towards the player (hidden until the first customer).
+            var listGo = new GameObject("OrderList");
+            listGo.transform.SetParent(boardGo.transform, false);
+            listGo.transform.localPosition = new Vector3(1.2f, -0.06f, -0.07f);
+            listGo.transform.localRotation = Quaternion.Euler(0f, -18f, 0f);
+            Primitive(PrimitiveType.Cube, "Panel", listGo.transform, Vector3.zero, new Vector3(0.74f, 0.74f, 0.03f), _boardBack);
+            Primitive(PrimitiveType.Cube, "Frame", listGo.transform, new Vector3(0, -0.385f, 0), new Vector3(0.74f, 0.03f, 0.035f), _accent);
+            var orderList = Text("Orders", listGo.transform, new Vector3(0, 0, -0.02f), new Vector2(0.68f, 0.68f),
+                "<b>ЗАКАЗЫ</b>", _font, new Color(0.88f, 0.9f, 0.94f), 0.8f, TextAlignmentOptions.TopLeft);
+            orderList.textWrappingMode = TextWrappingModes.NoWrap; // one visit per line: auto-size shrinks instead of wrapping
+            board.ConfigureOrders(orderList);
+            listGo.SetActive(false);
 
             // Summary panel (covers the board when the shift ends)
             var summaryGo = new GameObject("ShiftSummary");

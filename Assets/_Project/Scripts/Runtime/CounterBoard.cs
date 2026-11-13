@@ -32,6 +32,22 @@ namespace Pvz.Runtime
             status.color = color;
         }
 
+        [Tooltip("Optional: the order list next to the board.")]
+        [SerializeField] private TMP_Text orders;
+
+        public string Orders => orders != null ? orders.text : string.Empty;
+
+        /// <summary>The order list (rich text); hidden when empty.</summary>
+        public void ShowOrders(string text)
+        {
+            if (orders == null) return;
+            orders.text = text ?? string.Empty;
+            var panel = orders.transform.parent;
+            if (panel != null && panel != transform) panel.gameObject.SetActive(!string.IsNullOrEmpty(orders.text));
+        }
+
+        internal void ConfigureOrders(TMP_Text orderList) => orders = orderList;
+
         /// <param name="clock">Time left in the shift («3:12»), or null when the shift has no time limit.</param>
         public void ShowScore(int points, int served, int total, string clock = null)
         {

@@ -28,7 +28,7 @@ namespace Pvz.Core
             HasScheduledDelivery = !_supplyPlan.IsEmpty;
             // A served order is gone; an abandoned one goes back to the pool for the next customers.
             Desk.OrderCompleted += OnOrderCompleted;
-            Desk.OrderAbandoned += OnOrderClosed;
+            Desk.OrderAbandoned += OnOrderAbandoned;
             Desk.ReturnAccepted += OnReturnAccepted;
         }
 
@@ -45,10 +45,25 @@ namespace Pvz.Core
                 _returnable.Add(new BoxRecord(box, result.Order.Number));
                 _soldIds.Add(box);
             }
+            Book.Set(Book.OpenPickup(result.Order), VisitState.Served);
             OnOrderClosed(result.Order);
         }
 
-        private void OnReturnAccepted(ReturnRequest request) => _line.RemoveAll(v => v.Return == request);
+        private void OnOrderAbandoned(Order order)
+        {
+            Book.Set(Book.OpenPickup(order), VisitState.Abandoned);
+            OnOrderClosed(order);
+        }
+
+        private void OnReturnAccepted(ReturnRequest request)
+        {
+            var visit = _line.Find(v => v.Return == request);
+            _line.RemoveAll(v => v.Return == request);
+            Book.Set(visit, VisitState.Served);
+        }
+
+        /// <summary>Every customer of the shift and where their visit stands (the order list on the counter).</summary>
+        public OrderBook Book { get; } = new OrderBook();
 
         /// <summary>A supply box was scanned and moved into the warehouse.</summary>
         public event Action<BoxRecord> BoxReceived;
@@ -130,7 +145,11 @@ namespace Pvz.Core
             {
                 if (!IsAtCounter(visit)) sentAway.Add(visit);
             }
-            foreach (var visit in sentAway) _line.Remove(visit);
+            foreach (var visit in sentAway)
+            {
+                _line.Remove(visit);
+                Book.Set(visit, VisitState.Left);
+            }
             TimeUp?.Invoke(sentAway); // the line and IsTimeUp are already committed
         }
 
@@ -295,6 +314,7 @@ namespace Pvz.Core
         private void Join(Visit visit)
         {
             _line.Add(visit);
+            Book.Add(visit);
             MaxQueueLength = Math.Max(MaxQueueLength, _line.Count);
         }
 
@@ -308,6 +328,7 @@ namespace Pvz.Core
                 case VisitKind.Return: Desk.OpenReturn(visit.Return); break;
                 default: Desk.OpenOrder(visit.Order, now); break;
             }
+            Book.Set(visit, VisitState.AtCounter);
             return visit;
         }
 
@@ -332,7 +353,7 @@ namespace Pvz.Core
         {
             if (visit == null) return;
             if (IsAtCounter(visit)) return;
-            _line.Remove(visit);
+            if (_line.Remove(visit)) Book.Set(visit, VisitState.Left);
         }
 
         /// <summary>Same as <see cref="LeaveQueue(Visit)"/> for a pickup customer.</summary>
@@ -440,7 +461,7 @@ namespace Pvz.Core
         {
             BoxReceived -= Stats.OnBoxReceived;
             Desk.OrderCompleted -= OnOrderCompleted;
-            Desk.OrderAbandoned -= OnOrderClosed;
+            Desk.OrderAbandoned -= OnOrderAbandoned;
             Desk.ReturnAccepted -= OnReturnAccepted;
             Stats.Dispose();
         }

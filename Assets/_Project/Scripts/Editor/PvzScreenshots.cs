@@ -52,6 +52,7 @@ namespace Pvz.Editor
             board.ShowHeadline("Заказ №2781", CounterBoard.Accent);
             board.ShowStatus("Найдите коробку", CounterBoard.Neutral);
             board.ShowScore(150, 1, 3);
+            board.ShowOrders(DemoOrderList());
             var scanner = Object.FindFirstObjectByType<HandScanner>();
             scanner.ShowResult("Заказ №2781\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
 
@@ -179,6 +180,30 @@ namespace Pvz.Editor
 
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             Debug.Log($"[PvzScreenshots] Saved to {Path.GetFullPath(OutputDir)} (scene {scene.name} not modified).");
+        }
+
+        /// <summary>The order list of a staged shift: one served, one at the counter, two in line (real Core + presenter).</summary>
+        private static string DemoOrderList()
+        {
+            var catalog = new Pvz.Core.BoxCatalog(new[]
+            {
+                new Pvz.Core.BoxRecord(new Pvz.Core.BoxId("BOX-001"), "1435"),
+                new Pvz.Core.BoxRecord(new Pvz.Core.BoxId("BOX-002"), "2781"),
+                new Pvz.Core.BoxRecord(new Pvz.Core.BoxId("BOX-003"), "5812"),
+                new Pvz.Core.BoxRecord(new Pvz.Core.BoxId("BOX-103"), "2718"),
+            });
+            using (var demo = new Pvz.Core.Shift(catalog, new Pvz.Core.SystemRandomSource(5)) { QueueLength = 3 })
+            {
+                demo.TryEnqueue(out var served);
+                demo.OpenNext(0);
+                foreach (var box in served.Order.Boxes) demo.Desk.Handover(box, 1);
+                demo.TryEnqueue(out _);
+                demo.UrgentChancePercent = 100;
+                demo.TryEnqueue(out _);
+                demo.TryEnqueue(out _);
+                demo.OpenNext(2);
+                return ShiftPresenter.OrderListText(demo.Book.Entries, ShiftPresenter.OrderListLines);
+            }
         }
 
         private static void SetSummaryDemoText(ShiftSummaryPanel summary)
