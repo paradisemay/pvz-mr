@@ -18,7 +18,7 @@ namespace Pvz.Runtime
             if (root != null) root.SetActive(false);
         }
 
-        public void Show(ShiftStats stats, int ordersTotal)
+        public void Show(ShiftStats stats, int ordersTotal, string recordLine = null)
         {
             var grade = ShiftRating.Grade(stats.OrdersCompleted, ordersTotal, stats.WrongHandovers, stats.OrdersAbandoned);
             if (body != null)
@@ -33,7 +33,8 @@ namespace Pvz.Runtime
                     (stats.OrdersAbandoned > 0 ? $"Ушли без заказа: {stats.OrdersAbandoned}\n" : string.Empty) +
                     $"Среднее время выдачи: {stats.AverageServiceSeconds:0.0} с\n" +
                     $"Очки: {stats.Score}\n" +
-                    $"Рейтинг смены: <b>{GradeText(grade)}</b>";
+                    $"Рейтинг смены: <b>{GradeText(grade)}</b>" +
+                    (string.IsNullOrEmpty(recordLine) ? string.Empty : $"\n{recordLine}");
             }
             if (root != null) root.SetActive(true);
         }

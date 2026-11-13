@@ -36,9 +36,10 @@ namespace Pvz.Editor
             HideEditorOnlyClutter();
 
             // Before the shift: the difficulty menu on the counter.
-            ShiftPresenter.ShowDifficultyMenu(Object.FindFirstObjectByType<CounterBoard>());
+            ShiftPresenter.ShowDifficultyMenu(Object.FindFirstObjectByType<CounterBoard>(), "Рекорды: Лёгкая 450 · Обычная 525 · Сложная —");
             Capture("00_difficulty_menu", new Vector3(0f, 1.65f, -0.35f), new Vector3(-0.1f, 1.5f, 1.1f), 75f);
             foreach (var button in Object.FindObjectsByType<DifficultyButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
+            foreach (var button in Object.FindObjectsByType<RecenterButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false); // start menu is hidden during play
 
             // Stage a moment of play: a customer at the counter asking for an order.
             var customerPrefab = AssetDatabase.LoadAssetAtPath<Customer>(PvzAssetFactory.PrefabsDir + "/Customer.prefab");
@@ -133,7 +134,7 @@ namespace Pvz.Editor
         {
             var text = summary.GetComponentInChildren<TMP_Text>(true);
             text.text = "<b>СМЕНА ЗАВЕРШЕНА</b>\nОбслужено клиентов: 3/3\nОшибочных выдач: 1\nНеверных сканирований: 2\n" +
-                        "Среднее время выдачи: 24.6 с\nОчки: 525\nРейтинг смены: <b>Хорошо</b>";
+                        "Среднее время выдачи: 24.6 с\nОчки: 525\nРейтинг смены: <b>Хорошо</b>\n<b>НОВЫЙ РЕКОРД!</b> Было: 450";
         }
 
         private static void HideEditorOnlyClutter()

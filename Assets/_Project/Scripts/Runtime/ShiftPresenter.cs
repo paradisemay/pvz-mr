@@ -78,10 +78,10 @@ namespace Pvz.Runtime
         }
 
         /// <summary>Before the shift: ask the player to pick a difficulty (no shift exists yet).</summary>
-        public static void ShowDifficultyMenu(CounterBoard board)
+        public static void ShowDifficultyMenu(CounterBoard board, string records = null)
         {
             board.ShowHeadline("Выберите сложность", CounterBoard.Accent);
-            board.ShowStatus("Нажмите кнопку на стойке", CounterBoard.Neutral);
+            board.ShowStatus(string.IsNullOrEmpty(records) ? "Нажмите кнопку на стойке" : records, CounterBoard.Neutral);
             board.ShowScore(0, 0, 0);
         }
 
