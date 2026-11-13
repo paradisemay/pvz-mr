@@ -66,6 +66,11 @@ namespace Pvz.Editor
             Capture("04_box_qr", box.transform.position + new Vector3(0.35f, 0.35f, -0.45f), box.transform.position, 45f);
             Capture("05_scanner", scanner.transform.position + new Vector3(-0.18f, 0.22f, -0.25f), scanner.transform.position, 40f);
 
+            // «Похожие заказы»: the customer wants №2781, the scanner caught a box of №2718.
+            scanner.ShowResult("Заказ №2718\nПОХОЖ, НО НЕ ТОТ!", CounterBoard.Bad);
+            Capture("13_lookalike", scanner.transform.position + new Vector3(-0.18f, 0.22f, -0.25f), scanner.transform.position, 40f);
+            scanner.ShowResult("Заказ №2781\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
+
             // Two-box order handed over; the customer now asks for a bag.
             var heldBoxes = Object.FindObjectsByType<QrBox>(FindObjectsSortMode.InstanceID);
             var demoCustomer = Object.Instantiate(customerPrefab, PvzSceneBuilder.CustomerServicePosition,

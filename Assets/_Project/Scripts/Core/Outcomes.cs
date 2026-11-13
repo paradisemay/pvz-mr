@@ -18,11 +18,12 @@ namespace Pvz.Core
 
     public readonly struct ScanOutcome
     {
-        public ScanOutcome(ScanStatus status, BoxId box, string boxOrderNumber)
+        public ScanOutcome(ScanStatus status, BoxId box, string boxOrderNumber, bool looksLikeTheWantedOrder = false)
         {
             Status = status;
             Box = box;
             BoxOrderNumber = boxOrderNumber;
+            LooksLikeTheWantedOrder = looksLikeTheWantedOrder;
         }
 
         public ScanStatus Status { get; }
@@ -30,6 +31,12 @@ namespace Pvz.Core
 
         /// <summary>Order number printed on the scanned box, null for unknown boxes.</summary>
         public string BoxOrderNumber { get; }
+
+        /// <summary>
+        /// <see cref="ScanStatus.OtherOrder"/> whose number is easy to mix up with the customer's
+        /// (<see cref="OrderNumbers.LookAlike"/>): a trap worth a warning.
+        /// </summary>
+        public bool LooksLikeTheWantedOrder { get; }
 
         public override string ToString() => $"{Status} {Box} #{BoxOrderNumber}";
     }

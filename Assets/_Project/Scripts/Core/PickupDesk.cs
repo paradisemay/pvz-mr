@@ -105,7 +105,8 @@ namespace Pvz.Core
             else if (ActiveSession.Requires(box))
                 outcome = new ScanOutcome(ScanStatus.Matches, box, record.OrderNumber);
             else
-                outcome = new ScanOutcome(ScanStatus.OtherOrder, box, record.OrderNumber);
+                outcome = new ScanOutcome(ScanStatus.OtherOrder, box, record.OrderNumber,
+                    OrderNumbers.LookAlike(record.OrderNumber, ActiveOrder.Number));
 
             BoxScanned?.Invoke(outcome);
             return outcome;

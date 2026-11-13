@@ -230,7 +230,9 @@ namespace Pvz.Runtime
                     if (_step == TutorialStep.Scan || _step == TutorialStep.TakeScanner) { _step = TutorialStep.Carry; ShowCurrentHint(); }
                     break;
                 case ScanStatus.OtherOrder:
-                    _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}\nНЕ ТОТ ЗАКАЗ", CounterBoard.Bad);
+                    _scanner.ShowResult(outcome.LooksLikeTheWantedOrder
+                        ? $"Заказ №{outcome.BoxOrderNumber}\nПОХОЖ, НО НЕ ТОТ!"
+                        : $"Заказ №{outcome.BoxOrderNumber}\nНЕ ТОТ ЗАКАЗ", CounterBoard.Bad);
                     if (_step == TutorialStep.Scan || _step == TutorialStep.TakeScanner) ShowHint(HintWrongBox);
                     break;
                 case ScanStatus.ReturnAccepted:

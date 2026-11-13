@@ -41,7 +41,7 @@ MonoBehaviour:
     startPosition: {x: 0, y: 0, z: 0}
     startYaw: 0
   - boxId: BOX-103
-    orderNumber: 6021
+    orderNumber: 2718
     startPosition: {x: 0, y: 0, z: 0}
     startYaw: 0
   bagChancePercent: 0
