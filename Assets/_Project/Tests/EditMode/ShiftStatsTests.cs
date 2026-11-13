@@ -83,6 +83,27 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void BoxesHandedOver_CountsEveryAcceptedBox_NotWrongOnes()
+        {
+            _desk.OpenOrder(TestData.OrderFor(TestData.Box1, "1435"), 0);
+            _desk.Handover(TestData.Box2, 1); // wrong box
+            _desk.Handover(TestData.Box1, 2);
+            Assert.AreEqual(1, _stats.BoxesHandedOver);
+        }
+
+        [Test]
+        public void BoxesHandedOver_CountsEachBoxOfAMultiBoxOrder_AndIgnoresUnknownOnes()
+        {
+            _desk.Catalog.Add(new BoxRecord(new BoxId("BOX-004"), "1435"));
+            _desk.Handover(TestData.Box1, 0); // no customer yet
+            _desk.OpenOrder(new Order("1435", new[] { TestData.Box1, new BoxId("BOX-004") }), 0);
+            _desk.Handover(new BoxId("BOX-999"), 1); // unknown box
+            _desk.Handover(TestData.Box1, 2);
+            _desk.Handover(new BoxId("BOX-004"), 3);
+            Assert.AreEqual(2, _stats.BoxesHandedOver);
+        }
+
+        [Test]
         public void Dispose_StopsCounting()
         {
             _stats.Dispose();
