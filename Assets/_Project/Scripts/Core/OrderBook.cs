@@ -39,6 +39,15 @@ namespace Pvz.Core
     {
         private readonly List<OrderBookEntry> _entries = new List<OrderBookEntry>();
 
+        /// <summary>The open visits in join order — this is the line of the shift (kept, not recomputed).</summary>
+        private readonly List<Visit> _open = new List<Visit>();
+
+        /// <summary>
+        /// The line: visits still open (waiting, or at the counter), oldest first. The single source of truth for
+        /// «who is waiting» — <see cref="Shift"/> keeps no list of its own.
+        /// </summary>
+        public IReadOnlyList<Visit> Line => _open;
+
         /// <summary>The book changed; raised once per change, after the state (and the shift's line) is updated.</summary>
         public event Action Changed;
 
@@ -54,14 +63,15 @@ namespace Pvz.Core
 
         public OrderBookEntry Find(Visit visit) => _entries.Find(e => e.Visit == visit);
 
-        /// <summary>The visits still open (waiting or at the counter), oldest first.</summary>
-        public List<Visit> OpenVisits() => _entries.FindAll(e => e.IsOpen).ConvertAll(e => e.Visit);
+        /// <summary>A copy of <see cref="Line"/>.</summary>
+        public List<Visit> OpenVisits() => new List<Visit>(_open);
 
         internal void Join(Visit visit)
         {
             if (visit == null) throw new ArgumentNullException(nameof(visit));
             if (Find(visit) != null) throw new InvalidOperationException($"{visit} is already in the book.");
             _entries.Add(new OrderBookEntry(visit));
+            _open.Add(visit);
             Changed?.Invoke();
         }
 
@@ -81,6 +91,7 @@ namespace Pvz.Core
             foreach (var visit in visits)
             {
                 Entry(visit, VisitState.Waiting).State = VisitState.Left;
+                _open.Remove(visit);
                 changed = true;
             }
             if (changed) Changed?.Invoke();
@@ -92,7 +103,9 @@ namespace Pvz.Core
 
         private void Move(Visit visit, VisitState from, VisitState to)
         {
-            Entry(visit, from).State = to;
+            var entry = Entry(visit, from);
+            entry.State = to;
+            if (!entry.IsOpen) _open.Remove(visit);
             Changed?.Invoke();
         }
 
