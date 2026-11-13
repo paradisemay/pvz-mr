@@ -236,17 +236,27 @@ namespace Pvz.Runtime.Tests
 
             var order = director.Desk.ActiveOrder;
             Assert.IsTrue(order.ForgotNumber);
-            StringAssert.Contains("забыл", director.CurrentCustomer.LastLine);
+            StringAssert.Contains("Забыл номер", director.CurrentCustomer.LastLine);
             StringAssert.Contains(order.NumberHint, director.CurrentCustomer.LastLine);
             StringAssert.DoesNotContain(order.Number, director.CurrentCustomer.LastLine, "the customer does not know the full number");
             StringAssert.Contains("••" + order.NumberHint, board.Headline);
             StringAssert.DoesNotContain(order.Number, board.Headline);
 
+            // A wrong box: the customer objects, still knowing only the end of the number.
+            var other = director.RemainingBoxes.First(b => !order.Contains(b.Id));
+            var home = other.transform.position;
+            yield return PlaceInZone(director, other);
+            StringAssert.Contains("не мой заказ", director.CurrentCustomer.LastLine);
+            StringAssert.Contains("••" + order.NumberHint, director.CurrentCustomer.LastLine);
+            StringAssert.DoesNotContain(order.Number, director.CurrentCustomer.LastLine);
+            yield return MoveTo(other, home);
+
             foreach (var id in order.Boxes)
             {
                 Assert.IsTrue(director.TryGetBox(id, out var box));
                 director.Scanner.ScanDirect(box);
-                StringAssert.Contains("НУЖНАЯ КОРОБКА", director.Scanner.ScreenText, "the scanner tells the full number");
+                StringAssert.Contains("НУЖНАЯ КОРОБКА", director.Scanner.ScreenText);
+                StringAssert.Contains(order.Number, director.Scanner.ScreenText, "the scanner tells the full number");
                 yield return MoveTo(box, director.Zone.transform.position + Vector3.up * 0.05f);
             }
             yield return WaitUntil(() => director.Stats.OrdersCompleted == 1, 10f, "order handed over");

@@ -152,21 +152,21 @@ namespace Pvz.Runtime
         /// <summary>The order number as the customer says it: a forgetful one only knows the end («••81»).</summary>
         internal static string SpokenNumber(Order order) => order.ForgotNumber ? "••" + order.NumberHint : order.Number;
 
+        /// <summary>Opening (depends on urgency) + how the customer names the order (depends on memory).</summary>
         internal static string GreetingFor(Order order)
         {
-            if (order.ForgotNumber)
-                return order.IsUrgent
-                    ? $"Срочно! Номер забыл…\nКончается на {order.NumberHint}"
-                    : $"Ой, я забыл номер…\nОн кончается на {order.NumberHint}";
-            return order.IsUrgent
-                ? $"Срочно, опаздываю!\nЗаказ №{order.Number}"
-                : $"Здравствуйте!\nЗаказ №{order.Number}";
+            var opening = order.IsUrgent ? "Срочно, опаздываю!" : "Здравствуйте!";
+            var naming = order.ForgotNumber ? $"Забыл номер… кончается на {order.NumberHint}" : $"Заказ №{order.Number}";
+            return opening + "\n" + naming;
         }
 
         private const string HintTakeScanner = "Подсказка: возьмите сканер со стойки";
         private const string HintScan = "Подсказка: наведите сканер на коробку и нажмите курок";
         private const string HintCarry = "Подсказка: отнесите коробку в зелёную зону";
-        private const string HintWrongBox = "Подсказка: не та коробка — ищите № заказа клиента";
+
+        private string HintWrongBox => _shift.Desk.HasActiveOrder && _shift.Desk.ActiveOrder.ForgotNumber
+            ? $"Подсказка: не та коробка — номер клиента кончается на {_shift.Desk.ActiveOrder.NumberHint}"
+            : "Подсказка: не та коробка — ищите № заказа клиента";
 
         private void ShowCurrentHint()
         {
@@ -296,7 +296,7 @@ namespace Pvz.Runtime
             PlaySound(FeedbackAudio.Sound.Error);
             Say("Всё, я ухожу!");
             _board.ShowHeadline("Клиент ушёл без заказа", CounterBoard.Bad);
-            _board.ShowStatus($"Заказ №{order.Number} остался на складе", CounterBoard.Bad);
+            _board.ShowStatus($"Заказ №{SpokenNumber(order)} остался на складе", CounterBoard.Bad);
         }
 
         private void OnOrderCompleted(OrderResult result)

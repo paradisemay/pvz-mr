@@ -112,8 +112,19 @@ namespace Pvz.Core
         /// <summary>How long a customer waits at the counter, seconds; 0 = forever.</summary>
         public double PatienceSeconds { get; set; }
 
-        /// <summary>Share of the usual patience an urgent customer has.</summary>
-        public double UrgentPatienceFactor { get; set; } = 0.6;
+        private double _urgentPatienceFactor = 0.6;
+
+        /// <summary>Share (0..1] of the usual patience an urgent customer has.</summary>
+        public double UrgentPatienceFactor
+        {
+            get => _urgentPatienceFactor;
+            set
+            {
+                // 0 would mean "waits forever" — the opposite of urgent.
+                if (value <= 0 || value > 1) throw new ArgumentOutOfRangeException(nameof(value), value, "Expected a share in (0, 1].");
+                _urgentPatienceFactor = value;
+            }
+        }
 
         /// <summary>How long the customer with <paramref name="order"/> waits at the counter, seconds; 0 = forever.</summary>
         public double PatienceFor(Order order) =>
@@ -222,7 +233,7 @@ namespace Pvz.Core
         /// </summary>
         public Order NextOrder()
         {
-            var order = _generator.CreateRandomOrder(Desk.Catalog, ReservedNumbers());
+            var order = _generator.CreateRandomOrder(Desk.Catalog, ReservedNumbers(), KnownOrderNumbers());
             if (order == null) return null;
             Join(Visit.Pickup(order));
             return order;
@@ -279,6 +290,17 @@ namespace Pvz.Core
         {
             var visit = _line.Find(v => v.Kind == VisitKind.Pickup && v.Order == order);
             if (visit != null) LeaveQueue(visit);
+        }
+
+        /// <summary>
+        /// Every order this shift has or will have: stock, deliveries waiting to be scanned and the planned delivery.
+        /// A forgetful customer's hint must stay unambiguous against all of them.
+        /// </summary>
+        private IEnumerable<string> KnownOrderNumbers()
+        {
+            foreach (var number in _orderNumbers) yield return number;
+            if (!HasScheduledDelivery) yield break;
+            foreach (var box in _supplyPlan.Boxes) yield return box.OrderNumber;
         }
 
         private HashSet<string> ReservedNumbers()

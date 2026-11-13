@@ -30,7 +30,15 @@ namespace Pvz.Core
         public Order CreateRandomOrder(BoxCatalog catalog) => CreateRandomOrder(catalog, null);
 
         /// <summary>Same, but never picks an order whose number is in <paramref name="excludedOrders"/>.</summary>
-        public Order CreateRandomOrder(BoxCatalog catalog, ICollection<string> excludedOrders)
+        public Order CreateRandomOrder(BoxCatalog catalog, ICollection<string> excludedOrders) =>
+            CreateRandomOrder(catalog, excludedOrders, null);
+
+        /// <summary>
+        /// Same; <paramref name="otherKnownNumbers"/> are orders that are not in the warehouse yet (deliveries on their
+        /// way) but would still make a half-remembered number ambiguous.
+        /// </summary>
+        public Order CreateRandomOrder(BoxCatalog catalog, ICollection<string> excludedOrders,
+            IEnumerable<string> otherKnownNumbers)
         {
             if (catalog == null) throw new ArgumentNullException(nameof(catalog));
 
@@ -50,20 +58,29 @@ namespace Pvz.Core
             // Roll each trait only when it is possible, so shifts without it keep the same order sequence.
             var needsBag = Roll(BagChancePercent);
             var urgent = Roll(UrgentChancePercent);
-            var forgot = Roll(ForgotNumberChancePercent) && HintIsUnambiguous(catalog, picked.OrderNumber);
-            return new Order(picked.OrderNumber, boxes, needsBag, urgent, forgot);
+            var forgot = Roll(ForgotNumberChancePercent) && HintIsUnambiguous(picked.OrderNumber, catalog, otherKnownNumbers);
+            return new Order(picked.OrderNumber, boxes, needsBag: needsBag, isUrgent: urgent, forgotNumber: forgot);
         }
 
         private bool Roll(int chancePercent) => chancePercent > 0 && _random.Range(0, 100) < chancePercent;
 
-        /// <summary>No other order in the warehouse ends with the same digits, so the hint names exactly one order.</summary>
-        private static bool HintIsUnambiguous(BoxCatalog catalog, string number)
+        /// <summary>
+        /// No other order of the shift (in the warehouse or on its way) ends with the same digits, so the hint names
+        /// exactly one order.
+        /// </summary>
+        private static bool HintIsUnambiguous(string number, BoxCatalog catalog, IEnumerable<string> otherKnownNumbers)
         {
             if (!Order.CanHint(number)) return false;
             var hint = Order.HintOf(number);
+            bool Clashes(string other) => other != number && other.EndsWith(hint, StringComparison.Ordinal);
             foreach (var box in catalog.Boxes)
             {
-                if (box.OrderNumber != number && box.OrderNumber.EndsWith(hint, StringComparison.Ordinal)) return false;
+                if (Clashes(box.OrderNumber)) return false;
+            }
+            if (otherKnownNumbers == null) return true;
+            foreach (var other in otherKnownNumbers)
+            {
+                if (other != null && Clashes(other)) return false;
             }
             return true;
         }

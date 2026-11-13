@@ -49,6 +49,28 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void NumberIsNotForgotten_WhenAPlannedDeliveryBringsTheSameEnding()
+        {
+            var supply = new SupplyPlan(1, new[] { new BoxRecord(new BoxId("BOX-101"), "7735") });
+            using (var shift = new Shift(new BoxCatalog(new[] { new BoxRecord(TestData.Box1, "1435") }),
+                       new SystemRandomSource(5), null, supply) { ForgotNumberChancePercent = 100 })
+            {
+                Assert.IsTrue(shift.TryEnqueue(out var visit));
+                Assert.IsFalse(visit.Order.ForgotNumber, "«35» will also name order 7735 once the delivery is scanned in");
+            }
+        }
+
+        [Test]
+        public void UrgentPatienceFactor_MustBeAShare()
+        {
+            using (var shift = UrgentShift())
+            {
+                Assert.Throws<ArgumentOutOfRangeException>(() => shift.UrgentPatienceFactor = 0);
+                Assert.Throws<ArgumentOutOfRangeException>(() => shift.UrgentPatienceFactor = 1.5);
+            }
+        }
+
+        [Test]
         public void ShortNumber_CannotBeHalfForgotten()
         {
             Assert.IsFalse(Order.CanHint("42"));

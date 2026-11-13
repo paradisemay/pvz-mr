@@ -125,7 +125,7 @@ namespace Pvz.Editor
             customer.ShowPatience(0.55);
 
             // Random events: an urgent customer who forgot the order number.
-            customer.Say("Срочно! Номер забыл…\nКончается на 81");
+            customer.Say("Срочно, опаздываю!\nЗабыл номер… кончается на 81");
             customer.ShowPatience(0.3);
             board.ShowHeadline("СРОЧНО: заказ №••81", CounterBoard.Bad);
             board.ShowStatus("Найдите коробку сканером", CounterBoard.Neutral);
