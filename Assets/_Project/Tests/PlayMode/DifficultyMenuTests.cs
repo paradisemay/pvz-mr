@@ -37,6 +37,9 @@ namespace Pvz.Runtime.Tests
             Assert.IsTrue(director.DifficultyButtons.All(b => b.gameObject.activeInHierarchy));
             StringAssert.StartsWith("Рекорды:", Object.FindFirstObjectByType<CounterBoard>().Status, "the menu shows best scores");
             StringAssert.StartsWith("Карьера: 0", Object.FindFirstObjectByType<CounterBoard>().Footer, "and the career");
+            var card = GameObject.Find("How To Play");
+            Assert.IsNotNull(card, "the menu explains how to play");
+            Assert.AreEqual(ShiftPresenter.HowToPlayText(), Object.FindFirstObjectByType<CounterBoard>().HowToPlay, "written by the presenter");
         }
 
         [UnityTest]
@@ -76,6 +79,7 @@ namespace Pvz.Runtime.Tests
             Assert.AreEqual(45, director.Shift.PatienceSeconds, 1e-6);
             Assert.AreEqual(3, director.ActiveSettings.QueueLength);
             Assert.IsTrue(director.DifficultyButtons.All(b => !b.gameObject.activeInHierarchy));
+            Assert.IsNull(GameObject.Find("How To Play"), "the card goes away with the menu");
 
             // A second press cannot restart the running shift.
             var easy = director.DifficultyButtons.First(b => b.Settings.DisplayName == "Лёгкая");

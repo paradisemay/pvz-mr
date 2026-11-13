@@ -39,6 +39,7 @@ namespace Pvz.Editor
             ShiftPresenter.ShowDifficultyMenu(Object.FindFirstObjectByType<CounterBoard>(),
                 new[] { ("Лёгкая", 450), ("Обычная", 525), ("Сложная", 0) });
             Capture("00_difficulty_menu", new Vector3(0f, 1.65f, -0.35f), new Vector3(-0.1f, 1.5f, 1.1f), 75f);
+            Capture("16_how_to_play", new Vector3(-0.75f, 1.8f, -0.3f), new Vector3(-1.2f, 2.14f, 1.08f), 45f);
             foreach (var button in Object.FindObjectsByType<DifficultyButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
             foreach (var button in Object.FindObjectsByType<RecenterButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false); // start menu is hidden during play
             foreach (var button in Object.FindObjectsByType<ResetWarehouseButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);

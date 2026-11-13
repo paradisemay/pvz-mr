@@ -105,6 +105,7 @@ namespace Pvz.Runtime
         {
             board.ShowHeadline("Выберите сложность", CounterBoard.Accent);
             board.ShowStatus(RecordsText(records) ?? "Нажмите кнопку на стойке", CounterBoard.Neutral);
+            board.ShowHowToPlay(HowToPlayText());
             // The bottom line shows the career before the shift (the score line takes over when it starts).
             if (string.IsNullOrEmpty(careerText)) board.ShowScore(0, 0, 0);
             else board.ShowFooter(careerText);
@@ -186,6 +187,18 @@ namespace Pvz.Runtime
             if (_step == TutorialStep.TakeScanner && _scanner.IsHeld) _step = TutorialStep.Scan;
             ShowCurrentHint();
         }
+
+        /// <summary>The «Как играть» card of the start menu (T024): the loop in five steps and the controls.</summary>
+        public static string HowToPlayText() =>
+            "<b>КАК ИГРАТЬ</b>\n" +
+            "1. Возьмите сканер со стойки\n" +
+            "2. Клиент назовёт номер заказа\n" +
+            "3. Найдите коробку сканером\n" +
+            "4. Положите её в зелёную зону\n" +
+            "5. Просят пакет — пакет со стойки в зону\n" +
+            "6. Возврат — отсканируйте коробку клиента\n" +
+            "7. Поставка — отсканируйте новые коробки\n" +
+            "<size=80%>Взять — кнопка захвата, скан — курок</size>";
 
         /// <summary>Career line under the menu: points and how far the next theme is (null name: all open).</summary>
         public static string CareerText(int points, string nextThemeName, int nextThemeAt) => nextThemeName == null
