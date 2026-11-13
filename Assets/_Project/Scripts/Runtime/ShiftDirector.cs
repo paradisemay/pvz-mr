@@ -80,6 +80,7 @@ namespace Pvz.Runtime
 
         private void Start()
         {
+            if (Shift != null) return; // already started (e.g. by a test) before the first frame
             summaryPanel.Hide();
             restartButton.SetActive(false);
             if (HasDifficultyMenu) ShiftPresenter.ShowDifficultyMenu(board);
@@ -96,7 +97,9 @@ namespace Pvz.Runtime
         /// <summary>Starts the shift with the chosen difficulty. Ignored once a shift is running.</summary>
         public void Begin(ShiftSettings chosen)
         {
-            if (Shift != null || !enabled) return;
+            if (Shift != null || !isActiveAndEnabled) return;
+            summaryPanel.Hide();
+            restartButton.SetActive(false);
             if (chosen != null) settings = chosen;
 
             var catalog = new BoxCatalog();
