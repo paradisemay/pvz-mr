@@ -27,8 +27,11 @@ namespace Pvz.Core
             foreach (var box in catalog.Boxes) _orderNumbers.Add(box.OrderNumber);
             HasScheduledDelivery = !_supplyPlan.IsEmpty;
             // A served order is gone; an abandoned one goes back to the pool for the next customers.
+            // Subscribed before anyone else: the order book is up to date when the presenter and director react.
+            Desk.OrderOpened += OnOrderOpened;
+            Desk.ReturnOpened += OnReturnOpened;
             Desk.OrderCompleted += OnOrderCompleted;
-            Desk.OrderAbandoned += OnOrderClosed;
+            Desk.OrderAbandoned += OnOrderAbandoned;
             Desk.ReturnAccepted += OnReturnAccepted;
         }
 
@@ -45,10 +48,40 @@ namespace Pvz.Core
                 _returnable.Add(new BoxRecord(box, result.Order.Number));
                 _soldIds.Add(box);
             }
-            OnOrderClosed(result.Order);
+            var visit = Book.OpenPickup(result.Order);
+            OnOrderClosed(result.Order); // the line first, then the book: Changed sees a consistent shift
+            if (visit != null) Book.Serve(visit);
         }
 
-        private void OnReturnAccepted(ReturnRequest request) => _line.RemoveAll(v => v.Return == request);
+        // An order opened at the desk without joining the line (tests, single-customer use) is not in the book.
+        private void OnOrderOpened(Order order)
+        {
+            var visit = Book.OpenPickup(order);
+            if (visit != null) Book.Open(visit);
+        }
+
+        private void OnReturnOpened(ReturnRequest request)
+        {
+            var visit = _line.Find(v => v.Return == request);
+            if (visit != null) Book.Open(visit);
+        }
+
+        private void OnOrderAbandoned(Order order)
+        {
+            var visit = Book.OpenPickup(order);
+            OnOrderClosed(order);
+            if (visit != null) Book.Abandon(visit);
+        }
+
+        private void OnReturnAccepted(ReturnRequest request)
+        {
+            var visit = _line.Find(v => v.Return == request);
+            _line.RemoveAll(v => v.Return == request);
+            if (visit != null) Book.Serve(visit);
+        }
+
+        /// <summary>Every customer of the shift and where their visit stands (the order list on the counter).</summary>
+        public OrderBook Book { get; } = new OrderBook();
 
         /// <summary>A supply box was scanned and moved into the warehouse.</summary>
         public event Action<BoxRecord> BoxReceived;
@@ -131,6 +164,7 @@ namespace Pvz.Core
                 if (!IsAtCounter(visit)) sentAway.Add(visit);
             }
             foreach (var visit in sentAway) _line.Remove(visit);
+            Book.Leave(sentAway); // one Changed for the whole line
             TimeUp?.Invoke(sentAway); // the line and IsTimeUp are already committed
         }
 
@@ -296,6 +330,7 @@ namespace Pvz.Core
         {
             _line.Add(visit);
             MaxQueueLength = Math.Max(MaxQueueLength, _line.Count);
+            Book.Join(visit);
         }
 
         /// <summary>The first customer in line reached the counter: their order (or return) is opened.</summary>
@@ -308,7 +343,7 @@ namespace Pvz.Core
                 case VisitKind.Return: Desk.OpenReturn(visit.Return); break;
                 default: Desk.OpenOrder(visit.Order, now); break;
             }
-            return visit;
+            return visit; // the book marks the visit «at the counter» from the desk's Opened events
         }
 
         /// <summary>Some order in the warehouse is not promised to any customer yet.</summary>
@@ -332,7 +367,7 @@ namespace Pvz.Core
         {
             if (visit == null) return;
             if (IsAtCounter(visit)) return;
-            _line.Remove(visit);
+            if (_line.Remove(visit)) Book.Leave(new[] { visit });
         }
 
         /// <summary>Same as <see cref="LeaveQueue(Visit)"/> for a pickup customer.</summary>
@@ -440,7 +475,9 @@ namespace Pvz.Core
         {
             BoxReceived -= Stats.OnBoxReceived;
             Desk.OrderCompleted -= OnOrderCompleted;
-            Desk.OrderAbandoned -= OnOrderClosed;
+            Desk.OrderAbandoned -= OnOrderAbandoned;
+            Desk.OrderOpened -= OnOrderOpened;
+            Desk.ReturnOpened -= OnReturnOpened;
             Desk.ReturnAccepted -= OnReturnAccepted;
             Stats.Dispose();
         }
