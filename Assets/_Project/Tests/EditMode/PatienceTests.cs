@@ -59,6 +59,29 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void CustomerBeingServed_DoesNotLeave()
+        {
+            // Two-box order: once the first box is handed over, the customer waits for the rest (and the bag).
+            using (var shift = new Shift(new BoxCatalog(new[]
+                   {
+                       new BoxRecord(TestData.Box1, "1435"),
+                       new BoxRecord(new BoxId("BOX-004"), "1435"),
+                   }), new FakeRandom(0, 0), null, null, bagChancePercent: 100) { PatienceSeconds = 10 })
+            {
+                shift.Desk.OpenOrder(shift.NextOrder(), 0);
+                shift.Desk.Handover(TestData.Box1, 5);
+                shift.Tick(1000);
+                Assert.IsTrue(shift.Desk.HasActiveOrder);
+                Assert.AreEqual(0, shift.Stats.OrdersAbandoned);
+
+                shift.Desk.Handover(new BoxId("BOX-004"), 1001);
+                shift.Tick(2000); // waiting for the bag
+                Assert.IsTrue(shift.Desk.ActiveSession.AwaitingBag);
+                Assert.AreEqual(0, shift.Stats.OrdersAbandoned);
+            }
+        }
+
+        [Test]
         public void ZeroPatience_MeansCustomersWaitForever()
         {
             _shift.PatienceSeconds = 0;

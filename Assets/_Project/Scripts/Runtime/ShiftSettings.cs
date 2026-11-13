@@ -77,6 +77,7 @@ namespace Pvz.Runtime
         [SerializeField] private int wrongHandoverPenalty = 25;
         [SerializeField] private int intakePoints = 10;
         [SerializeField] private int bagPoints = 20;
+        [SerializeField] private int abandonPenalty = 50;
 
         [Header("Room")]
         [Tooltip("Used for the supply drop when the headset has not found the ceiling.")]
@@ -85,6 +86,13 @@ namespace Pvz.Runtime
         public string DisplayName => displayName;
         public float PatienceSeconds => patienceSeconds;
         public BoxDefinition[] Boxes => boxes;
+
+        /// <summary>Copies the warehouse layout (boxes and delivery) so every preset matches the scene.</summary>
+        internal void CopyLayoutFrom(ShiftSettings other)
+        {
+            boxes = (BoxDefinition[])other.boxes.Clone();
+            supplyBoxes = (BoxDefinition[])other.supplyBoxes.Clone();
+        }
 
         /// <summary>Used by the editor builder to create the difficulty presets.</summary>
         internal void ConfigureDifficulty(string name, float patience, int supplyAfter, int bagChance,
@@ -125,6 +133,7 @@ namespace Pvz.Runtime
             WrongHandoverPenalty = wrongHandoverPenalty,
             IntakeBox = intakePoints,
             BagService = bagPoints,
+            AbandonPenalty = abandonPenalty,
         };
 
         public bool TryGetOrderNumber(BoxId id, out string orderNumber)
