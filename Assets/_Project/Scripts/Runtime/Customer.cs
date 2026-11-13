@@ -50,6 +50,18 @@ namespace Pvz.Runtime
             }
         }
 
+        [SerializeField] private PatienceBar patienceBar;
+
+        public PatienceBar PatienceBar => patienceBar;
+
+        /// <summary>Remaining patience 0..1 above the head; null hides the bar.</summary>
+        public void ShowPatience(double? remaining)
+        {
+            if (patienceBar != null) patienceBar.Show(remaining);
+        }
+
+        internal void ConfigurePatienceBar(PatienceBar bar) => patienceBar = bar;
+
         public void Say(string line)
         {
             if (speech != null) speech.Show(line);

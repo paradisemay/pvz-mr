@@ -82,6 +82,58 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void PatienceRemaining_DecreasesFromOneToZero()
+        {
+            Assert.IsNull(_shift.PatienceRemaining(0), "no customer at the counter");
+            var order = _shift.NextOrder();
+            _shift.Desk.OpenOrder(order, 10);
+
+            Assert.AreEqual(1.0, _shift.PatienceRemaining(10).Value, 1e-9);
+            Assert.AreEqual(0.75, _shift.PatienceRemaining(35).Value, 1e-9);
+            Assert.AreEqual(0.0, _shift.PatienceRemaining(500).Value, 1e-9);
+        }
+
+        [Test]
+        public void PatienceRemaining_IsNull_WithInfinitePatience()
+        {
+            _shift.Desk.OpenOrder(_shift.NextOrder(), 0);
+            _shift.PatienceSeconds = 0;
+            Assert.IsNull(_shift.PatienceRemaining(5));
+        }
+
+        [Test]
+        public void PatienceRemaining_IsNull_OnceTheFirstBoxIsHandedOver()
+        {
+            using (var shift = new Shift(new BoxCatalog(new[]
+                   {
+                       new BoxRecord(TestData.Box1, "1435"),
+                       new BoxRecord(new BoxId("BOX-004"), "1435"),
+                   }), new FakeRandom(0)) { PatienceSeconds = 100 })
+            {
+                shift.Desk.OpenOrder(shift.NextOrder(), 0);
+                shift.Desk.Handover(TestData.Box1, 5);
+                Assert.IsTrue(shift.Desk.HasActiveOrder, "a two-box order is still open");
+                Assert.IsNull(shift.PatienceRemaining(6), "a customer being served no longer leaves");
+            }
+        }
+
+        [Test]
+        public void PatienceRemaining_AgreesWithTick()
+        {
+            var hurried = false;
+            _shift.CustomerHurried += _ => hurried = true;
+            _shift.Desk.OpenOrder(_shift.NextOrder(), 0);
+
+            _shift.Tick(60);
+            Assert.IsTrue(hurried);
+            Assert.AreEqual(1.0 - Shift.HurryFraction, _shift.PatienceRemaining(60).Value, 1e-9, "hurry happens at the bar's yellow point");
+
+            _shift.Tick(100);
+            Assert.IsNull(_shift.PatienceRemaining(100), "the customer left");
+            Assert.AreEqual(1, _shift.Stats.OrdersAbandoned);
+        }
+
+        [Test]
         public void ZeroPatience_MeansCustomersWaitForever()
         {
             _shift.PatienceSeconds = 0;

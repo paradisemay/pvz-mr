@@ -118,6 +118,12 @@ namespace Pvz.Runtime
             PlaySound(FeedbackAudio.Sound.Success);
         }
 
+        /// <summary>Patience bar of the customer at the counter (called every frame by the director).</summary>
+        public void UpdatePatience(double now)
+        {
+            if (Customer != null) Customer.ShowPatience(_shift.PatienceRemaining(now));
+        }
+
         public void ShowScanMissed() => _scanner.ShowResult("Нет кода\nв прицеле", CounterBoard.Neutral);
 
         private void OnOrderOpened(Order order)
