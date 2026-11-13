@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fbec8379f09b3954abc684e80ff1f07b, type: 3}
+  m_Name: ShiftSettings_Hard
+  m_EditorClassIdentifier: Pvz.Runtime::Pvz.Runtime.ShiftSettings
+  displayName: "\u0421\u043B\u043E\u0436\u043D\u0430\u044F"
+  patienceSeconds: 45
+  boxes:
+  - boxId: BOX-001
+    orderNumber: 1435
+    startPosition: {x: -1.35, y: 0.13, z: 0.35}
+    startYaw: 15
+  - boxId: BOX-002
+    orderNumber: 2781
+    startPosition: {x: 1.45, y: 0.87, z: -0.55}
+    startYaw: -20
+  - boxId: BOX-003
+    orderNumber: 5812
+    startPosition: {x: -1.55, y: 0.61, z: -1.45}
+    startYaw: 40
+  supplyAfterOrders: 1
+  supplyBoxes:
+  - boxId: BOX-101
+    orderNumber: 3307
+    startPosition: {x: 0, y: 0, z: 0}
+    startYaw: 0
+  - boxId: BOX-102
+    orderNumber: 3307
+    startPosition: {x: 0, y: 0, z: 0}
+    startYaw: 0
+  - boxId: BOX-103
+    orderNumber: 6021
+    startPosition: {x: 0, y: 0, z: 0}
+    startYaw: 0
+  bagChancePercent: 80
+  firstCustomerDelay: 2
+  delayBetweenCustomers: 1
+  thanksDuration: 1.5
+  customerWalkSpeed: 1.6
+  randomSeed: 0
+  pointsPerOrder: 100
+  flawlessBonus: 50
+  fastThresholdSeconds: 30
+  fastBonus: 50
+  okThresholdSeconds: 60
+  okBonus: 25
+  wrongHandoverPenalty: 25
+  intakePoints: 10
+  bagPoints: 20
+  defaultCeilingHeight: 2.4

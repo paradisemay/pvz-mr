@@ -20,7 +20,7 @@ namespace Pvz.Runtime
 
         public void Show(ShiftStats stats, int ordersTotal)
         {
-            var grade = ShiftRating.Grade(stats.OrdersCompleted, ordersTotal, stats.WrongHandovers);
+            var grade = ShiftRating.Grade(stats.OrdersCompleted, ordersTotal, stats.WrongHandovers, stats.OrdersAbandoned);
             if (body != null)
             {
                 body.text =
@@ -30,6 +30,7 @@ namespace Pvz.Runtime
                     $"Неверных сканирований: {stats.WrongScans}\n" +
                     (stats.BoxesReceived > 0 ? $"Принято из поставки: {stats.BoxesReceived}\n" : string.Empty) +
                     (stats.BagsGiven > 0 ? $"Выдано пакетов: {stats.BagsGiven}\n" : string.Empty) +
+                    (stats.OrdersAbandoned > 0 ? $"Ушли без заказа: {stats.OrdersAbandoned}\n" : string.Empty) +
                     $"Среднее время выдачи: {stats.AverageServiceSeconds:0.0} с\n" +
                     $"Очки: {stats.Score}\n" +
                     $"Рейтинг смены: <b>{GradeText(grade)}</b>";

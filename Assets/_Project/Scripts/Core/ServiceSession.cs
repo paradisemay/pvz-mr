@@ -39,6 +39,11 @@ namespace Pvz.Core
             return BagStatus.Accepted;
         }
 
+        /// <summary>The customer already told the player to hurry up.</summary>
+        public bool Hurried { get; private set; }
+
+        internal void MarkHurried() => Hurried = true;
+
         public bool Requires(BoxId id) => Order.Contains(id) && !_delivered.Contains(id);
 
         public bool IsDelivered(BoxId id) => _delivered.Contains(id);

@@ -33,6 +33,8 @@ namespace Pvz.Runtime
             _shift.BoxReceived += OnBoxReceived;
             _shift.Desk.BagHandedOver += OnBagHandedOver;
             _shift.Desk.BagRequested += OnBagRequested;
+            _shift.CustomerHurried += OnCustomerHurried;
+            _shift.OrderAbandoned += OnOrderAbandoned;
         }
 
         /// <summary>Customer standing at the counter (lines are spoken through them). Set by the director.</summary>
@@ -49,6 +51,8 @@ namespace Pvz.Runtime
             _shift.BoxReceived -= OnBoxReceived;
             _shift.Desk.BagHandedOver -= OnBagHandedOver;
             _shift.Desk.BagRequested -= OnBagRequested;
+            _shift.CustomerHurried -= OnCustomerHurried;
+            _shift.OrderAbandoned -= OnOrderAbandoned;
         }
 
         public void ShowReceiveSupplyHint()
@@ -73,9 +77,17 @@ namespace Pvz.Runtime
                 _board.ShowStatus($"Принято коробок: {_shift.DeliveryReceived}/{_shift.DeliverySize}", CounterBoard.Good);
         }
 
-        public void ShowShiftStarting()
+        /// <summary>Before the shift: ask the player to pick a difficulty (no shift exists yet).</summary>
+        public static void ShowDifficultyMenu(CounterBoard board)
         {
-            _board.ShowHeadline("Смена начинается", CounterBoard.Accent);
+            board.ShowHeadline("Выберите сложность", CounterBoard.Accent);
+            board.ShowStatus("Нажмите кнопку на стойке", CounterBoard.Neutral);
+            board.ShowScore(0, 0, 0);
+        }
+
+        public void ShowShiftStarting(string difficulty = null)
+        {
+            _board.ShowHeadline(string.IsNullOrEmpty(difficulty) ? "Смена начинается" : $"Смена: {difficulty}", CounterBoard.Accent);
             _board.ShowStatus("Возьмите сканер со стойки", CounterBoard.Neutral);
             _scanner.ShowResult("Наведите на QR\nи нажмите курок", CounterBoard.Neutral);
             RefreshScore();
@@ -173,6 +185,20 @@ namespace Pvz.Runtime
         {
             Say("Спасибо! Мне ещё\nнужен пакет");
             _board.ShowStatus("Клиенту нужен пакет", CounterBoard.Accent);
+        }
+
+        private void OnCustomerHurried(Order order)
+        {
+            Say("Побыстрее,\nпожалуйста!");
+            _board.ShowStatus("Клиент торопится!", CounterBoard.Bad);
+        }
+
+        private void OnOrderAbandoned(Order order)
+        {
+            PlaySound(FeedbackAudio.Sound.Error);
+            Say("Всё, я ухожу!");
+            _board.ShowHeadline("Клиент ушёл без заказа", CounterBoard.Bad);
+            _board.ShowStatus($"Заказ №{order.Number} остался на складе", CounterBoard.Bad);
         }
 
         private void OnOrderCompleted(OrderResult result)

@@ -24,6 +24,12 @@ namespace Pvz.Editor
             if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
             Directory.CreateDirectory(OutputDir);
             var scene = EditorSceneManager.OpenScene(PvzSceneBuilder.ScenePath, OpenSceneMode.Single);
+            HideEditorOnlyClutter();
+
+            // Before the shift: the difficulty menu on the counter.
+            ShiftPresenter.ShowDifficultyMenu(Object.FindFirstObjectByType<CounterBoard>());
+            Capture("00_difficulty_menu", new Vector3(0f, 1.65f, -0.35f), new Vector3(-0.1f, 1.5f, 1.1f), 75f);
+            foreach (var button in Object.FindObjectsByType<DifficultyButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
 
             // Stage a moment of play: a customer at the counter asking for an order.
             var customerPrefab = AssetDatabase.LoadAssetAtPath<Customer>(PvzAssetFactory.PrefabsDir + "/Customer.prefab");
