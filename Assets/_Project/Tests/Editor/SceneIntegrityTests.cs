@@ -31,6 +31,7 @@ namespace Pvz.Editor.Tests
         [TestCase(typeof(ShiftSummaryPanel))]
         [TestCase(typeof(MrSessionSetup))]
         [TestCase(typeof(SupplyDrop))]
+        [TestCase(typeof(BagDispenser))]
         public void AllObjectReferencesAreAssigned(System.Type componentType)
         {
             var components = Object.FindObjectsByType(componentType, FindObjectsInactive.Include, FindObjectsSortMode.None);

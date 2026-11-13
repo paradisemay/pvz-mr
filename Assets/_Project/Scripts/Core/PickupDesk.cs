@@ -23,6 +23,8 @@ namespace Pvz.Core
         public event Action<HandoverOutcome> BoxHandedOver;
         public event Action<HandoverOutcome> WrongHandover;
         public event Action<OrderResult> OrderCompleted;
+        /// <summary>Raised for every bag offered, before <see cref="OrderCompleted"/>.</summary>
+        public event Action<BagStatus> BagHandedOver;
 
         public BoxCatalog Catalog => _catalog;
         public ServiceSession ActiveSession { get; private set; }
@@ -82,18 +84,42 @@ namespace Pvz.Core
 
             session.MarkDelivered(box);
             _catalog.Remove(box);
-            var completed = session.IsComplete;
-            OrderResult? result = null;
-            if (completed)
-            {
-                result = new OrderResult(session.Order, Math.Max(0, now - session.OpenedAt), session.Mistakes);
-                ActiveSession = null;
-            }
+            var result = CloseIfComplete(session, now);
 
-            var accepted = new HandoverOutcome(HandoverStatus.Accepted, box, completed);
+            var accepted = new HandoverOutcome(HandoverStatus.Accepted, box, result.HasValue);
             BoxHandedOver?.Invoke(accepted);
             if (result.HasValue) OrderCompleted?.Invoke(result.Value);
             return accepted;
+        }
+
+        /// <summary>Gives the current customer a carrier bag.</summary>
+        public BagStatus HandOverBag(double now)
+        {
+            if (!HasActiveOrder)
+            {
+                BagHandedOver?.Invoke(BagStatus.NoActiveOrder);
+                return BagStatus.NoActiveOrder;
+            }
+
+            var session = ActiveSession;
+            if (!session.DeliverBag())
+            {
+                BagHandedOver?.Invoke(BagStatus.NotNeeded);
+                return BagStatus.NotNeeded;
+            }
+
+            var result = CloseIfComplete(session, now);
+            BagHandedOver?.Invoke(BagStatus.Accepted);
+            if (result.HasValue) OrderCompleted?.Invoke(result.Value);
+            return BagStatus.Accepted;
+        }
+
+        /// <summary>Ends the session if everything was handed over. State only — events are raised by the caller.</summary>
+        private OrderResult? CloseIfComplete(ServiceSession session, double now)
+        {
+            if (!session.IsComplete) return null;
+            ActiveSession = null;
+            return new OrderResult(session.Order, Math.Max(0, now - session.OpenedAt), session.Mistakes);
         }
 
         private HandoverOutcome RaiseHandover(HandoverOutcome outcome)

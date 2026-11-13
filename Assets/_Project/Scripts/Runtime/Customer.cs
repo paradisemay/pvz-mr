@@ -60,10 +60,20 @@ namespace Pvz.Runtime
             if (speech != null) speech.Hide();
         }
 
+        /// <summary>Boxes the customer carries are stacked on top of each other.</summary>
         public void Take(QrBox box)
         {
-            if (box != null) box.HandTo(carryAnchor != null ? carryAnchor : transform);
+            if (box == null) return;
+            box.HandTo(carryAnchor != null ? carryAnchor : transform);
+            box.transform.localPosition = Vector3.up * (0.27f * _carriedBoxes++);
         }
+
+        public void Take(ParcelBag bag)
+        {
+            if (bag != null) bag.HandTo(carryAnchor != null ? carryAnchor : transform);
+        }
+
+        private int _carriedBoxes;
 
         /// <summary>Walks to <paramref name="target"/> and turns to <paramref name="finalRotation"/>.</summary>
         public IEnumerator WalkTo(Vector3 target, Quaternion finalRotation, float speed)

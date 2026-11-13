@@ -35,15 +35,18 @@ namespace Pvz.Runtime.Tests
             yield return null;
         }
 
-        [UnityTest, Timeout(180000)]
+        [UnityTest, Timeout(240000)]
         public IEnumerator FullShift_ServesEveryCustomer_AndShowsSummary()
         {
             var director = Object.FindFirstObjectByType<ShiftDirector>();
             Assert.IsNotNull(director, "ShiftDirector missing in the Game scene");
             Assert.AreEqual(3, director.OrdersTotal);
+            director.UseBagChance(100); // every customer also asks for a bag
+            var dispenser = Object.FindFirstObjectByType<BagDispenser>();
 
             var wrongBoxTried = false;
             var received = 0;
+            var multiBoxOrders = 0;
             bool HasUnreceivedBoxes() => director.RemainingBoxes.Any(b => director.Shift.IsPendingIntake(b.Id));
 
             while (!director.IsShiftOver)
@@ -61,13 +64,10 @@ namespace Pvz.Runtime.Tests
                 }
                 if (!director.Desk.HasActiveOrder) continue;
 
-                var wanted = director.Desk.ActiveOrder.Boxes[0];
-                Assert.IsTrue(director.TryGetBox(wanted, out var box), $"box {wanted} not found in the scene");
+                var order = director.Desk.ActiveOrder;
+                if (order.Boxes.Count > 1) multiBoxOrders++;
 
-                director.Scanner.ScanDirect(box);
-                StringAssert.Contains("НУЖНАЯ", director.Scanner.ScreenText);
-
-                var other = director.RemainingBoxes.FirstOrDefault(b => b.Id != wanted && !director.Shift.IsPendingIntake(b.Id));
+                var other = director.RemainingBoxes.FirstOrDefault(b => !order.Contains(b.Id) && !director.Shift.IsPendingIntake(b.Id));
                 if (!wrongBoxTried && other != null)
                 {
                     director.Scanner.ScanDirect(other);
@@ -83,30 +83,50 @@ namespace Pvz.Runtime.Tests
                 }
 
                 var completedBefore = director.Stats.OrdersCompleted;
-                yield return PlaceInZone(director, box);
+                foreach (var wanted in order.Boxes)
+                {
+                    Assert.IsTrue(director.TryGetBox(wanted, out var box), $"box {wanted} not found in the scene");
+                    director.Scanner.ScanDirect(box);
+                    StringAssert.Contains("НУЖНАЯ", director.Scanner.ScreenText);
+                    yield return PlaceInZone(director, box);
+                    Assert.IsTrue(box.IsHandedOver);
+                }
+
+                Assert.IsTrue(director.Desk.HasActiveOrder, "the customer still waits for a bag");
+                Assert.IsTrue(director.Desk.ActiveSession.AwaitingBag);
+                StringAssert.Contains("пакет", director.CurrentCustomer.LastLine);
+                var bag = dispenser.Current;
+                Assert.IsNotNull(bag, "the dispenser always offers a bag");
+                yield return MoveTo(bag, director.Zone.transform.position + Vector3.up * 0.05f);
+                Assert.IsTrue(bag.IsHandedOver);
+
                 Assert.AreEqual(completedBefore + 1, director.Stats.OrdersCompleted);
-                Assert.IsTrue(box.IsHandedOver);
                 Assert.IsFalse(director.Desk.HasActiveOrder);
+                yield return null; // let the dispenser refill
             }
 
             Assert.IsTrue(wrongBoxTried);
             Assert.AreEqual(3, received, "the supply delivery has 3 boxes");
-            Assert.AreEqual(6, director.OrdersTotal);
-            Assert.AreEqual(6, director.Stats.OrdersCompleted);
+            Assert.AreEqual(1, multiBoxOrders, "BOX-101 and BOX-102 form one order");
+            Assert.AreEqual(5, director.OrdersTotal);
+            Assert.AreEqual(5, director.Stats.OrdersCompleted);
+            Assert.AreEqual(5, director.Stats.BagsGiven);
             Assert.AreEqual(3, director.Stats.BoxesReceived);
             Assert.Greater(director.Stats.Score, 0);
             Assert.AreEqual(0, director.Desk.Catalog.Count);
 
             var summary = Object.FindFirstObjectByType<ShiftSummaryPanel>(FindObjectsInactive.Include);
             Assert.IsTrue(summary.IsVisible, "shift summary should be visible");
-            StringAssert.Contains("Обслужено клиентов: 6/6", summary.Text);
+            StringAssert.Contains("Обслужено клиентов: 5/5", summary.Text);
             StringAssert.Contains("Принято из поставки: 3", summary.Text);
+            StringAssert.Contains("Выдано пакетов: 5", summary.Text);
         }
 
         [UnityTest, Timeout(60000)]
         public IEnumerator BoxPlacedBeforeCustomerArrives_IsHandedOverOnArrival()
         {
             var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.UseBagChance(0); // only boxes: the first order completes as soon as the customer arrives
             Assert.IsFalse(director.Desk.HasActiveOrder);
 
             // Put every box on the counter before anyone arrives: the first customer should take theirs at once.
@@ -193,7 +213,7 @@ namespace Pvz.Runtime.Tests
             yield return MoveTo(box, director.Zone.transform.position + Vector3.up * 0.05f);
         }
 
-        private static IEnumerator MoveTo(QrBox box, Vector3 position)
+        private static IEnumerator MoveTo(Component box, Vector3 position)
         {
             var body = box.GetComponent<Rigidbody>();
             if (!body.isKinematic)

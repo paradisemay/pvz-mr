@@ -48,6 +48,16 @@ namespace Pvz.Core
         public int Mistakes { get; }
     }
 
+    public enum BagStatus
+    {
+        /// <summary>The customer needed a bag and took it.</summary>
+        Accepted,
+        /// <summary>The customer does not need a bag (or already has one); not a mistake.</summary>
+        NotNeeded,
+        /// <summary>No customer is waiting at the desk.</summary>
+        NoActiveOrder,
+    }
+
     public enum HandoverStatus
     {
         /// <summary>Box accepted; check <see cref="HandoverOutcome.OrderCompleted"/> for multi-box orders.</summary>

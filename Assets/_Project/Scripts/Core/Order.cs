@@ -12,7 +12,7 @@ namespace Pvz.Core
     {
         private readonly BoxId[] _boxes;
 
-        public Order(string number, IEnumerable<BoxId> boxes)
+        public Order(string number, IEnumerable<BoxId> boxes, bool needsBag = false)
         {
             if (string.IsNullOrWhiteSpace(number))
                 throw new ArgumentException("Order number must not be empty.", nameof(number));
@@ -23,12 +23,16 @@ namespace Pvz.Core
             if (_boxes.Any(b => b.IsEmpty)) throw new ArgumentException("Order contains an empty box id.", nameof(boxes));
 
             Number = number.Trim();
+            NeedsBag = needsBag;
             Boxes = Array.AsReadOnly(_boxes);
         }
 
         public string Number { get; }
 
         public IReadOnlyList<BoxId> Boxes { get; }
+
+        /// <summary>The customer will also ask for a carrier bag.</summary>
+        public bool NeedsBag { get; }
 
         public bool Contains(BoxId id) => Array.IndexOf(_boxes, id) >= 0;
 

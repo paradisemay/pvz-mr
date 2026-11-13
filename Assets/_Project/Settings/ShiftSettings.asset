@@ -25,6 +25,21 @@ MonoBehaviour:
     orderNumber: 5812
     startPosition: {x: -1.55, y: 0.61, z: -1.45}
     startYaw: 40
+  supplyAfterOrders: 1
+  supplyBoxes:
+  - boxId: BOX-101
+    orderNumber: 3307
+    startPosition: {x: 0, y: 0, z: 0}
+    startYaw: 0
+  - boxId: BOX-102
+    orderNumber: 3307
+    startPosition: {x: 0, y: 0, z: 0}
+    startYaw: 0
+  - boxId: BOX-103
+    orderNumber: 6021
+    startPosition: {x: 0, y: 0, z: 0}
+    startYaw: 0
+  bagChancePercent: 50
   firstCustomerDelay: 2
   delayBetweenCustomers: 2
   thanksDuration: 1.5
@@ -37,3 +52,6 @@ MonoBehaviour:
   okThresholdSeconds: 60
   okBonus: 25
   wrongHandoverPenalty: 25
+  intakePoints: 10
+  bagPoints: 20
+  defaultCeilingHeight: 2.4

@@ -49,6 +49,7 @@ namespace Pvz.Editor
             var customerPath = prefabs.Customer();
             var planePath = prefabs.ArPlane();
             var supplyBoxPath = prefabs.SupplyBox();
+            var bagPath = prefabs.Bag();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
@@ -58,6 +59,7 @@ namespace Pvz.Editor
             var customerPrefab = Load<Customer>(customerPath);
             var planePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(planePath);
             var supplyBoxPrefab = Load<QrBox>(supplyBoxPath);
+            var bagPrefab = Load<ParcelBag>(bagPath);
 
             CreateLighting();
             var (camera, simulator, locomotion) = CreateMrRig(planePrefab);
@@ -91,6 +93,12 @@ namespace Pvz.Editor
             points.SetParent(playArea, false);
             var spawn = Marker("CustomerSpawn", points, CustomerSpawnPosition, 180f);
             var service = Marker("CustomerService", points, CustomerServicePosition, 180f);
+
+            var dispenser = new GameObject("Bag Dispenser").AddComponent<BagDispenser>();
+            dispenser.transform.SetParent(playArea, false);
+            dispenser.transform.SetPositionAndRotation(CounterPosition + new Vector3(-0.58f, PvzPrefabBuilder.CounterHeight + 0.17f, 0.18f),
+                Quaternion.Euler(0f, 20f, 0f));
+            dispenser.Configure(bagPrefab);
 
             var supplyDrop = new GameObject("Supply Drop").AddComponent<SupplyDrop>();
             supplyDrop.transform.SetParent(playArea, false);
