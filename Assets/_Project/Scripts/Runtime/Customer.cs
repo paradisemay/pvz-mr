@@ -78,6 +78,36 @@ namespace Pvz.Runtime
 
         private float _stackHeight;
 
+        private Coroutine _walk;
+
+        /// <summary>Starts walking to a place (cancels the previous walk). Poll <see cref="IsWalking"/>.</summary>
+        public void GoTo(Vector3 target, Quaternion finalRotation, float speed)
+        {
+            if (_leaving) return; // a leaving customer is no longer part of the line
+            if (_walk != null) StopCoroutine(_walk);
+            _walk = StartCoroutine(WalkTo(target, finalRotation, speed));
+        }
+
+        /// <summary>Walks away and disappears together with everything they carry.</summary>
+        public void LeaveAndVanish(Vector3 exit, float speed)
+        {
+            if (_walk != null) StopCoroutine(_walk);
+            _leaving = true;
+            StopTalking();
+            _walk = StartCoroutine(Leave(exit, speed));
+        }
+
+        private bool _leaving;
+
+        private IEnumerator Leave(Vector3 exit, float speed)
+        {
+            var walk = WalkTo(exit, transform.rotation, speed);
+            while (walk.MoveNext()) yield return walk.Current; // inline, so stopping _walk stops the walk too
+            Destroy(gameObject);
+        }
+
+        private void OnDisable() => IsWalking = false;
+
         /// <summary>Walks to <paramref name="target"/> and turns to <paramref name="finalRotation"/>.</summary>
         public IEnumerator WalkTo(Vector3 target, Quaternion finalRotation, float speed)
         {
