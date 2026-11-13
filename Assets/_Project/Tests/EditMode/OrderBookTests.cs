@@ -124,7 +124,9 @@ namespace Pvz.Core.Tests
         {
             using (var shift = NewShift())
             {
-                void Check(string when) => CollectionAssert.AreEqual(shift.QueuedVisits, shift.Book.OpenVisits(), when);
+                // The line kept by the book must match the states of its entries.
+                void Check(string when) => CollectionAssert.AreEqual(
+                    shift.Book.Entries.Where(e => e.IsOpen).Select(e => e.Visit).ToList(), shift.QueuedVisits, when);
                 shift.TimeLimitSeconds = 50;
                 shift.Start(0);
                 shift.TryEnqueue(out var a); shift.TryEnqueue(out var b); shift.TryEnqueue(out _);

@@ -35,7 +35,6 @@ namespace Pvz.Core
             Desk.ReturnAccepted += OnReturnAccepted;
         }
 
-        private readonly List<Visit> _line = new List<Visit>();
         private readonly List<BoxRecord> _returnable = new List<BoxRecord>();
         private readonly HashSet<BoxId> _soldIds = new HashSet<BoxId>();
         private IRandomSource _random;
@@ -48,8 +47,8 @@ namespace Pvz.Core
                 _returnable.Add(new BoxRecord(box, result.Order.Number));
                 _soldIds.Add(box);
             }
+            // The line is the book's open visits: serving the visit takes the customer out of the line.
             var visit = Book.OpenPickup(result.Order);
-            OnOrderClosed(result.Order); // the line first, then the book: Changed sees a consistent shift
             if (visit != null) Book.Serve(visit);
         }
 
@@ -62,22 +61,26 @@ namespace Pvz.Core
 
         private void OnReturnOpened(ReturnRequest request)
         {
-            var visit = _line.Find(v => v.Return == request);
+            var visit = OpenReturn(request);
             if (visit != null) Book.Open(visit);
         }
 
         private void OnOrderAbandoned(Order order)
         {
             var visit = Book.OpenPickup(order);
-            OnOrderClosed(order);
-            if (visit != null) Book.Abandon(visit);
+            if (visit != null) Book.Abandon(visit); // the order goes back to the pool for the next customers
         }
 
         private void OnReturnAccepted(ReturnRequest request)
         {
-            var visit = _line.Find(v => v.Return == request);
-            _line.RemoveAll(v => v.Return == request);
+            var visit = OpenReturn(request);
             if (visit != null) Book.Serve(visit);
+        }
+
+        private Visit OpenReturn(ReturnRequest request)
+        {
+            foreach (var visit in Book.Line) if (visit.Return == request) return visit;
+            return null;
         }
 
         /// <summary>Every customer of the shift and where their visit stands (the order list on the counter).</summary>
@@ -123,7 +126,7 @@ namespace Pvz.Core
         /// </summary>
         public bool IsOver => IsTimeUp
             ? !Desk.HasCustomer
-            : !HasOrdersLeft && !Desk.HasCustomer && !HasPendingIntake && !HasScheduledDelivery && _line.Count == 0;
+            : !HasOrdersLeft && !Desk.HasCustomer && !HasPendingIntake && !HasScheduledDelivery && Book.Line.Count == 0;
 
         /// <summary>The shift clock (time only; the consequences of running out are handled here, in <see cref="Tick"/>).</summary>
         public ShiftClock Clock { get; } = new ShiftClock();
@@ -159,12 +162,11 @@ namespace Pvz.Core
             if (!IsTimeUp && IsOver) return;
             if (!Clock.TryRunOut(now)) return;
             var sentAway = new List<Visit>();
-            foreach (var visit in _line)
+            foreach (var visit in Book.Line)
             {
                 if (!IsAtCounter(visit)) sentAway.Add(visit);
             }
-            foreach (var visit in sentAway) _line.Remove(visit);
-            Book.Leave(sentAway); // one Changed for the whole line
+            Book.Leave(sentAway); // out of the line, with one Changed for all of them
             TimeUp?.Invoke(sentAway); // the line and IsTimeUp are already committed
         }
 
@@ -282,12 +284,20 @@ namespace Pvz.Core
         public int ReturnChancePercent { get; set; }
 
         /// <summary>Why each customer in line came, oldest first; the first one is served next.</summary>
-        public IReadOnlyList<Visit> QueuedVisits => _line;
+        public IReadOnlyList<Visit> QueuedVisits => Book.Line;
 
         /// <summary>Orders of the pickup customers in line, oldest first.</summary>
-        public IReadOnlyList<Order> QueuedOrders => _line.FindAll(v => v.Kind == VisitKind.Pickup).ConvertAll(v => v.Order);
+        public IReadOnlyList<Order> QueuedOrders
+        {
+            get
+            {
+                var orders = new List<Order>();
+                foreach (var visit in Book.Line) if (visit.Kind == VisitKind.Pickup) orders.Add(visit.Order);
+                return orders;
+            }
+        }
 
-        public bool CanEnqueue => !IsTimeUp && _line.Count < Math.Max(1, QueueLength) && HasUnreservedOrders;
+        public bool CanEnqueue => !IsTimeUp && Book.Line.Count < Math.Max(1, QueueLength) && HasUnreservedOrders;
 
         /// <summary>
         /// A new customer joins the line. Usually they come for an order nobody in line has yet (it is reserved,
@@ -308,36 +318,38 @@ namespace Pvz.Core
                 Join(visit);
                 return true;
             }
-            var order = NextOrder();
-            if (order == null) return false;
-            visit = _line[_line.Count - 1];
-            return true;
+            visit = JoinPickup();
+            return visit != null;
         }
 
         /// <summary>
         /// Reserves an order for a new pickup customer regardless of <see cref="QueueLength"/> (tests and single-customer use).
         /// Returns null when every order in the warehouse is already taken by someone.
         /// </summary>
-        public Order NextOrder()
+        public Order NextOrder() => JoinPickup()?.Order;
+
+        /// <summary>A new pickup customer joins the line; returns their visit (null when nothing is left to promise).</summary>
+        private Visit JoinPickup()
         {
             var order = _generator.CreateRandomOrder(Desk.Catalog, ReservedNumbers(), KnownOrderNumbers());
             if (order == null) return null;
-            Join(Visit.Pickup(order));
-            return order;
+            var visit = Visit.Pickup(order);
+            Join(visit);
+            return visit;
         }
 
         private void Join(Visit visit)
         {
-            _line.Add(visit);
-            MaxQueueLength = Math.Max(MaxQueueLength, _line.Count);
+            // Everything about the shift is up to date before the book tells its listeners.
+            MaxQueueLength = Math.Max(MaxQueueLength, Book.Line.Count + 1);
             Book.Join(visit);
         }
 
         /// <summary>The first customer in line reached the counter: their order (or return) is opened.</summary>
         public Visit OpenNext(double now)
         {
-            if (_line.Count == 0) throw new InvalidOperationException("Nobody is waiting in line.");
-            var visit = _line[0];
+            if (Book.Line.Count == 0) throw new InvalidOperationException("Nobody is waiting in line.");
+            var visit = Book.Line[0];
             switch (visit.Kind)
             {
                 case VisitKind.Return: Desk.OpenReturn(visit.Return); break;
@@ -360,20 +372,25 @@ namespace Pvz.Core
             }
         }
 
-        public bool IsReserved(string orderNumber) => _line.Exists(v => v.ReservedOrderNumber == orderNumber);
+        public bool IsReserved(string orderNumber)
+        {
+            foreach (var visit in Book.Line) if (visit.ReservedOrderNumber == orderNumber) return true;
+            return false;
+        }
 
         /// <summary>A customer left the line before reaching the counter; their order (or return) is dropped.</summary>
         public void LeaveQueue(Visit visit)
         {
             if (visit == null) return;
             if (IsAtCounter(visit)) return;
-            if (_line.Remove(visit)) Book.Leave(new[] { visit });
+            var entry = Book.Find(visit);
+            if (entry != null && entry.State == VisitState.Waiting) Book.Leave(new[] { visit });
         }
 
         /// <summary>Same as <see cref="LeaveQueue(Visit)"/> for a pickup customer.</summary>
         public void LeaveQueue(Order order)
         {
-            var visit = _line.Find(v => v.Kind == VisitKind.Pickup && v.Order == order);
+            var visit = Book.OpenPickup(order);
             if (visit != null) LeaveQueue(visit);
         }
 
@@ -391,14 +408,14 @@ namespace Pvz.Core
         private HashSet<string> ReservedNumbers()
         {
             var numbers = new HashSet<string>();
-            foreach (var visit in _line)
+            // An order opened at the desk without joining the line (tests, single-customer use) is taken too.
+            if (Desk.HasActiveOrder) numbers.Add(Desk.ActiveOrder.Number);
+            foreach (var visit in Book.Line)
             {
                 if (visit.ReservedOrderNumber != null) numbers.Add(visit.ReservedOrderNumber);
             }
             return numbers;
         }
-
-        private void OnOrderClosed(Order order) => _line.RemoveAll(v => v.Kind == VisitKind.Pickup && v.Order == order);
 
         /// <summary>If the planned delivery is due, makes it arrive and returns its boxes (to be spawned in the room).</summary>
         public bool TryTakeDueDelivery(out IReadOnlyList<BoxRecord> boxes)
