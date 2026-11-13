@@ -113,6 +113,45 @@ namespace Pvz.Editor.Tests
             }
         }
 
+        [Test]
+        public void DifficultyPresets_ShareTheSupplyLayout()
+        {
+            var normal = AssetDatabase.LoadAssetAtPath<ShiftSettings>(PvzSceneBuilder.SettingsPath);
+            foreach (var path in new[] { PvzSceneBuilder.EasySettingsPath, PvzSceneBuilder.HardSettingsPath })
+            {
+                var preset = AssetDatabase.LoadAssetAtPath<ShiftSettings>(path);
+                CollectionAssert.AreEqual(normal.SupplyBoxes.Select(b => b.boxId + b.orderNumber),
+                    preset.SupplyBoxes.Select(b => b.boxId + b.orderNumber), $"{path}: supply must match");
+            }
+        }
+
+        /// <summary>T016: the delivery brings an order easy to mix up with one in the warehouse.</summary>
+        [TestCase(PvzSceneBuilder.SettingsPath)]
+        [TestCase(PvzSceneBuilder.HardSettingsPath)]
+        public void Presets_ContainALookAlikePair(string settingsPath)
+        {
+            var numbers = AllOrderNumbers(settingsPath);
+            Assert.IsTrue(numbers.Any(a => numbers.Any(b => Core.OrderNumbers.LookAlike(a, b))),
+                $"{settingsPath}: no «похожие заказы» among {string.Join(", ", numbers)}");
+        }
+
+        /// <summary>T014: a forgetful customer's «…NN» must name exactly one order of the shift.</summary>
+        [TestCase(PvzSceneBuilder.SettingsPath)]
+        [TestCase(PvzSceneBuilder.EasySettingsPath)]
+        [TestCase(PvzSceneBuilder.HardSettingsPath)]
+        public void Presets_HaveDistinctNumberEndings(string settingsPath)
+        {
+            var numbers = AllOrderNumbers(settingsPath);
+            Assert.IsFalse(numbers.Any(a => numbers.Any(b => Core.OrderNumbers.SameHint(a, b))),
+                $"{settingsPath}: two orders end the same way: {string.Join(", ", numbers)}");
+        }
+
+        private static string[] AllOrderNumbers(string settingsPath)
+        {
+            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(settingsPath);
+            return settings.Boxes.Concat(settings.SupplyBoxes).Select(b => b.orderNumber).Distinct().ToArray();
+        }
+
         [TestCase(PvzSceneBuilder.SettingsPath)]
         [TestCase(PvzSceneBuilder.EasySettingsPath)]
         [TestCase(PvzSceneBuilder.HardSettingsPath)]

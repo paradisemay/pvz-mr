@@ -56,7 +56,7 @@ namespace Pvz.Runtime
         {
             new BoxDefinition("BOX-101", "3307", Vector3.zero, 0f), // two boxes, one order:
             new BoxDefinition("BOX-102", "3307", Vector3.zero, 0f), // «товаров в заказе: 2»
-            new BoxDefinition("BOX-103", "6021", Vector3.zero, 0f),
+            new BoxDefinition("BOX-103", "2718", Vector3.zero, 0f), // «похожий заказ»: same digits as 2781
         };
 
         [Header("Extra requests")]
