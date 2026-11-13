@@ -30,6 +30,8 @@ namespace Pvz.Runtime
         [SerializeField] private DifficultyButton[] difficultyButtons = Array.Empty<DifficultyButton>();
         [Tooltip("Optional: everything shown before the shift (difficulty buttons, recenter button); hidden on start.")]
         [SerializeField] private GameObject startMenu;
+        [Tooltip("Generic box prefab carried by customers who come to return something.")]
+        [SerializeField] private QrBox returnBoxPrefab;
 
         private readonly BoxRegistry _registry = new BoxRegistry();
         private BestScores _bestScores;
@@ -52,6 +54,10 @@ namespace Pvz.Runtime
         public IEnumerable<QrBox> RemainingBoxes => _registry.All;
         /// <summary>Orders of the customers standing in line (the first one is at the counter).</summary>
         public IReadOnlyList<Order> QueuedOrders => Shift.QueuedOrders;
+        public IReadOnlyList<Visit> QueuedVisits => Shift.QueuedVisits;
+
+        /// <summary>Sets how often customers come to return a box (tests).</summary>
+        internal void UseReturnChance(int percent) => Shift.ReturnChancePercent = percent;
         public IReadOnlyList<DifficultyButton> DifficultyButtons => difficultyButtons;
 
         public event Action ShiftEnded;
@@ -129,7 +135,11 @@ namespace Pvz.Runtime
             }
 
             Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules(), settings.CreateSupplyPlan(),
-                settings.BagChancePercent) { PatienceSeconds = settings.PatienceSeconds, QueueLength = settings.QueueLength };
+                settings.BagChancePercent) {
+                PatienceSeconds = settings.PatienceSeconds,
+                QueueLength = settings.QueueLength,
+                ReturnChancePercent = settings.ReturnChancePercent,
+            };
             _presenter = new ShiftPresenter(Shift, board, scanner, feedback, settings.ShowTutorial);
             _supplySeed = settings.CreateRandomSource().Range(1, int.MaxValue);
             Subscribe();
@@ -237,18 +247,32 @@ namespace Pvz.Runtime
 
         /// <summary>
         /// Brings new customers one by one (so they do not walk inside each other) until the line is full.
-        /// Which order each customer wants is decided by Core (<see cref="Shift.TryEnqueue"/>).
+        /// Who comes and why (an order or a return) is decided by Core (<see cref="Shift.TryEnqueue"/>).
         /// </summary>
         private IEnumerator FillQueue()
         {
-            while (Shift.TryEnqueue(out var order))
+            while (Shift.TryEnqueue(out var visit))
             {
                 var customer = Instantiate(customerPrefab, customerSpawnPoint.position, customerSpawnPoint.rotation);
                 customer.SetLook(_customersSpawned++);
-                _line.Add(new QueuedCustomer(customer, order));
+                _line.Add(new QueuedCustomer(customer, visit, visit.IsReturn ? SpawnReturnBox(customer, visit.Return) : null));
                 customer.GoTo(SlotPosition(_line.Count - 1), customerServicePoint.rotation, settings.CustomerWalkSpeed);
                 if (Shift.CanEnqueue) yield return new WaitForSeconds(QueueSpacing / settings.CustomerWalkSpeed + 0.2f);
             }
+        }
+
+        /// <summary>The box a returning customer carries: a generic box given the returned id and its QR.</summary>
+        private QrBox SpawnReturnBox(Customer customer, ReturnRequest request)
+        {
+            if (returnBoxPrefab == null)
+            {
+                Debug.LogWarning("[ShiftDirector] No return box prefab; the return can still be accepted by scanning nothing.", this);
+                return null;
+            }
+            var box = Instantiate(returnBoxPrefab, customer.CarryAnchor.position, customer.CarryAnchor.rotation);
+            box.AssignId(request.Box.Value, QrTextures.Create(request.Box.Value));
+            customer.Take(box);
+            return box;
         }
 
         private IEnumerator ServeFrontCustomer()
@@ -261,15 +285,27 @@ namespace Pvz.Runtime
             if (front.Customer == null)
             {
                 // The customer vanished on the way (should not happen): free their order for someone else.
-                Shift.LeaveQueue(front.Order);
+                Shift.LeaveQueue(front.Visit);
                 _line.RemoveAt(0);
                 yield break;
             }
 
             Shift.OpenNext(Now);
-            HandOverBoxesAlreadyInZone();
+            if (front.Visit.IsReturn)
+            {
+                // The customer puts the box on the counter, inside the green zone, to be scanned.
+                if (front.ReturnBox != null)
+                    front.ReturnBox.PresentForScan(handoverZone.transform.position + Vector3.down * 0.07f, handoverZone.transform.rotation);
+                else
+                    Shift.Scan(front.Visit.Return.Box); // no box to show: accept so the shift never gets stuck
+            }
+            else
+            {
+                HandOverBoxesAlreadyInZone();
+            }
 
-            yield return new WaitUntil(() => !Desk.HasActiveOrder);
+            yield return new WaitUntil(() => !Desk.HasCustomer);
+            if (front.ReturnBox != null) Destroy(front.ReturnBox.gameObject); // taken back and written off
             yield return new WaitForSeconds(settings.ThanksDuration);
 
             _line.RemoveAt(0);
@@ -304,14 +340,17 @@ namespace Pvz.Runtime
 
         private readonly struct QueuedCustomer
         {
-            public QueuedCustomer(Customer customer, Order order)
+            public QueuedCustomer(Customer customer, Visit visit, QrBox returnBox)
             {
                 Customer = customer;
-                Order = order;
+                Visit = visit;
+                ReturnBox = returnBox;
             }
 
             public Customer Customer { get; }
-            public Order Order { get; }
+            public Visit Visit { get; }
+            /// <summary>The box a returning customer brought (null for pickups).</summary>
+            public QrBox ReturnBox { get; }
         }
 
         private void EndShift()
@@ -395,6 +434,8 @@ namespace Pvz.Runtime
         }
 
         internal void ConfigureStartMenu(GameObject menuRoot) => startMenu = menuRoot;
+
+        internal void ConfigureReturns(QrBox boxPrefab) => returnBoxPrefab = boxPrefab;
 
         internal void Configure(ShiftSettings shiftSettings, QrBox[] sceneBoxes, HandScanner handScanner, HandoverZone zone,
             Customer prefab, Transform spawn, Transform service, CounterBoard counterBoard, ShiftSummaryPanel summary,

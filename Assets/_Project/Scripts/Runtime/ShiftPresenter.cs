@@ -40,6 +40,8 @@ namespace Pvz.Runtime
             _shift.Desk.BagRequested += OnBagRequested;
             _shift.CustomerHurried += OnCustomerHurried;
             _shift.OrderAbandoned += OnOrderAbandoned;
+            _shift.Desk.ReturnOpened += OnReturnOpened;
+            _shift.Desk.ReturnAccepted += OnReturnAccepted;
             _step = tutorial ? TutorialStep.TakeScanner : TutorialStep.Off;
             _scanner.Grabbed += OnScannerGrabbed;
         }
@@ -61,6 +63,8 @@ namespace Pvz.Runtime
             _shift.Desk.BagRequested -= OnBagRequested;
             _shift.CustomerHurried -= OnCustomerHurried;
             _shift.OrderAbandoned -= OnOrderAbandoned;
+            _shift.Desk.ReturnOpened -= OnReturnOpened;
+            _shift.Desk.ReturnAccepted -= OnReturnAccepted;
             _scanner.Grabbed -= OnScannerGrabbed;
         }
 
@@ -186,6 +190,9 @@ namespace Pvz.Runtime
                     _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}\nНЕ ТОТ ЗАКАЗ", CounterBoard.Bad);
                     if (_step == TutorialStep.Scan || _step == TutorialStep.TakeScanner) ShowHint(HintWrongBox);
                     break;
+                case ScanStatus.ReturnAccepted:
+                    _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}\nВОЗВРАТ ПРИНЯТ", CounterBoard.Good);
+                    break;
                 case ScanStatus.NoActiveOrder:
                     _scanner.ShowResult($"Заказ №{outcome.BoxOrderNumber}", CounterBoard.Neutral);
                     break;
@@ -243,6 +250,21 @@ namespace Pvz.Runtime
         {
             Say("Спасибо! Мне ещё\nнужен пакет");
             _board.ShowStatus("Клиенту нужен пакет", CounterBoard.Accent);
+        }
+
+        private void OnReturnOpened(ReturnRequest request)
+        {
+            Say($"Хочу вернуть товар\nиз заказа №{request.OrderNumber}");
+            _board.ShowHeadline($"Возврат: заказ №{request.OrderNumber}", CounterBoard.Accent);
+            _board.ShowStatus("Отсканируйте коробку клиента в зоне выдачи", CounterBoard.Neutral);
+        }
+
+        private void OnReturnAccepted(ReturnRequest request)
+        {
+            PlaySound(FeedbackAudio.Sound.Success);
+            Say("Спасибо!\nВсего доброго!");
+            _board.ShowHeadline("Возврат принят", CounterBoard.Good);
+            _board.ShowStatus($"+{_shift.Stats.LastReturnPoints} очков", CounterBoard.Good);
         }
 
         private void OnCustomerHurried(Order order)

@@ -40,16 +40,28 @@ namespace Pvz.Core
             return order;
         }
 
+        /// <summary>A returning customer is at the counter.</summary>
+        public event Action<ReturnRequest> ReturnOpened;
+        /// <summary>The returned box was scanned and taken back.</summary>
+        public event Action<ReturnRequest> ReturnAccepted;
+
         public BoxCatalog Catalog => _catalog;
         public ServiceSession ActiveSession { get; private set; }
         public bool HasActiveOrder => ActiveSession != null;
         public Order ActiveOrder => ActiveSession?.Order;
 
+        /// <summary>The return being processed at the counter, or null.</summary>
+        public ReturnRequest ActiveReturn { get; private set; }
+        public bool HasActiveReturn => ActiveReturn != null;
+
+        /// <summary>Someone is at the counter (picking up an order or returning a box).</summary>
+        public bool HasCustomer => HasActiveOrder || HasActiveReturn;
+
         public void OpenOrder(Order order, double now)
         {
             if (order == null) throw new ArgumentNullException(nameof(order));
-            if (HasActiveOrder)
-                throw new InvalidOperationException($"Order {ActiveOrder.Number} is still being served.");
+            if (HasCustomer)
+                throw new InvalidOperationException("Another customer is still being served.");
             foreach (var box in order.Boxes)
             {
                 if (!_catalog.TryGet(box, out var record))
@@ -62,8 +74,29 @@ namespace Pvz.Core
             OrderOpened?.Invoke(order);
         }
 
+        /// <summary>A returning customer reached the counter with the box.</summary>
+        public void OpenReturn(ReturnRequest request)
+        {
+            if (request == null) throw new ArgumentNullException(nameof(request));
+            if (HasCustomer) throw new InvalidOperationException("Another customer is still being served.");
+            if (_catalog.Contains(request.Box))
+                throw new ArgumentException($"Box {request.Box} is still in the warehouse; it cannot be returned.", nameof(request));
+            ActiveReturn = request;
+            ReturnOpened?.Invoke(request);
+        }
+
         public ScanOutcome Scan(BoxId box)
         {
+            if (HasActiveReturn && ActiveReturn.Box == box)
+            {
+                var request = ActiveReturn;
+                ActiveReturn = null;
+                var accepted = new ScanOutcome(ScanStatus.ReturnAccepted, box, request.OrderNumber);
+                BoxScanned?.Invoke(accepted);
+                ReturnAccepted?.Invoke(request);
+                return accepted;
+            }
+
             ScanOutcome outcome;
             if (!_catalog.TryGet(box, out var record))
                 outcome = new ScanOutcome(ScanStatus.UnknownBox, box, null);
