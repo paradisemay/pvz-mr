@@ -32,9 +32,11 @@ namespace Pvz.Runtime
             status.color = color;
         }
 
-        public void ShowScore(int points, int served, int total)
+        /// <param name="clock">Time left in the shift («3:12»), or null when the shift has no time limit.</param>
+        public void ShowScore(int points, int served, int total, string clock = null)
         {
-            if (score != null) score.text = $"Очки: {points}    Выдано: {served}/{total}";
+            if (score == null) return;
+            score.text = $"Очки: {points}    Выдано: {served}/{total}" + (clock != null ? $"    Время: {clock}" : string.Empty);
         }
 
         internal void Configure(TMP_Text headlineText, TMP_Text statusText, TMP_Text scoreText)

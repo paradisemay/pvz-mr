@@ -15,6 +15,7 @@ MonoBehaviour:
   displayName: "\u0421\u043B\u043E\u0436\u043D\u0430\u044F"
   patienceSeconds: 45
   queueLength: 3
+  shiftDurationSeconds: 300
   showTutorial: 0
   boxes:
   - boxId: BOX-001

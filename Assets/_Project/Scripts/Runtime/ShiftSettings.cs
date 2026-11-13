@@ -35,6 +35,8 @@ namespace Pvz.Runtime
         [SerializeField, Min(0)] private float patienceSeconds = 90f;
         [Tooltip("How many customers can stand in line at the counter (1 = one at a time).")]
         [SerializeField, Range(1, 4)] private int queueLength = 2;
+        [Tooltip("Length of the shift, seconds; 0 = no time limit (the shift lasts until everything is sold).")]
+        [SerializeField, Min(0)] private float shiftDurationSeconds = 420f;
         [Tooltip("Step-by-step hints on the board until the first order is handed over.")]
         [SerializeField] private bool showTutorial;
 
@@ -117,9 +119,10 @@ namespace Pvz.Runtime
 
         /// <summary>Used by the editor builder to create the difficulty presets.</summary>
         internal void ConfigureDifficulty(string name, float patience, int supplyAfter, int bagChance,
-            float walkSpeed, float betweenCustomers, int queue, bool tutorial = false, int returnChance = 0,
-            int urgentChance = 0, int forgotNumberChance = 0)
+            float walkSpeed, float betweenCustomers, int queue, bool tutorial, int returnChance,
+            int urgentChance, int forgotNumberChance, float shiftSeconds)
         {
+            shiftDurationSeconds = shiftSeconds;
             returnChancePercent = returnChance;
             urgentChancePercent = urgentChance;
             forgotNumberChancePercent = forgotNumberChance;
@@ -138,6 +141,7 @@ namespace Pvz.Runtime
         public float DefaultCeilingHeight => defaultCeilingHeight;
         public int BagChancePercent => bagChancePercent;
         public int ReturnChancePercent => returnChancePercent;
+        public float ShiftDurationSeconds => shiftDurationSeconds;
         public int UrgentChancePercent => urgentChancePercent;
         public float UrgentPatienceFactor => urgentPatienceFactor;
         public int ForgotNumberChancePercent => forgotNumberChancePercent;
