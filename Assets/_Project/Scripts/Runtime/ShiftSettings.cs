@@ -54,8 +54,9 @@ namespace Pvz.Runtime
         [Tooltip("Boxes of the delivery (start position is ignored: they fall from the ceiling).")]
         [SerializeField] private BoxDefinition[] supplyBoxes =
         {
-            new BoxDefinition("BOX-101", "3307", Vector3.zero, 0f), // two boxes, one order:
-            new BoxDefinition("BOX-102", "3307", Vector3.zero, 0f), // «товаров в заказе: 2»
+            new BoxDefinition("BOX-101", "3307", Vector3.zero, 0f), // «большой заказ»: three boxes, one order —
+            new BoxDefinition("BOX-102", "3307", Vector3.zero, 0f), // «коробок в заказе: 3»
+            new BoxDefinition("BOX-104", "3307", Vector3.zero, 0f),
             new BoxDefinition("BOX-103", "2718", Vector3.zero, 0f), // «похожий заказ»: same digits as 2781
         };
 

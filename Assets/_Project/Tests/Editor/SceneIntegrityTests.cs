@@ -145,6 +145,16 @@ namespace Pvz.Editor.Tests
                 $"{settingsPath}: no «похожие заказы» among {string.Join(", ", numbers)}");
         }
 
+        /// <summary>T023: «заказ состоит из большого количества товаров» — the delivery brings an order of 3+ boxes.</summary>
+        [TestCase(PvzSceneBuilder.SettingsPath)]
+        [TestCase(PvzSceneBuilder.HardSettingsPath)]
+        public void Presets_DeliverABigOrder(string settingsPath)
+        {
+            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(settingsPath);
+            var biggest = settings.SupplyBoxes.GroupBy(b => b.orderNumber).Max(g => g.Count());
+            Assert.GreaterOrEqual(biggest, 3, $"{settingsPath}: no big order in the delivery");
+        }
+
         /// <summary>T014: a forgetful customer's «…NN» must name exactly one order of the shift.</summary>
         [TestCase(PvzSceneBuilder.SettingsPath)]
         [TestCase(PvzSceneBuilder.EasySettingsPath)]
