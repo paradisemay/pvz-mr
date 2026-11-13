@@ -11,6 +11,7 @@ namespace Pvz.Core
         private readonly PickupDesk _desk;
         private readonly ScoringRules _rules;
         private double _totalServiceSeconds;
+        private int _bagPointsThisOrder;
 
         public ShiftStats(PickupDesk desk, ScoringRules rules = null)
         {
@@ -19,6 +20,7 @@ namespace Pvz.Core
             _desk.BoxScanned += OnBoxScanned;
             _desk.WrongHandover += OnWrongHandover;
             _desk.OrderCompleted += OnOrderCompleted;
+            _desk.BagHandedOver += OnBagHandedOver;
         }
 
         public event Action Changed;
@@ -32,6 +34,7 @@ namespace Pvz.Core
         public double AverageServiceSeconds => OrdersCompleted == 0 ? 0 : _totalServiceSeconds / OrdersCompleted;
         public int LastOrderPoints { get; private set; }
         public int BoxesReceived { get; private set; }
+        public int BagsGiven { get; private set; }
 
         /// <summary>Handler for <see cref="Shift.BoxReceived"/>: a supply box was accepted into the warehouse.</summary>
         internal void OnBoxReceived(BoxRecord box)
@@ -46,6 +49,7 @@ namespace Pvz.Core
             _desk.BoxScanned -= OnBoxScanned;
             _desk.WrongHandover -= OnWrongHandover;
             _desk.OrderCompleted -= OnOrderCompleted;
+            _desk.BagHandedOver -= OnBagHandedOver;
         }
 
         private void OnBoxScanned(ScanOutcome outcome)
@@ -62,13 +66,25 @@ namespace Pvz.Core
             Changed?.Invoke();
         }
 
+        private void OnBagHandedOver(BagStatus status)
+        {
+            if (status != BagStatus.Accepted) return;
+            BagsGiven++;
+            Score += _rules.BagService;
+            _bagPointsThisOrder += _rules.BagService;
+            Changed?.Invoke();
+        }
+
         private void OnOrderCompleted(OrderResult result)
         {
             OrdersCompleted++;
             _totalServiceSeconds += result.DurationSeconds;
             if (result.Mistakes == 0) FlawlessOrders++;
-            LastOrderPoints = _rules.PointsForOrder(result.DurationSeconds, result.Mistakes);
-            Score += LastOrderPoints;
+            var orderPoints = _rules.PointsForOrder(result.DurationSeconds, result.Mistakes);
+            Score += orderPoints;
+            // Points shown for the order include the bag, which was already added to the score when handed over.
+            LastOrderPoints = orderPoints + _bagPointsThisOrder;
+            _bagPointsThisOrder = 0;
             Changed?.Invoke();
         }
     }

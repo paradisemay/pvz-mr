@@ -71,7 +71,8 @@ namespace Pvz.Runtime
                 catalog.Add(new BoxRecord(box.Id, orderNumber));
             }
 
-            Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules(), settings.CreateSupplyPlan());
+            Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules(), settings.CreateSupplyPlan(),
+                settings.BagChancePercent);
             _presenter = new ShiftPresenter(Shift, board, scanner, feedback);
             _supplySeed = settings.CreateRandomSource().Range(1, int.MaxValue);
         }
@@ -82,6 +83,8 @@ namespace Pvz.Runtime
             scanner.BoxScanned += OnBoxScanned;
             scanner.Missed += OnScanMissed;
             handoverZone.BoxEntered += OnBoxEnteredZone;
+            handoverZone.BagEntered += OnBagEnteredZone;
+            Desk.BagRequested += OnBagRequested;
         }
 
         private void OnDisable()
@@ -90,6 +93,8 @@ namespace Pvz.Runtime
             scanner.BoxScanned -= OnBoxScanned;
             scanner.Missed -= OnScanMissed;
             handoverZone.BoxEntered -= OnBoxEnteredZone;
+            handoverZone.BagEntered -= OnBagEnteredZone;
+            Desk.BagRequested -= OnBagRequested;
         }
 
         private void OnDestroy()
@@ -112,6 +117,9 @@ namespace Pvz.Runtime
             Shift.UseRandomSource(new SystemRandomSource(seed));
             _supplySeed = seed;
         }
+
+        /// <summary>Sets how often customers ask for a bag (tests).</summary>
+        internal void UseBagChance(int percent) => Shift.BagChancePercent = percent;
 
         public bool TryGetBox(BoxId id, out QrBox box) => _registry.TryGet(id, out box);
 
@@ -194,6 +202,27 @@ namespace Pvz.Runtime
         {
             var outcome = Desk.Handover(box.Id, Now);
             if (outcome.Status == HandoverStatus.Accepted) GiveToCustomer(box);
+        }
+
+        private void OnBagEnteredZone(ParcelBag bag)
+        {
+            if (Desk.HandOverBag(Now) == BagStatus.Accepted) GiveToCustomer(bag);
+        }
+
+        /// <summary>The customer asks for a bag: one may already be waiting in the zone.</summary>
+        private void OnBagRequested(Order order)
+        {
+            foreach (var bag in handoverZone.BagsInside)
+            {
+                if (Desk.HandOverBag(Now) == BagStatus.Accepted) GiveToCustomer(bag);
+                break;
+            }
+        }
+
+        private void GiveToCustomer(ParcelBag bag)
+        {
+            handoverZone.Forget(bag);
+            if (CurrentCustomer != null) CurrentCustomer.Take(bag);
         }
 
         private void HandOverBoxesAlreadyInZone()

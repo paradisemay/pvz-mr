@@ -43,10 +43,14 @@ namespace Pvz.Runtime
         [Tooltip("Boxes of the delivery (start position is ignored: they fall from the ceiling).")]
         [SerializeField] private BoxDefinition[] supplyBoxes =
         {
-            new BoxDefinition("BOX-101", "3307", Vector3.zero, 0f),
-            new BoxDefinition("BOX-102", "4410", Vector3.zero, 0f),
+            new BoxDefinition("BOX-101", "3307", Vector3.zero, 0f), // two boxes, one order:
+            new BoxDefinition("BOX-102", "3307", Vector3.zero, 0f), // «товаров в заказе: 2»
             new BoxDefinition("BOX-103", "6021", Vector3.zero, 0f),
         };
+
+        [Header("Extra requests")]
+        [Tooltip("Chance (0..100) that a customer also asks for a carrier bag.")]
+        [SerializeField, Range(0, 100)] private int bagChancePercent = 50;
 
         [Header("Pacing (seconds, m/s)")]
         [SerializeField, Min(0)] private float firstCustomerDelay = 2f;
@@ -67,6 +71,7 @@ namespace Pvz.Runtime
         [SerializeField] private int okBonus = 25;
         [SerializeField] private int wrongHandoverPenalty = 25;
         [SerializeField] private int intakePoints = 10;
+        [SerializeField] private int bagPoints = 20;
 
         [Header("Room")]
         [Tooltip("Used for the supply drop when the headset has not found the ceiling.")]
@@ -77,6 +82,7 @@ namespace Pvz.Runtime
         public BoxDefinition[] SupplyBoxes => supplyBoxes;
         public bool HasSupply => supplyAfterOrders > 0 && supplyBoxes != null && supplyBoxes.Length > 0;
         public float DefaultCeilingHeight => defaultCeilingHeight;
+        public int BagChancePercent => bagChancePercent;
 
         public SupplyPlan CreateSupplyPlan() => !HasSupply
             ? SupplyPlan.None
@@ -99,6 +105,7 @@ namespace Pvz.Runtime
             OkBonus = okBonus,
             WrongHandoverPenalty = wrongHandoverPenalty,
             IntakeBox = intakePoints,
+            BagService = bagPoints,
         };
 
         public bool TryGetOrderNumber(BoxId id, out string orderNumber)

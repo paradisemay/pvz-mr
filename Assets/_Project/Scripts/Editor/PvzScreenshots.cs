@@ -38,6 +38,7 @@ namespace Pvz.Editor
             scanner.ShowResult("Заказ №2781\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
 
             HideEditorOnlyClutter();
+            Object.FindFirstObjectByType<BagDispenser>().Refill(); // a bag lies on the counter as in play mode
 
             Capture("01_overview", new Vector3(-2.6f, 2.5f, -2.9f), new Vector3(0.1f, 0.8f, 0.6f), 55f);
             Capture("02_player_view", new Vector3(0f, 1.6f, -0.2f), new Vector3(0.1f, 1.62f, 1.6f), 72f);
@@ -46,6 +47,34 @@ namespace Pvz.Editor
             var box = Object.FindFirstObjectByType<QrBox>();
             Capture("04_box_qr", box.transform.position + new Vector3(0.35f, 0.35f, -0.45f), box.transform.position, 45f);
             Capture("05_scanner", scanner.transform.position + new Vector3(-0.18f, 0.22f, -0.25f), scanner.transform.position, 40f);
+
+            // Two-box order handed over; the customer now asks for a bag.
+            var heldBoxes = Object.FindObjectsByType<QrBox>(FindObjectsSortMode.InstanceID);
+            var demoCustomer = Object.Instantiate(customerPrefab, PvzSceneBuilder.CustomerServicePosition,
+                Quaternion.Euler(0, 180, 0));
+            demoCustomer.SetLook(2);
+            customer.gameObject.SetActive(false);
+            var originalPoses = new (Transform t, Transform parent, Vector3 pos, Quaternion rot)[2];
+            for (var i = 0; i < 2 && i < heldBoxes.Length; i++)
+            {
+                var t = heldBoxes[i].transform;
+                originalPoses[i] = (t, t.parent, t.position, t.rotation);
+                t.SetParent(demoCustomer.CarryAnchor, false);
+                t.localPosition = Vector3.up * (0.27f * i);
+                t.localRotation = Quaternion.identity;
+            }
+            demoCustomer.Say("Спасибо! Мне ещё\nнужен пакет");
+            board.ShowHeadline("Заказ №3307", CounterBoard.Accent);
+            board.ShowStatus("Клиенту нужен пакет", CounterBoard.Accent);
+            Capture("08_bag_request", new Vector3(-0.3f, 1.6f, -0.2f), new Vector3(0.1f, 1.35f, 1.4f), 70f);
+            foreach (var pose in originalPoses)
+            {
+                if (pose.t == null) continue;
+                pose.t.SetParent(pose.parent, true);
+                pose.t.SetPositionAndRotation(pose.pos, pose.rot);
+            }
+            Object.DestroyImmediate(demoCustomer.gameObject);
+            customer.gameObject.SetActive(true);
 
             // Supply delivery: boxes just appeared under the ceiling.
             var supply = Object.FindFirstObjectByType<SupplyDrop>();

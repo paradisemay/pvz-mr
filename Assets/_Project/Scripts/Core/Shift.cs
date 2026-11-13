@@ -14,13 +14,14 @@ namespace Pvz.Core
         private readonly SupplyPlan _supplyPlan;
         private OrderGenerator _generator;
 
-        public Shift(BoxCatalog catalog, IRandomSource random, ScoringRules rules = null, SupplyPlan supplyPlan = null)
+        public Shift(BoxCatalog catalog, IRandomSource random, ScoringRules rules = null, SupplyPlan supplyPlan = null,
+            int bagChancePercent = 0)
         {
             if (catalog == null) throw new ArgumentNullException(nameof(catalog));
             Desk = new PickupDesk(catalog);
             Stats = new ShiftStats(Desk, rules);
             BoxReceived += Stats.OnBoxReceived;
-            _generator = new OrderGenerator(random ?? throw new ArgumentNullException(nameof(random)));
+            _generator = new OrderGenerator(random ?? throw new ArgumentNullException(nameof(random)), bagChancePercent);
             _supplyPlan = supplyPlan ?? SupplyPlan.None;
             foreach (var box in catalog.Boxes) _orderNumbers.Add(box.OrderNumber);
             HasScheduledDelivery = !_supplyPlan.IsEmpty;
@@ -65,7 +66,14 @@ namespace Pvz.Core
         /// <summary>Replaces the randomness (e.g. a fixed seed in tests). Affects orders created afterwards.</summary>
         public void UseRandomSource(IRandomSource random)
         {
-            _generator = new OrderGenerator(random ?? throw new ArgumentNullException(nameof(random)));
+            _generator = new OrderGenerator(random ?? throw new ArgumentNullException(nameof(random)), BagChancePercent);
+        }
+
+        /// <summary>Probability (0..100) that a customer also asks for a bag.</summary>
+        public int BagChancePercent
+        {
+            get => _generator.BagChancePercent;
+            set => _generator.BagChancePercent = value;
         }
 
         /// <summary>Picks the next customer's order, or null when the warehouse is empty.</summary>
