@@ -17,9 +17,10 @@
 |---|---|---|---|
 | `Pvz.Core` | `Assets/_Project/Scripts/Core` | — (`noEngineReferences`) | Чистая игровая логика: коробки, заказы, стойка, статистика |
 | `Pvz.Runtime` | `Assets/_Project/Scripts/Runtime` | Core, XRI, AR Foundation, TMP | MonoBehaviour-адаптеры: сцена, ввод, UI |
-| `Pvz.Editor` | `Assets/_Project/Scripts/Editor` | Core, Runtime | Генерация сцены/префабов/QR-текстур, скриншоты |
+| `Pvz.Editor` | `Assets/_Project/Scripts/Editor` | Core, Runtime, OpenXR, XR Management, TestRunner | Генерация сцены/префабов/QR-текстур, настройки проекта, сборка APK, скриншоты, раннер тестов |
 | `Pvz.Core.Tests` | `Assets/_Project/Tests/EditMode` | Core | Юнит-тесты логики |
-| `Pvz.Runtime.Tests` | `Assets/_Project/Tests/PlayMode` | Core, Runtime | Сквозной тест игрового цикла в сцене |
+| `Pvz.Editor.Tests` | `Assets/_Project/Tests/Editor` | Core, Runtime, Editor | Целостность сцены и пресетов, тексты рекордов (в `RunEditMode`) |
+| `Pvz.Runtime.Tests` | `Assets/_Project/Tests/PlayMode` | Core, Runtime, CoreUtils, AR Foundation | Сквозные сценарии в настоящей сцене |
 
 ## Командная строка
 ```bash

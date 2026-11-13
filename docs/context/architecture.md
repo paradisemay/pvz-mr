@@ -6,10 +6,12 @@
 2. **Зависимости в одну сторону:** `Editor → Runtime → Core`. Core ничего не знает о сцене.
 3. **События вместо прямых вызовов между фичами.** Источник события — Core (`PickupDesk.OrderCompleted`,
    `PickupDesk.WrongHandover`, ...). UI, звук, клиенты подписываются; `ShiftDirector` — единственный, кто их связывает.
-4. **Сцена собирается кодом.** `PvzSceneBuilder` создаёт префабы, материалы, QR-текстуры и сцену `Game.unity`.
-   Ручные правки сцены допустимы, но всё, что нужно для воспроизводимости, — в билдере.
-5. **Сканирование за интерфейсом.** Игровая логика получает `BoxId`, а не «кадр камеры». Сейчас источник — raycast
-   сканера по `QrBox`; позже можно подставить распознавание камерой, не трогая Core.
+4. **Сцена собирается кодом.** `PvzSceneBuilder.BuildAll` (с `PvzPrefabBuilder` и `PvzAssetFactory`) создаёт префабы,
+   материалы, QR-текстуры, пресеты сложности и сцену `Game.unity`. Ручные правки допустимы, но всё, что нужно для
+   воспроизводимости, — в билдере.
+5. **Сканирование отделено от Core.** Игровая логика получает `BoxId`, а не «кадр камеры»: `HandScanner` сообщает
+   `BoxScanned(QrBox)` (raycast по `QrBox`), директор передаёт `Shift.Scan(id)`. Распознавание камерой позже
+   подставляется на месте `HandScanner`, не трогая Core.
 6. **Нет синглтонов и `FindObjectOfType` в рантайме.** Ссылки — через сериализованные поля, которые проставляет билдер.
 7. **Детерминизм для тестов.** Случайность — через `IRandomSource`, время — параметром (`now`), а не `Time.time` внутри Core.
 
@@ -35,30 +37,52 @@
 - Отложено осознанно: явный список заказов со статусами (для очереди клиентов), обобщённый `ExtraRequest`,
   `DifficultyPreset` поверх одной раскладки, `GameFlow` для фаз «меню → смена → итоги».
 
+## Решения T007–T011
+- Очередь клиентов — правило Core: упорядоченная линия зарезервированных заказов в `Shift` (`TryEnqueue` с длиной
+  очереди, `OpenNext`, `LeaveQueue`); директор хранит только «какой клиент на каком месте». Полный список заказов со
+  статусами по-прежнему отложен (нужен для терпения в очереди и нескольких стоек).
+- Разрешение `USE_SCENE`: `ARPlaneManager` сохранён в сцене выключенным, `ScenePermissionGate` включает его после согласия.
+- Рекорды: правило в Core (`BestScores` → `RecordResult`), хранилище — интерфейс `IScoreStore`
+  (`PlayerPrefsScoreStore` в Runtime, `MemoryScoreStore` в тестах); ключ — стабильный id пресета (имя ассета).
+- Полоска терпения: `Shift.PatienceRemaining` → `ShiftPresenter.UpdatePatience` → `PatienceBar`; цвета привязаны к `Shift.HurryFraction`.
+- Подсказки первого заказа — шаги «только вперёд» в `ShiftPresenter` (`ShiftSettings.showTutorial`).
+
 ## Модули
 ```
 Core/
-  BoxId              значимый тип "BOX-001"
-  BoxRecord          коробка: id + номер заказа
-  BoxCatalog         реестр коробок на складе (добавить/выдать/найти)
-  Order              заказ: номер, нужные коробки
-  OrderGenerator     случайный заказ из коробок, что ещё на складе
-  PickupDesk         состояние стойки: текущий заказ, Scan(), Handover() → исходы + события
-  ShiftStats         счёт и статистика смены
-  ServiceSession     обслуживание одного клиента (прогресс, ошибки)
-  Shift              смена: склад + стойка + генерация заказов + статистика, конец смены
+  BoxId, BoxRecord   коробка: id "BOX-001" + номер заказа
+  BoxCatalog         склад (добавить/выдать/найти)
+  Order              неизменяемый заказ: номер, коробки, нужен ли пакет
+  OrderGenerator     случайный заказ из склада (с исключениями — для очереди), шанс пакета
+  ServiceSession     обслуживание одного клиента: выдано, ошибки, пакет, «торопил ли»
+  PickupDesk         стойка: OpenOrder / Scan / Handover / HandOverBag / Abandon → исходы + события
+  Outcomes           ScanOutcome, HandoverOutcome, BagStatus, OrderResult
+  Shift              смена: склад, очередь, поставка, терпение (Tick), конец смены
+  SupplyPlan         запланированная поставка
+  ShiftStats         очки и статистика; ScoringRules — таблица очков; ShiftRating — оценка смены
+  BestScores         рекорды по сложностям (IScoreStore, MemoryScoreStore, RecordResult)
+  QrPattern          узор QR по id (общий для редактора и рантайма)
+  IRandomSource      случайность для детерминированных тестов
 Runtime/
-  ShiftDirector      композиция и темп смены, проброс ввода в Core
-  ShiftPresenter     тексты/звуки/реплики по событиям Core
-  BoxRegistry        коробки сцены по id
-  QrBox              компонент коробки (BoxId, QR-текстура)
-  HandScanner        ручной сканер (XRGrabInteractable, курок → raycast → BoxId)
-  HandoverZone       триггер на стойке, сообщает о положенной коробке
-  Customer           клиент: подходит, ждёт, реагирует, уходит
-  CounterBoard       табло над стойкой
-  SpeechBubble       реплики клиента
-  ShiftSummaryPanel  итоги смены
-  MrSessionSetup     passthrough/плоскости на устройстве, мок-комната в редакторе
+  ShiftDirector      композиция и темп смены, очередь клиентов на местах, проброс ввода в Core
+  ShiftPresenter     все тексты/звуки/реплики/подсказки по событиям Core
+  ShiftSettings      пресет сложности: склад, поставка, темп, очки, терпение, очередь, подсказки
+  BoxRegistry, QrBox, QrTextures   коробки сцены, рантайм-QR-текстуры
+  HandScanner        ручной сканер (XRGrabInteractable, курок → raycast → QrBox)
+  HandoverZone       триггер на стойке: коробки и пакеты
+  Customer, SpeechBubble, PatienceBar, Billboard   клиент, реплики, полоска терпения, поворот к игроку
+  CounterBoard, ShiftSummaryPanel  табло и итоги смены
+  SupplyDrop         коробки поставки из-под потолка в досягаемых точках
+  ParcelBag, BagDispenser          пакет и раздатчик на стойке
+  DifficultyButton, RecenterButton, RestartButton   кнопки на стойке
+  MrSessionSetup, ScenePermissionGate   шлем/редактор, Play Area, разрешение USE_SCENE
+  FeedbackAudio, PlayerPrefsScoreStore  процедурные звуки, хранение рекордов
+Editor/
+  PvzSceneBuilder, PvzPrefabBuilder, PvzAssetFactory   генерация сцены, префабов, материалов, QR, шрифта, пресетов
+  PvzProjectSetup    OpenXR-фичи Meta, Player Settings, исправления валидации
+  PvzBuild           сборка APK для Quest
+  PvzScreenshots     скриншоты для PR (с целью Standalone)
+  PvzTestRunner      запуск тестов через TestRunnerApi из -executeMethod
 ```
 
 ## Стиль кода
