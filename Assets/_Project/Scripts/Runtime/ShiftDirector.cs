@@ -95,7 +95,7 @@ namespace Pvz.Runtime
         {
             if (Shift == null) return;
             Shift.Tick(Now);
-            if (CurrentCustomer != null) CurrentCustomer.ShowPatience(Shift.PatienceRemaining(Now));
+            _presenter.UpdatePatience(Now);
         }
 
         private bool HasDifficultyMenu => difficultyButtons.Any(b => b != null);

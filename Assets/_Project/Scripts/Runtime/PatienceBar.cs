@@ -1,27 +1,31 @@
+using Pvz.Core;
 using UnityEngine;
 
 namespace Pvz.Runtime
 {
     /// <summary>
-    /// Bar above a customer's head: full green when they arrive, red when they are about to leave.
-    /// Faces the player like the speech bubble.
+    /// Bar above a customer's head: green while they wait calmly, yellow from the moment they start hurrying
+    /// the player (<see cref="Shift.HurryFraction"/>), red just before they leave. Faces the player via <see cref="Billboard"/>.
     /// </summary>
     public sealed class PatienceBar : MonoBehaviour
     {
-        private static readonly Color Calm = new Color(0.3f, 0.85f, 0.4f);
-        private static readonly Color Nervous = new Color(0.98f, 0.8f, 0.2f);
-        private static readonly Color Angry = new Color(0.95f, 0.3f, 0.25f);
+        private const float MinChange = 1f / 255f;
         private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
 
         [SerializeField] private GameObject root;
         [SerializeField] private Transform fill;
         [SerializeField] private Renderer fillRenderer;
+        [SerializeField] private Color calm = new Color(0.3f, 0.85f, 0.4f);
+        [SerializeField] private Color hurrying = new Color(0.98f, 0.8f, 0.2f);
+        [SerializeField] private Color leaving = new Color(0.95f, 0.3f, 0.25f);
 
         private MaterialPropertyBlock _block;
-        private Camera _camera;
 
         public bool IsVisible => root != null && root.activeSelf;
-        public float Value { get; private set; } = 1f;
+        public float Value { get; private set; } = -1f;
+
+        /// <summary>Remaining share of patience at which the customer starts hurrying the player.</summary>
+        private static float HurryAt => (float)(1.0 - Shift.HurryFraction);
 
         /// <summary>Shows the remaining share of patience (0..1), or hides the bar for null.</summary>
         public void Show(double? remaining)
@@ -30,37 +34,36 @@ namespace Pvz.Runtime
             if (!remaining.HasValue)
             {
                 if (root.activeSelf) root.SetActive(false);
+                Value = -1f;
                 return;
             }
             if (!root.activeSelf) root.SetActive(true);
 
-            Value = Mathf.Clamp01((float)remaining.Value);
+            var value = Mathf.Clamp01((float)remaining.Value);
+            if (Mathf.Abs(value - Value) < MinChange) return; // nothing visible changed
+            Value = value;
+
             if (fill != null)
             {
                 // The fill is anchored at its left edge: scale X and shift it so it shrinks to the left.
                 var scale = fill.localScale;
-                scale.x = Mathf.Max(0.0001f, Value);
+                scale.x = Mathf.Max(0.0001f, value);
                 fill.localScale = scale;
-                fill.localPosition = new Vector3((Value - 1f) * 0.5f, fill.localPosition.y, fill.localPosition.z);
+                fill.localPosition = new Vector3((value - 1f) * 0.5f, fill.localPosition.y, fill.localPosition.z);
             }
             if (fillRenderer != null)
             {
                 _block ??= new MaterialPropertyBlock();
                 fillRenderer.GetPropertyBlock(_block);
-                var color = Value > 0.5f ? Color.Lerp(Nervous, Calm, (Value - 0.5f) * 2f) : Color.Lerp(Angry, Nervous, Value * 2f);
-                _block.SetColor(BaseColor, color);
+                _block.SetColor(BaseColor, ColorFor(value));
                 fillRenderer.SetPropertyBlock(_block);
             }
         }
 
-        private void LateUpdate()
+        private Color ColorFor(float value)
         {
-            if (root == null || !root.activeSelf) return;
-            if (_camera == null) _camera = Camera.main;
-            if (_camera == null) return;
-            var away = transform.position - _camera.transform.position;
-            away.y = 0f;
-            if (away.sqrMagnitude > 0.0001f) transform.rotation = Quaternion.LookRotation(away, Vector3.up);
+            if (value >= HurryAt) return Color.Lerp(hurrying, calm, (value - HurryAt) / (1f - HurryAt));
+            return Color.Lerp(leaving, hurrying, value / HurryAt);
         }
 
         internal void Configure(GameObject barRoot, Transform fillTransform, Renderer fillRend)

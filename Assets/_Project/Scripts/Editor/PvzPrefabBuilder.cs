@@ -251,6 +251,7 @@ namespace Pvz.Editor
             Primitive(PrimitiveType.Quad, "Background", bubbleRoot.transform, Vector3.zero, new Vector3(0.6f, 0.26f, 1f), _bubble);
             var bubbleText = Text("Text", bubbleRoot.transform, new Vector3(0, 0, -0.002f), new Vector2(0.56f, 0.22f),
                 "Здравствуйте!", _font, new Color(0.1f, 0.1f, 0.12f), 1.2f);
+            bubbleGo.AddComponent<Billboard>();
             var bubble = bubbleGo.AddComponent<SpeechBubble>();
             bubble.Configure(bubbleRoot, bubbleText);
             bubbleRoot.SetActive(false);
@@ -268,6 +269,8 @@ namespace Pvz.Editor
             Primitive(PrimitiveType.Quad, "Background", barRoot.transform, Vector3.zero, Vector3.one, _boardBack);
             var fill = Primitive(PrimitiveType.Quad, "Fill", barRoot.transform, new Vector3(0, 0, -0.002f), new Vector3(1f, 0.7f, 1f),
                 Unlit("PatienceFill", Color.white));
+            foreach (var quad in barRoot.GetComponentsInChildren<Renderer>()) quad.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            barGo.AddComponent<Billboard>();
             var bar = barGo.AddComponent<PatienceBar>();
             bar.Configure(barRoot, fill.transform, fill.GetComponent<Renderer>());
             barRoot.SetActive(false);

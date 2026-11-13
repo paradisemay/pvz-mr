@@ -94,15 +94,43 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
-        public void PatienceRemaining_IsNull_WhenNotTicking()
+        public void PatienceRemaining_IsNull_WithInfinitePatience()
         {
             _shift.Desk.OpenOrder(_shift.NextOrder(), 0);
             _shift.PatienceSeconds = 0;
-            Assert.IsNull(_shift.PatienceRemaining(5), "infinite patience");
+            Assert.IsNull(_shift.PatienceRemaining(5));
+        }
 
-            _shift.PatienceSeconds = 100;
-            _shift.Desk.Handover(_shift.Desk.ActiveOrder.Boxes[0], 5);
-            Assert.IsNull(_shift.PatienceRemaining(6), "served customers no longer leave");
+        [Test]
+        public void PatienceRemaining_IsNull_OnceTheFirstBoxIsHandedOver()
+        {
+            using (var shift = new Shift(new BoxCatalog(new[]
+                   {
+                       new BoxRecord(TestData.Box1, "1435"),
+                       new BoxRecord(new BoxId("BOX-004"), "1435"),
+                   }), new FakeRandom(0)) { PatienceSeconds = 100 })
+            {
+                shift.Desk.OpenOrder(shift.NextOrder(), 0);
+                shift.Desk.Handover(TestData.Box1, 5);
+                Assert.IsTrue(shift.Desk.HasActiveOrder, "a two-box order is still open");
+                Assert.IsNull(shift.PatienceRemaining(6), "a customer being served no longer leaves");
+            }
+        }
+
+        [Test]
+        public void PatienceRemaining_AgreesWithTick()
+        {
+            var hurried = false;
+            _shift.CustomerHurried += _ => hurried = true;
+            _shift.Desk.OpenOrder(_shift.NextOrder(), 0);
+
+            _shift.Tick(60);
+            Assert.IsTrue(hurried);
+            Assert.AreEqual(1.0 - Shift.HurryFraction, _shift.PatienceRemaining(60).Value, 1e-9, "hurry happens at the bar's yellow point");
+
+            _shift.Tick(100);
+            Assert.IsNull(_shift.PatienceRemaining(100), "the customer left");
+            Assert.AreEqual(1, _shift.Stats.OrdersAbandoned);
         }
 
         [Test]

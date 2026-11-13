@@ -12,5 +12,5 @@
 | T007 | Очередь клиентов | done | `feature/T007-customer-queue` |
 | T008 | Готовность к устройству: USE_SCENE, «Стойку ко мне» | done | `feature/T008-device-readiness` |
 | T009 | Рекорды по сложностям | done | `feature/T009-best-scores` |
-| T010 | Индикатор терпения над клиентом | in progress | `feature/T010-patience-bar` |
+| T010 | Индикатор терпения над клиентом | done | `feature/T010-patience-bar` |
 | T011 | Обобщённые доп. запросы (возврат, пересканирование), голос, модели | backlog | — |
