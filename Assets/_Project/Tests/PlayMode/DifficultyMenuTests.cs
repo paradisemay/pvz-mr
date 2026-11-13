@@ -14,6 +14,7 @@ namespace Pvz.Runtime.Tests
         public IEnumerator LoadScene()
         {
             WarehouseLayoutKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // never the real saved layout
+            CareerKeeper.StoreOverride = (new Pvz.Core.MemoryScoreStore(), new Pvz.Core.MemoryTextStore()); // nor the career
             yield return SceneManager.LoadSceneAsync("Game", LoadSceneMode.Single);
             yield return null;
         }
@@ -22,6 +23,7 @@ namespace Pvz.Runtime.Tests
         public IEnumerator ForgetTestStore()
         {
             WarehouseLayoutKeeper.StoreOverride = null;
+            CareerKeeper.StoreOverride = null;
             yield return null;
         }
 
@@ -34,6 +36,30 @@ namespace Pvz.Runtime.Tests
             Assert.AreEqual(3, director.DifficultyButtons.Count);
             Assert.IsTrue(director.DifficultyButtons.All(b => b.gameObject.activeInHierarchy));
             StringAssert.StartsWith("Рекорды:", Object.FindFirstObjectByType<CounterBoard>().Status, "the menu shows best scores");
+            StringAssert.StartsWith("Карьера: 0", Object.FindFirstObjectByType<CounterBoard>().Footer, "and the career");
+        }
+
+        [UnityTest]
+        public IEnumerator ThemeButton_PaintsTheCounter_InAThemeTheCareerOpened()
+        {
+            // A player with 1200 career points: «Мята» is open.
+            var points = new Pvz.Core.MemoryScoreStore();
+            points.Set(Pvz.Core.Career.PointsKey, 1200);
+            CareerKeeper.StoreOverride = (points, new Pvz.Core.MemoryTextStore());
+            yield return SceneManager.LoadSceneAsync("Game", LoadSceneMode.Single);
+            yield return null;
+
+            var keeper = Object.FindFirstObjectByType<CareerKeeper>();
+            var button = Object.FindFirstObjectByType<ThemeButton>();
+            Assert.IsNotNull(button, "the menu has a theme button");
+            Assert.AreEqual("classic", keeper.Skin.ThemeId, "nothing chosen yet");
+            StringAssert.Contains("до темы «Ночь»", Object.FindFirstObjectByType<CounterBoard>().Footer);
+
+            button.Press();
+            Assert.AreEqual("mint", keeper.Skin.ThemeId);
+            StringAssert.Contains("МЯТА", button.Label);
+            button.Press();
+            Assert.AreEqual("classic", keeper.Skin.ThemeId, "«Ночь» is still closed: back to the classic look");
         }
 
         [UnityTest]

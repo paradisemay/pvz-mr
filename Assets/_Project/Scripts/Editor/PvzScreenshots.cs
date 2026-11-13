@@ -42,6 +42,7 @@ namespace Pvz.Editor
             foreach (var button in Object.FindObjectsByType<DifficultyButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
             foreach (var button in Object.FindObjectsByType<RecenterButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false); // start menu is hidden during play
             foreach (var button in Object.FindObjectsByType<ResetWarehouseButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
+            foreach (var button in Object.FindObjectsByType<ThemeButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
 
             // Stage a moment of play: a customer at the counter asking for an order.
             var customerPrefab = AssetDatabase.LoadAssetAtPath<Customer>(PvzAssetFactory.PrefabsDir + "/Customer.prefab");
@@ -152,6 +153,13 @@ namespace Pvz.Editor
             board.ShowStatus("+250 очков", CounterBoard.Good);
             Capture("14_confetti", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.3f, 1.35f, 1.1f), 70f);
             confetti.Clear(true);
+
+            // Career theme «Мята» (T022).
+            var skin = Object.FindFirstObjectByType<CounterSkin>();
+            var themes = AssetDatabase.LoadAssetAtPath<CounterThemeCatalog>(PvzSceneBuilder.ThemeCatalogPath);
+            skin.Apply(themes.Find("mint"));
+            Capture("15_theme_mint", new Vector3(-1.2f, 1.8f, -0.9f), new Vector3(0.1f, 1.3f, 1.0f), 62f);
+            skin.Apply(themes.Find("classic"));
 
             // Shift timer: the time ran out, the last customer is still served.
             customer.Say("Здравствуйте!\nЗаказ №2781");

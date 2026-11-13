@@ -19,7 +19,7 @@ namespace Pvz.Runtime
         }
 
         public void Show(ShiftStats stats, int ordersTotal, RecordResult? record = null, string difficulty = null, int maxQueue = 0,
-            bool endedByTime = false)
+            bool endedByTime = false, string careerLine = null)
         {
             var grade = ShiftRating.Grade(stats.OrdersCompleted, ordersTotal, stats.WrongHandovers, stats.OrdersAbandoned);
             if (body != null)
@@ -39,7 +39,8 @@ namespace Pvz.Runtime
                     $"Среднее время выдачи: {stats.AverageServiceSeconds:0.0} с\n" +
                     $"Очки: {stats.Score}\n" +
                     $"Рейтинг смены: <b>{GradeText(grade)}</b>" +
-                    (record.HasValue ? "\n" + RecordLine(record.Value, difficulty) : string.Empty);
+                    (record.HasValue ? "\n" + RecordLine(record.Value, difficulty) : string.Empty) +
+                    (string.IsNullOrEmpty(careerLine) ? string.Empty : "\n" + careerLine);
             }
             if (root != null) root.SetActive(true);
         }

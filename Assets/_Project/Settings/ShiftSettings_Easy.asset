@@ -66,4 +66,5 @@ MonoBehaviour:
   abandonPenalty: 50
   returnPoints: 30
   urgentBonus: 50
+  careerPointsPercent: 50
   defaultCeilingHeight: 2.4

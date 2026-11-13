@@ -56,6 +56,14 @@ namespace Pvz.Runtime
             ordersPanel = panel;
         }
 
+        /// <summary>A free text on the bottom line (before the shift: the career).</summary>
+        public void ShowFooter(string text)
+        {
+            if (score != null) score.text = text ?? string.Empty;
+        }
+
+        public string Footer => score != null ? score.text : string.Empty;
+
         /// <param name="clock">Time left in the shift («3:12»), or null when the shift has no time limit.</param>
         public void ShowScore(int points, int served, int total, string clock = null)
         {
