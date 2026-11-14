@@ -8,7 +8,8 @@
         "Unity.XR.ARSubsystems",
         "Unity.XR.Interaction.Toolkit",
         "Unity.TextMeshPro",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Unity.XR.MetaOpenXR"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
