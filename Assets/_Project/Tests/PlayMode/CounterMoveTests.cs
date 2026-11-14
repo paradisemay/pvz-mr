@@ -107,6 +107,7 @@ namespace Pvz.Runtime.Tests
         [UnityTest]
         public IEnumerator DuringTheShift_TheLineWalksToTheMovedCounter()
         {
+            _director.UseStockSeed(12345); // the same pile every run (T044)
             _director.Begin();
             var deadline = Time.realtimeSinceStartup + 30f;
             while (!_director.Desk.HasCustomer && Time.realtimeSinceStartup < deadline) yield return null;
@@ -156,6 +157,7 @@ namespace Pvz.Runtime.Tests
         public IEnumerator ABoxOnTheCounter_RidesAlong()
         {
             var rig = _placement.Rig;
+            _director.UseStockSeed(12345); // the same pile every run (T044)
             _director.Begin(); // boxes come out of the supply hatch with the shift (T036)
             var pileDeadline = Time.realtimeSinceStartup + 20f;
             while (_director.Hatch.IsDropping && Time.realtimeSinceStartup < pileDeadline) yield return null;
@@ -207,6 +209,7 @@ namespace Pvz.Runtime.Tests
             Assert.IsTrue(_placementStore.Load(PlacementStore.HatchKey) != null, "the hatch's place is saved under its own key");
             Assert.IsFalse(_placement.HasSaved, "the counter's place is untouched");
 
+            _director.UseStockSeed(12345); // the same pile every run (T044)
             _director.Begin();
             var deadline = Time.realtimeSinceStartup + 20f;
             while (_director.Hatch.IsDropping && Time.realtimeSinceStartup < deadline) yield return null;

@@ -28,6 +28,7 @@ namespace Pvz.Runtime.Tests
             yield return null;
             var director = Object.FindFirstObjectByType<ShiftDirector>();
             director.UseScoreStore(new Pvz.Core.MemoryScoreStore()); // never touch the real PlayerPrefs
+            director.UseStockSeed(12345); // the same generated stock every run (T044)
             director.Begin();                // default difficulty, skipping the menu
             director.UseRandomSeed(12345);   // same order sequence every run
             director.UsePatience(0);         // customers wait as long as the test needs
@@ -206,8 +207,14 @@ namespace Pvz.Runtime.Tests
             if (director.Desk.HasActiveOrder && director.Desk.ActiveSession.AwaitingBag)
                 yield return MoveTo(Object.FindFirstObjectByType<BagDispenser>().Current, director.Zone.transform.position);
 
-            yield return WaitUntil(() => director.Desk.HasActiveOrder && director.Desk.ActiveOrder == secondOrder, 40f,
-                "second customer at the counter");
+            // While the served one says thanks and leaves, nobody squeezes in as a fifth (the line is still four).
+            var mostCustomers = 0;
+            yield return WaitUntil(() =>
+            {
+                mostCustomers = Mathf.Max(mostCustomers, Object.FindObjectsByType<Customer>(FindObjectsSortMode.None).Length);
+                return director.Desk.HasActiveOrder && director.Desk.ActiveOrder == secondOrder;
+            }, 40f, "second customer at the counter");
+            Assert.LessOrEqual(mostCustomers, 4, "no fifth customer while the served one was still at the counter");
             Assert.AreSame(second, director.CurrentCustomer);
             yield return WaitUntil(() => front == null, 20f, "the served customer leaves and vanishes");
             Assert.That(director.QueuedOrders.Count, Is.InRange(3, 4), "the line moved up by one (and maybe somebody new came)");

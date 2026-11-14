@@ -21,7 +21,9 @@ namespace Pvz.Runtime
         public void Show(ShiftStats stats, int ordersTotal, RecordResult? record = null, string difficulty = null, int maxQueue = 0,
             bool endedByTime = false, string careerLine = null)
         {
-            var grade = ShiftRating.Grade(stats.OrdersCompleted, ordersTotal, stats.WrongHandovers, stats.OrdersAbandoned);
+            // A customer who did not stay in a full line (T044) is a customer lost, like one who left the counter.
+            var grade = ShiftRating.Grade(stats.OrdersCompleted, ordersTotal, stats.WrongHandovers,
+                stats.OrdersAbandoned + stats.CustomersTurnedAway);
             if (body != null)
             {
                 body.text =
