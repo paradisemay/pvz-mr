@@ -249,6 +249,8 @@ namespace Pvz.Runtime.Remote
                 json.Add(placement.Rig.GetComponent<SupplyHatch>() != null ? "hatchAt" : placement.Rig.name == "Shelf Rack" ? "rackAt" : "counterAt",
                     placement.Current.Format());
             }
+            var holder = FindFirstObjectByType<ScannerHolder>(); // T038
+            if (holder != null) json.Add("scannerDocked", holder.IsDocked).Add("scannerReturns", holder.Returns);
             if (director == null) return json.Add("director", false).ToString();
 
             json.Add("started", director.IsStarted).Add("shiftOver", director.IsShiftOver)
