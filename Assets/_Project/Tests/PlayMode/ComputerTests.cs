@@ -88,6 +88,11 @@ namespace Pvz.Runtime.Tests
             var deadline = Time.realtimeSinceStartup + 30f;
             while (!_director.Desk.HasActiveOrder && Time.realtimeSinceStartup < deadline) yield return null;
             yield return new WaitForSecondsRealtime(0.4f); // the screen refreshes a few times a second
+            StringAssert.Contains("Отсканируйте код", _computer.ScreenText, "T035: the order is unknown before the phone's code");
+            StringAssert.DoesNotContain(_director.Desk.ActiveOrder.Number, _computer.ScreenText);
+
+            _director.Scanner.ScanDirect(_director.CurrentCustomer.Phone);
+            yield return new WaitForSecondsRealtime(0.4f);
             StringAssert.Contains("Заказ №" + _director.Desk.ActiveOrder.Number, _computer.ScreenText);
             StringAssert.Contains("Товаров:", _computer.ScreenText);
         }

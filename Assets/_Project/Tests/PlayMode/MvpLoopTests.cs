@@ -33,7 +33,8 @@ namespace Pvz.Runtime.Tests
             director.UseRandomSeed(12345);   // same order sequence every run
             director.UsePatience(0);         // customers wait as long as the test needs
             director.UseReturnChance(0);     // only pickups unless a test asks for returns
-            director.UseEventChances(0, 0);  // no urgent or forgetful customers unless a test asks for them
+            director.UseEventChances(0);     // no urgent customers unless a test asks for them
+            director.UseAutoCustomerCode();  // the phone's code is read at once, unless a test is about it (T035)
             director.UseTimeLimit(0);        // the shift lasts as long as the test needs
             Time.timeScale = TimeScale;
         }
@@ -236,38 +237,64 @@ namespace Pvz.Runtime.Tests
             yield return WaitUntil(() => returned == null, 10f, "the returned box is taken back");
         }
 
+        /// <summary>T035: a customer whose code nobody scans gives up, puts the phone away; their order was never known.</summary>
         [UnityTest, Timeout(60000)]
-        public IEnumerator ForgetfulCustomer_GivesOnlyTheEndOfTheNumber_AndIsServedAfterScanning()
+        public IEnumerator ACustomerWhoseCodeIsNotScanned_LeavesAndPutsThePhoneAway()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            var board = Object.FindFirstObjectByType<CounterBoard>();
+            director.UseAutoCustomerCode(false);
+            director.UsePatience(3);
+            yield return WaitUntil(() => director.Desk.HasActiveOrder && !director.CurrentCustomer.IsWalking, 40f,
+                "first customer at the counter");
+            var customer = director.CurrentCustomer;
+            var order = director.Desk.ActiveOrder;
+            Assert.IsTrue(customer.Phone.IsShown);
+            yield return WaitUntil(() => director.Stats.OrdersAbandoned == 1, 20f, "the customer gave up");
+            Assert.IsFalse(customer.Phone.IsShown, "the phone is put away at once");
+            StringAssert.DoesNotContain(order.Number, board.Status, "their order was never known");
+            Assert.AreEqual(0, director.Stats.Scans);
+        }
+
+        /// <summary>T035 (#79): the customer shows the barcode on the phone; the order opens only when it is scanned.</summary>
+        [UnityTest, Timeout(60000)]
+        public IEnumerator Customer_ShowsTheCodeOnThePhone_AndTheOrderOpensWhenItIsScanned()
         {
             var director = Object.FindFirstObjectByType<ShiftDirector>();
             var board = Object.FindFirstObjectByType<CounterBoard>();
             director.UseBagChance(0);
-            director.UseEventChances(0, 100); // every customer forgets the number (where the end is unambiguous)
-            yield return WaitUntil(() => director.Desk.HasActiveOrder, 40f, "first customer at the counter");
+            director.UseAutoCustomerCode(false); // this test scans the phone itself
+            yield return WaitUntil(() => director.Desk.HasActiveOrder && !director.CurrentCustomer.IsWalking, 40f,
+                "first customer at the counter");
 
             var order = director.Desk.ActiveOrder;
-            Assert.IsTrue(order.ForgotNumber);
-            StringAssert.Contains("Забыл номер", director.CurrentCustomer.LastLine);
-            StringAssert.Contains(order.NumberHint, director.CurrentCustomer.LastLine);
-            StringAssert.DoesNotContain(order.Number, director.CurrentCustomer.LastLine, "the customer does not know the full number");
-            StringAssert.Contains("••" + order.NumberHint, board.Headline);
+            var phone = director.CurrentCustomer.Phone;
+            Assert.IsTrue(director.Desk.AwaitsCode);
+            Assert.IsTrue(phone.IsShown, "the customer holds out the phone");
+            StringAssert.DoesNotContain(order.Number, director.CurrentCustomer.LastLine, "the number is not said, it is on the phone");
             StringAssert.DoesNotContain(order.Number, board.Headline);
+            StringAssert.Contains("Клиент", board.Orders, "the list does not name the customer yet");
+            StringAssert.DoesNotContain(order.Number, board.Orders);
 
-            // A wrong box: the customer objects, still knowing only the end of the number.
-            var other = director.RemainingBoxes.First(b => !order.Contains(b.Id));
-            var home = other.transform.position;
-            yield return PlaceInZone(director, other);
-            StringAssert.Contains("не мой заказ", director.CurrentCustomer.LastLine);
-            StringAssert.Contains("••" + order.NumberHint, director.CurrentCustomer.LastLine);
-            StringAssert.DoesNotContain(order.Number, director.CurrentCustomer.LastLine);
-            yield return MoveTo(other, home);
+            // Before the code: a box is neither judged nor taken, and it is no mistake.
+            Assert.IsTrue(director.TryGetBox(order.Boxes[0], out var first));
+            director.Scanner.ScanDirect(first);
+            StringAssert.Contains("Сначала код", director.Scanner.ScreenText);
+            yield return PlaceInZone(director, first);
+            Assert.AreEqual(0, director.Stats.WrongHandovers);
+            Assert.AreEqual(0, director.Stats.OrdersCompleted, "nothing handed over before the code");
 
-            foreach (var id in order.Boxes)
+            // The code is scanned: the phone goes away, the order is shown, the box waiting in the zone is taken.
+            director.Scanner.ScanDirect(phone);
+            yield return null;
+            Assert.IsFalse(director.Desk.AwaitsCode);
+            Assert.IsFalse(phone.IsShown, "the phone is put away");
+            StringAssert.Contains("КОД ПРИНЯТ", director.Scanner.ScreenText);
+            StringAssert.Contains(order.Number, board.Orders, "now the list names the order");
+            if (order.Boxes.Count == 1) Assert.AreEqual(1, director.Stats.OrdersCompleted, "the box waiting in the zone was taken at once");
+            foreach (var id in order.Boxes.Skip(1))
             {
                 Assert.IsTrue(director.TryGetBox(id, out var box));
-                director.Scanner.ScanDirect(box);
-                StringAssert.Contains("НУЖНАЯ КОРОБКА", director.Scanner.ScreenText);
-                StringAssert.Contains(order.Number, director.Scanner.ScreenText, "the scanner tells the full number");
                 yield return MoveTo(box, director.Zone.transform.position + Vector3.up * 0.05f);
             }
             yield return WaitUntil(() => director.Stats.OrdersCompleted == 1, 10f, "order handed over");

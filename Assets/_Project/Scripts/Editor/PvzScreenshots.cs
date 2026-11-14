@@ -149,13 +149,20 @@ namespace Pvz.Editor
             Object.DestroyImmediate(returnBox.gameObject);
             customer.ShowPatience(0.55);
 
-            // Random events: an urgent customer who forgot the order number.
-            customer.Say("Срочно, опаздываю!\nЗабыл номер… кончается на 81");
+            // An urgent customer holds out the phone with the order's barcode (T035: the order opens when it is scanned).
+            customer.Say("Срочно, опаздываю!\nВот мой код");
             customer.ShowPatience(0.3);
-            board.ShowHeadline("СРОЧНО: заказ №••81", CounterBoard.Bad);
-            board.ShowStatus("Найдите коробку сканером", CounterBoard.Neutral);
-            scanner.ShowResult("Заказ №2781\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
+            customer.Phone.Show("КОД ЗАКАЗА");
+            board.ShowHeadline("СРОЧНО: клиент у стойки", CounterBoard.Bad);
+            board.ShowStatus(ShiftPresenter.ScanCodeText, CounterBoard.Neutral);
+            scanner.ShowResult("Наведите на QR\nи нажмите курок", CounterBoard.Neutral);
+            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen(null, 0, 0, false, null, 1, 241, false, awaitingCode: true), beforeShift: false);
             Capture("11_events", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.1f, 1.55f, 1.3f), 70f);
+            var phonePoint = customer.Phone.GetComponentInChildren<Collider>(true).bounds.center;
+            Capture("22_customer_phone", phonePoint + new Vector3(-0.12f, 0.1f, -0.6f), phonePoint, 45f);
+            scanner.ShowResult("Заказ №2781\nКОД ПРИНЯТ", CounterBoard.Good);
+            customer.Phone.Hide();
+            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen("2781", 2, 1, false, null, 2, 263, false), beforeShift: false);
             customer.ShowPatience(0.55);
 
             // An order handed over: confetti over the handover zone (T018).

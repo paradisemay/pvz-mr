@@ -152,6 +152,15 @@ namespace Pvz.Runtime.Tests
             Assert.IsTrue(director.Desk.HasActiveOrder, "a customer came to the counter");
             var box = director.Desk.ActiveOrder.Boxes[0].Value;
 
+            // T035: first the code on the customer's phone, with the same scanner and trigger.
+            remote.Execute("hand aim phone");
+            yield return WaitUntilStill(remote);
+            remote.Execute("hand trigger on");
+            yield return WaitFrames(5);
+            remote.Execute("hand trigger off");
+            yield return WaitFrames(5);
+            Assert.IsFalse(director.Desk.AwaitsCode, "the phone was scanned: " + remote.Execute("hand"));
+
             remote.Execute($"hand aim {box}");
             yield return WaitUntilStill(remote);
             remote.Execute("hand trigger on");

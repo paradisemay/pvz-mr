@@ -1,14 +1,11 @@
 namespace Pvz.Core
 {
     /// <summary>
-    /// Rules about order numbers as the player reads them: which numbers are easy to mix up (T016) and what a
-    /// forgetful customer still remembers (T014). Which orders exist in the shift is decided elsewhere.
+    /// Rules about order numbers as the player reads them: which numbers are easy to mix up (T016). Which orders exist
+    /// in the shift is decided elsewhere. (The forgetful customer of T014 is gone: the code is scanned from a phone, T035.)
     /// </summary>
     public static class OrderNumbers
     {
-        /// <summary>How many trailing characters a forgetful customer still remembers.</summary>
-        public const int HintDigits = 2;
-
         /// <summary>Shorter numbers are too short to be "almost the same": every pair would look alike.</summary>
         public const int MinLookAlikeLength = 3;
 
@@ -32,14 +29,5 @@ namespace Pvz.Core
                    && a[first] == b[first + 1] && a[first + 1] == b[first];
         }
 
-        /// <summary>The end of <paramref name="number"/> a forgetful customer remembers.</summary>
-        public static string HintOf(string number) => number.Substring(System.Math.Max(0, number.Length - HintDigits));
-
-        /// <summary>A number can be half-forgotten only if something is left to forget.</summary>
-        public static bool CanHint(string number) => number != null && number.Length > HintDigits;
-
-        /// <summary>Two different numbers a forgetful customer would describe the same way.</summary>
-        public static bool SameHint(string a, string b) =>
-            a != null && b != null && a != b && CanHint(a) && CanHint(b) && HintOf(a) == HintOf(b);
     }
 }

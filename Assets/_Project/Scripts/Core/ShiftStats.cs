@@ -73,6 +73,7 @@ namespace Pvz.Core
 
         private void OnBoxScanned(ScanOutcome outcome)
         {
+            if (outcome.Status == ScanStatus.CodeNotScanned) return; // the box was not looked at: the code comes first (T035)
             Scans++;
             if (outcome.Status == ScanStatus.OtherOrder) WrongScans++;
             Changed?.Invoke();

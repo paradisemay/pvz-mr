@@ -95,9 +95,12 @@ namespace Pvz.Runtime
         public void Fire()
         {
             var origin = muzzle != null ? muzzle : transform;
-            var box = FindBox(origin.position, origin.forward, out var endPoint);
+            var hit = FindTarget(origin.position, origin.forward, out var endPoint);
             ShowBeam(origin.position, endPoint);
-            if (box != null) BoxScanned?.Invoke(box);
+            var phone = hit != null ? hit.GetComponentInParent<CustomerPhone>() : null;
+            var box = hit != null ? hit.GetComponentInParent<QrBox>() : null;
+            if (phone != null) PhoneScanned?.Invoke(phone);
+            else if (box != null) BoxScanned?.Invoke(box);
             else Missed?.Invoke();
         }
 
@@ -106,6 +109,16 @@ namespace Pvz.Runtime
         {
             if (box == null) throw new ArgumentNullException(nameof(box));
             BoxScanned?.Invoke(box);
+        }
+
+        /// <summary>The barcode on a customer's phone was scanned (T035).</summary>
+        public event Action<CustomerPhone> PhoneScanned;
+
+        /// <summary>Simulates a successful scan of a customer's phone (debug / automated tests).</summary>
+        public void ScanDirect(CustomerPhone phone)
+        {
+            if (phone == null) throw new ArgumentNullException(nameof(phone));
+            PhoneScanned?.Invoke(phone);
         }
 
         public void ShowResult(string text, Color color)
@@ -143,12 +156,13 @@ namespace Pvz.Runtime
             screenBack.SetPropertyBlock(_block);
         }
 
-        private QrBox FindBox(Vector3 origin, Vector3 direction, out Vector3 endPoint)
+        /// <summary>The first thing the scan ray hits (a box, a customer's phone, or anything else in the way).</summary>
+        private Collider FindTarget(Vector3 origin, Vector3 direction, out Vector3 endPoint)
         {
             endPoint = origin + direction * range;
             var count = Physics.RaycastNonAlloc(origin, direction, _hits, range, scanMask, QueryTriggerInteraction.Ignore);
             var bestDistance = float.MaxValue;
-            QrBox best = null;
+            Collider best = null;
             LastHit = $"nothing within {range:0.0} m";
             for (var i = 0; i < count; i++)
             {
@@ -157,7 +171,7 @@ namespace Pvz.Runtime
                 if (hit.distance >= bestDistance) continue;
                 bestDistance = hit.distance;
                 endPoint = hit.point;
-                best = hit.collider.GetComponentInParent<QrBox>();
+                best = hit.collider;
                 LastHit = $"{hit.collider.name} @ {hit.distance:0.00} m";
             }
             return best;

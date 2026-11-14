@@ -28,7 +28,7 @@ namespace Pvz.Editor.Tests
         {
             var text = ShiftPresenter.HowToPlayText();
             StringAssert.StartsWith("<b>КАК ИГРАТЬ</b>", text);
-            foreach (var step in new[] { "сканер", "номер заказа", "зелёную зону", "пакет", "Возврат", "Поставка", "курок" })
+            foreach (var step in new[] { "сканер", "телефон", "зелёную зону", "пакет", "Возврат", "Поставка", "курок" })
                 StringAssert.Contains(step, text);
         }
 

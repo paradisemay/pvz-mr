@@ -14,6 +14,8 @@ namespace Pvz.Core
         Received,
         /// <summary>The box a returning customer brought was scanned: the return is accepted.</summary>
         ReturnAccepted,
+        /// <summary>A customer is at the counter but their code (the barcode on their phone) is not scanned yet (T035).</summary>
+        CodeNotScanned,
     }
 
     public readonly struct ScanOutcome
@@ -67,6 +69,8 @@ namespace Pvz.Core
         TooEarly,
         /// <summary>No customer is waiting at the desk.</summary>
         NoActiveOrder,
+        /// <summary>The customer's code is not scanned yet (T035).</summary>
+        CodeNotScanned,
     }
 
     public enum HandoverStatus
@@ -79,6 +83,8 @@ namespace Pvz.Core
         UnknownBox,
         /// <summary>No customer is waiting at the desk.</summary>
         NoActiveOrder,
+        /// <summary>The customer's code is not scanned yet: the box stays where it is, no mistake (T035).</summary>
+        CodeNotScanned,
     }
 
     public readonly struct HandoverOutcome

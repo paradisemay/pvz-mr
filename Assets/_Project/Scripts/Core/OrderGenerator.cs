@@ -20,9 +20,6 @@ namespace Pvz.Core
         /// <summary>Probability (0..100) that a customer is in a hurry.</summary>
         public int UrgentChancePercent { get; set; }
 
-        /// <summary>Probability (0..100) that a customer remembers only the end of the order number.</summary>
-        public int ForgotNumberChancePercent { get; set; }
-
         /// <summary>
         /// Picks a random box and returns the order it belongs to (all boxes sharing that order number),
         /// or null if the catalog is empty.
@@ -30,15 +27,7 @@ namespace Pvz.Core
         public Order CreateRandomOrder(BoxCatalog catalog) => CreateRandomOrder(catalog, null);
 
         /// <summary>Same, but never picks an order whose number is in <paramref name="excludedOrders"/>.</summary>
-        public Order CreateRandomOrder(BoxCatalog catalog, ICollection<string> excludedOrders) =>
-            CreateRandomOrder(catalog, excludedOrders, null);
-
-        /// <summary>
-        /// Same; <paramref name="otherKnownNumbers"/> are orders that are not in the warehouse yet (deliveries on their
-        /// way) but would still make a half-remembered number ambiguous.
-        /// </summary>
-        public Order CreateRandomOrder(BoxCatalog catalog, ICollection<string> excludedOrders,
-            IEnumerable<string> otherKnownNumbers)
+        public Order CreateRandomOrder(BoxCatalog catalog, ICollection<string> excludedOrders)
         {
             if (catalog == null) throw new ArgumentNullException(nameof(catalog));
 
@@ -58,30 +47,9 @@ namespace Pvz.Core
             // Roll each trait only when it is possible, so shifts without it keep the same order sequence.
             var needsBag = Roll(BagChancePercent);
             var urgent = Roll(UrgentChancePercent);
-            var forgot = Roll(ForgotNumberChancePercent) && HintIsUnambiguous(picked.OrderNumber, catalog, otherKnownNumbers);
-            return new Order(picked.OrderNumber, boxes, needsBag: needsBag, isUrgent: urgent, forgotNumber: forgot);
+            return new Order(picked.OrderNumber, boxes, needsBag: needsBag, isUrgent: urgent);
         }
 
         private bool Roll(int chancePercent) => chancePercent > 0 && _random.Range(0, 100) < chancePercent;
-
-        /// <summary>
-        /// No other order of the shift (in the warehouse or on its way) ends with the same digits, so the hint names
-        /// exactly one order.
-        /// </summary>
-        private static bool HintIsUnambiguous(string number, BoxCatalog catalog, IEnumerable<string> otherKnownNumbers)
-        {
-            if (!OrderNumbers.CanHint(number)) return false;
-            bool Clashes(string other) => OrderNumbers.SameHint(number, other);
-            foreach (var box in catalog.Boxes)
-            {
-                if (Clashes(box.OrderNumber)) return false;
-            }
-            if (otherKnownNumbers == null) return true;
-            foreach (var other in otherKnownNumbers)
-            {
-                if (other != null && Clashes(other)) return false;
-            }
-            return true;
-        }
     }
 }

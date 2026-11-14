@@ -16,7 +16,7 @@ namespace Pvz.Runtime
         private readonly FeedbackEffects _effects;
 
         /// <summary>First-order tutorial: steps only move forward, so re-grabbing the scanner never rewinds a hint.</summary>
-        private enum TutorialStep { Off, TakeScanner, Scan, Carry }
+        private enum TutorialStep { Off, TakeScanner, ScanCode, Scan, Carry }
 
         private TutorialStep _step;
 
@@ -35,6 +35,7 @@ namespace Pvz.Runtime
             _effects = effects != null ? effects : null;
 
             _shift.Desk.OrderOpened += OnOrderOpened;
+            _shift.Desk.CodeScanned += OnCodeScanned;
             _shift.Desk.BoxScanned += OnBoxScanned;
             _shift.Desk.BoxHandedOver += OnBoxHandedOver;
             _shift.Desk.OrderCompleted += OnOrderCompleted;
@@ -60,6 +61,7 @@ namespace Pvz.Runtime
         public void Dispose()
         {
             _shift.Desk.OrderOpened -= OnOrderOpened;
+            _shift.Desk.CodeScanned -= OnCodeScanned;
             _shift.Desk.BoxScanned -= OnBoxScanned;
             _shift.Desk.BoxHandedOver -= OnBoxHandedOver;
             _shift.Desk.OrderCompleted -= OnOrderCompleted;
@@ -181,19 +183,85 @@ namespace Pvz.Runtime
 
         private void OnOrderOpened(Order order)
         {
+            if (_shift.Desk.AwaitsCode)
+            {
+                ShowAwaitingCode(order.IsUrgent, isReturn: false);
+                return;
+            }
             Say(GreetingFor(order));
-            _board.ShowHeadline(order.IsUrgent ? $"СРОЧНО: заказ №{SpokenNumber(order)}" : $"Заказ №{SpokenNumber(order)}",
+            ShowOrder(order);
+        }
+
+        /// <summary>The order is known (code scanned, or no code needed): its number and what to find.</summary>
+        private void ShowOrder(Order order)
+        {
+            MarkKnown();
+            _board.ShowHeadline(order.IsUrgent ? $"СРОЧНО: заказ №{order.Number}" : $"Заказ №{order.Number}",
                 order.IsUrgent ? CounterBoard.Bad : CounterBoard.Accent);
             _board.ShowStatus(BoxesLeftText(order.Boxes.Count, order.Boxes.Count), CounterBoard.Neutral);
-            if (_step == TutorialStep.TakeScanner && _scanner.IsHeld) _step = TutorialStep.Scan;
+            if ((_step == TutorialStep.TakeScanner && _scanner.IsHeld) || _step == TutorialStep.ScanCode) _step = TutorialStep.Scan;
             ShowCurrentHint();
+        }
+
+        /// <summary>
+        /// T035: the customer holds out the phone; nothing about the order is known until its barcode is scanned
+        /// (the number, the boxes — the list says «Клиент»).
+        /// </summary>
+        private void ShowAwaitingCode(bool urgent, bool isReturn)
+        {
+            Say(urgent ? "Срочно, опаздываю!\nВот мой код" : isReturn ? "Здравствуйте!\nВот код возврата" : "Здравствуйте!\nВот код заказа");
+            _board.ShowHeadline(urgent ? "СРОЧНО: клиент у стойки" : "Клиент у стойки", urgent ? CounterBoard.Bad : CounterBoard.Accent);
+            _board.ShowStatus(ScanCodeText, CounterBoard.Neutral);
+            if (_step == TutorialStep.TakeScanner && _scanner.IsHeld) _step = TutorialStep.ScanCode;
+            ShowCurrentHint();
+        }
+
+        public const string ScanCodeText = "Отсканируйте код на телефоне клиента";
+
+        /// <summary>The code is read: the scanner confirms, the order (or the return) is shown.</summary>
+        private void OnCodeScanned()
+        {
+            PlaySound(FeedbackAudio.Sound.Success);
+            var desk = _shift.Desk;
+            if (desk.HasActiveOrder)
+            {
+                _scanner.ShowResult($"Заказ №{desk.ActiveOrder.Number}\nКОД ПРИНЯТ", CounterBoard.Good);
+                _scanner.Flash(CounterBoard.Good);
+                Say($"Мой заказ\n№{desk.ActiveOrder.Number}");
+                ShowOrder(desk.ActiveOrder);
+            }
+            else if (desk.HasActiveReturn)
+            {
+                _scanner.ShowResult($"Возврат №{desk.ActiveReturn.OrderNumber}\nКОД ПРИНЯТ", CounterBoard.Good);
+                _scanner.Flash(CounterBoard.Good);
+                ShowReturn(desk.ActiveReturn);
+            }
+        }
+
+        /// <summary>A phone that is not the code of the customer at the counter (another customer's, or already read).</summary>
+        public void ShowNotThisCode()
+        {
+            PlaySound(FeedbackAudio.Sound.Error);
+            _scanner.ShowResult("Это не код\nклиента у стойки", CounterBoard.Bad);
+        }
+
+        // ---------- what the order list may tell about a customer ----------
+
+        private readonly System.Collections.Generic.HashSet<Visit> _known = new System.Collections.Generic.HashSet<Visit>();
+
+        /// <summary>The visit at the counter is identified: the list may show its number from now on.</summary>
+        private void MarkKnown()
+        {
+            foreach (var entry in _shift.Book.Entries)
+                if (entry.State == VisitState.AtCounter) _known.Add(entry.Visit);
+            RefreshOrders();
         }
 
         /// <summary>The «Как играть» card of the start menu (T024): the loop in five steps and the controls.</summary>
         public static string HowToPlayText() =>
             "<b>КАК ИГРАТЬ</b>\n" +
             "1. Возьмите сканер со стойки\n" +
-            "2. Клиент назовёт номер заказа\n" +
+            "2. Клиент покажет телефон — отсканируйте код\n" +
             "3. Найдите коробку сканером\n" +
             "4. Положите её в зелёную зону\n" +
             "5. Просят пакет — пакет со стойки в зону\n" +
@@ -222,13 +290,14 @@ namespace Pvz.Runtime
         /// <summary>How many lines the order list on the counter shows.</summary>
         public const int OrderListLines = 7;
 
-        private void RefreshOrders() => _board.ShowOrders(OrderListText(_shift.Book.Entries, OrderListLines));
+        private void RefreshOrders() => _board.ShowOrders(OrderListText(_shift.Book.Entries, OrderListLines, _known.Contains));
 
         /// <summary>
         /// The order list: open visits first (at the counter, then the line in order), then finished ones, newest
         /// first; at most <paramref name="maxLines"/> visits under the title. Empty when nobody came yet.
         /// </summary>
-        public static string OrderListText(System.Collections.Generic.IReadOnlyList<OrderBookEntry> entries, int maxLines)
+        public static string OrderListText(System.Collections.Generic.IReadOnlyList<OrderBookEntry> entries, int maxLines,
+            Func<Visit, bool> isKnown = null)
         {
             if (entries == null || entries.Count == 0) return string.Empty;
             var ordered = new System.Collections.Generic.List<OrderBookEntry>();
@@ -236,19 +305,20 @@ namespace Pvz.Runtime
             foreach (var e in entries) if (e.State == VisitState.Waiting) ordered.Add(e);
             for (var i = entries.Count - 1; i >= 0; i--) if (!entries[i].IsOpen) ordered.Add(entries[i]);
             var text = new System.Text.StringBuilder("<b>ЗАКАЗЫ</b>");
-            for (var i = 0; i < ordered.Count && i < maxLines; i++) text.Append('\n').Append(OrderLine(ordered[i]));
+            for (var i = 0; i < ordered.Count && i < maxLines; i++) text.Append('\n').Append(OrderLine(ordered[i], isKnown));
             return text.ToString();
         }
 
-        private static string OrderLine(OrderBookEntry entry)
+        private static string OrderLine(OrderBookEntry entry, Func<Visit, bool> isKnown)
         {
             var visit = entry.Visit;
             string name;
-            if (visit.IsReturn) name = $"Возврат №{visit.Return.OrderNumber}";
+            // T035: who a customer is (order or return, its number) is known only once their code is scanned.
+            if (entry.State != VisitState.Served && isKnown != null && !isKnown(visit)) name = "Клиент";
+            else if (visit.IsReturn) name = $"Возврат №{visit.Return.OrderNumber}";
             else
             {
-                // A forgetful customer's number is revealed only once the order is handed over.
-                name = "№" + (entry.State == VisitState.Served ? visit.Order.Number : SpokenNumber(visit.Order));
+                name = "№" + visit.Order.Number;
                 if (visit.Order.IsUrgent) name += " · срочно";
             }
             switch (entry.State)
@@ -265,13 +335,13 @@ namespace Pvz.Runtime
             $"<color=#{UnityEngine.ColorUtility.ToHtmlStringRGB(color)}>{text}</color>";
 
         /// <summary>The order number as the customer says it: a forgetful one only knows the end («••81»).</summary>
-        internal static string SpokenNumber(Order order) => order.ForgotNumber ? "••" + order.NumberHint : order.Number;
+        internal static string SpokenNumber(Order order) => order.Number;
 
         /// <summary>Opening (depends on urgency) + how the customer names the order (depends on memory).</summary>
         internal static string GreetingFor(Order order)
         {
             var opening = order.IsUrgent ? "Срочно, опаздываю!" : "Здравствуйте!";
-            var naming = order.ForgotNumber ? $"Забыл номер… кончается на {order.NumberHint}" : $"Заказ №{order.Number}";
+            var naming = $"Заказ №{order.Number}";
             return opening + "\n" + naming;
         }
 
@@ -279,15 +349,15 @@ namespace Pvz.Runtime
         private const string HintScan = "Подсказка: наведите сканер на коробку и нажмите курок";
         private const string HintCarry = "Подсказка: отнесите коробку в зелёную зону";
 
-        private string HintWrongBox => _shift.Desk.HasActiveOrder && _shift.Desk.ActiveOrder.ForgotNumber
-            ? $"Подсказка: не та коробка — номер клиента кончается на {_shift.Desk.ActiveOrder.NumberHint}"
-            : "Подсказка: не та коробка — ищите № заказа клиента";
+        private const string HintWrongBox = "Подсказка: не та коробка — ищите № заказа клиента";
+        private const string HintScanCode = "Подсказка: наведите сканер на телефон клиента и нажмите курок";
 
         private void ShowCurrentHint()
         {
             switch (_step)
             {
                 case TutorialStep.TakeScanner: ShowHint(HintTakeScanner); break;
+                case TutorialStep.ScanCode: ShowHint(HintScanCode); break;
                 case TutorialStep.Scan: ShowHint(HintScan); break;
                 case TutorialStep.Carry: ShowHint(HintCarry); break;
             }
@@ -303,8 +373,10 @@ namespace Pvz.Runtime
         private void OnScannerGrabbed()
         {
             if (_step != TutorialStep.TakeScanner) return; // only the very first pickup advances the tutorial
-            _step = TutorialStep.Scan;
-            if (_shift.Desk.HasActiveOrder) ShowCurrentHint();
+            // With codes, the phone comes first — also when the scanner is taken before the customer arrives.
+            var codeFirst = _shift.Desk.AwaitsCode || (_shift.Desk.RequiresCustomerCode && !_shift.Desk.HasCustomer);
+            _step = codeFirst ? TutorialStep.ScanCode : TutorialStep.Scan;
+            if (_shift.Desk.HasCustomer) ShowCurrentHint();
         }
 
         private void OnBoxScanned(ScanOutcome outcome)
@@ -331,6 +403,8 @@ namespace Pvz.Runtime
                         : $"Заказ №{outcome.BoxOrderNumber}\nНЕ ТОТ ЗАКАЗ", CounterBoard.Bad);
                 case ScanStatus.ReturnAccepted:
                     return ($"Заказ №{outcome.BoxOrderNumber}\nВОЗВРАТ ПРИНЯТ", CounterBoard.Good);
+                case ScanStatus.CodeNotScanned:
+                    return ("Сначала код\nклиента", CounterBoard.Accent);
                 case ScanStatus.NoActiveOrder:
                     return ($"Заказ №{outcome.BoxOrderNumber}", CounterBoard.Neutral);
                 case ScanStatus.Received:
@@ -357,6 +431,9 @@ namespace Pvz.Runtime
                         : $"Это не мой заказ!\nМне нужен №{SpokenNumber(_shift.Desk.ActiveOrder)}");
                     _board.ShowStatus(outcome.IsRepeat ? "Эту коробку клиент уже вернул" : "Неверная коробка: штраф", CounterBoard.Bad);
                     break;
+                case HandoverStatus.CodeNotScanned:
+                    _board.ShowStatus("Сначала отсканируйте код клиента", CounterBoard.Accent);
+                    break;
                 case HandoverStatus.NoActiveOrder:
                     _board.ShowStatus(NoOrderText, CounterBoard.Neutral);
                     break;
@@ -380,6 +457,9 @@ namespace Pvz.Runtime
                 case BagStatus.TooEarly:
                     Say("Сначала мои\nкоробки, пожалуйста");
                     break;
+                case BagStatus.CodeNotScanned:
+                    _board.ShowStatus("Сначала отсканируйте код клиента", CounterBoard.Accent);
+                    break;
                 case BagStatus.NoActiveOrder:
                     _board.ShowStatus(NoOrderText, CounterBoard.Neutral);
                     break;
@@ -397,7 +477,19 @@ namespace Pvz.Runtime
 
         private void OnReturnOpened(ReturnRequest request)
         {
+            if (_shift.Desk.AwaitsCode)
+            {
+                ShowAwaitingCode(false, isReturn: true);
+                return;
+            }
             Say($"Хочу вернуть товар\nиз заказа №{request.OrderNumber}");
+            ShowReturn(request);
+        }
+
+        private void ShowReturn(ReturnRequest request)
+        {
+            MarkKnown();
+            if (_shift.Desk.RequiresCustomerCode) Say($"Хочу вернуть товар\nиз заказа №{request.OrderNumber}");
             _board.ShowHeadline($"Возврат: заказ №{request.OrderNumber}", CounterBoard.Accent);
             _board.ShowStatus("Отсканируйте коробку клиента на стойке", CounterBoard.Neutral);
         }
@@ -422,7 +514,9 @@ namespace Pvz.Runtime
             PlaySound(FeedbackAudio.Sound.Error);
             Say("Всё, я ухожу!");
             _board.ShowHeadline("Клиент ушёл без заказа", CounterBoard.Bad);
-            _board.ShowStatus($"Заказ №{SpokenNumber(order)} остался на складе", CounterBoard.Bad);
+            // Left before the code was scanned: their order was never known (T035).
+            _board.ShowStatus(_shift.Desk.IsCodeScanned ? $"Заказ №{SpokenNumber(order)} остался на складе" : "Клиент не дождался скана кода",
+                CounterBoard.Bad);
         }
 
         private void OnOrderCompleted(OrderResult result)

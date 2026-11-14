@@ -69,6 +69,13 @@ namespace Pvz.Runtime
 
         internal void ConfigureVoice(CustomerVoice customerVoice) => voice = customerVoice;
 
+        [SerializeField] private CustomerPhone phone;
+
+        /// <summary>The phone with the order's barcode (T035).</summary>
+        public CustomerPhone Phone => phone;
+
+        internal void ConfigurePhone(CustomerPhone customerPhone) => phone = customerPhone;
+
         public void Say(string line)
         {
             if (speech != null) speech.Show(line);
@@ -116,6 +123,7 @@ namespace Pvz.Runtime
             if (_walk != null) StopCoroutine(_walk);
             _leaving = true;
             StopTalking();
+            if (phone != null) phone.Hide();
             _walk = StartCoroutine(Leave(exit, speed));
         }
 
