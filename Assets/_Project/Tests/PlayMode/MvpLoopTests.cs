@@ -29,6 +29,7 @@ namespace Pvz.Runtime.Tests
             var director = Object.FindFirstObjectByType<ShiftDirector>();
             director.UseScoreStore(new Pvz.Core.MemoryScoreStore()); // never touch the real PlayerPrefs
             director.UseStockSeed(12345); // the same generated stock every run (T044)
+            director.UseLostChance(0); // every box of the stock is in the room (T047)
             director.Begin();                // default difficulty, skipping the menu
             director.UseRandomSeed(12345);   // same order sequence every run
             director.UsePatience(0);         // customers wait as long as the test needs

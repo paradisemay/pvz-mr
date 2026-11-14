@@ -53,6 +53,10 @@ namespace Pvz.Editor
             easy.ConfigureRefusals(0);
             settings.ConfigureRefusals(15);
             hard.ConfigureRefusals(25);
+            // T047 (#86): «потеряшки» — orders missing a box.
+            easy.ConfigureLost(0);
+            settings.ConfigureLost(10);
+            hard.ConfigureLost(15);
             foreach (var preset in new[] { easy, settings, hard }) EditorUtility.SetDirty(preset);
             var prefabs = new PvzPrefabBuilder(font);
 
@@ -169,6 +173,8 @@ namespace Pvz.Editor
             director.ConfigureReturnsBin(returnsBin);
             CreateComputerKey(pc.Shift, 2, PvzComputer.HandInReturnsCaption, ComputerKey.Action.HandInReturns, pc.Computer, font,
                 new Color(0.55f, 0.7f, 0.95f));
+            CreateComputerKey(pc.Shift, 1, PvzComputer.NotFoundCaption, ComputerKey.Action.NotFound, pc.Computer, font,
+                new Color(0.95f, 0.75f, 0.2f)); // T047: the order at the counter misses a box
             director.ConfigureEffects(counter.GetComponentInChildren<FeedbackEffects>(true));
 
             // The supply hatch is moved like the counter (T036): settings → «Место люка», a handle hanging from it.

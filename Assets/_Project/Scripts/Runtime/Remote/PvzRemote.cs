@@ -686,6 +686,13 @@ namespace Pvz.Runtime.Remote
                         Teleport(box.transform, box.GetComponent<Rigidbody>(), director.Zone.transform.position + Vector3.up * 0.05f);
                         yield return pause;
                     }
+                    // T047: a box of the order is nowhere in the room — a «потеряшка»: say so on the computer.
+                    if (SameCustomer() && session.Order.Boxes.Any(id => !session.IsDelivered(id) && !director.TryGetBox(id, out _)))
+                    {
+                        director.DeclareNotFound();
+                        yield return pause;
+                        continue;
+                    }
                     if (SameCustomer() && session.AwaitingBag)
                     {
                         Bag();

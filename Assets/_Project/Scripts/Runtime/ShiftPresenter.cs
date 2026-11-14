@@ -41,6 +41,8 @@ namespace Pvz.Runtime
             _shift.Desk.BoxScanned += OnBoxScanned;
             _shift.Desk.BoxHandedOver += OnBoxHandedOver;
             _shift.Desk.OrderCompleted += OnOrderCompleted;
+            _shift.OrderLost += OnOrderLost;
+            _shift.FalseNotFound += OnFalseNotFound;
             _shift.Stats.Changed += RefreshScore;
             _shift.DeliveryExpected += OnDeliveryExpected;
             _shift.BoxReceived += OnBoxReceived;
@@ -67,6 +69,8 @@ namespace Pvz.Runtime
             _shift.Desk.BoxScanned -= OnBoxScanned;
             _shift.Desk.BoxHandedOver -= OnBoxHandedOver;
             _shift.Desk.OrderCompleted -= OnOrderCompleted;
+            _shift.OrderLost -= OnOrderLost;
+            _shift.FalseNotFound -= OnFalseNotFound;
             _shift.Stats.Changed -= RefreshScore;
             _shift.DeliveryExpected -= OnDeliveryExpected;
             _shift.BoxReceived -= OnBoxReceived;
@@ -146,6 +150,26 @@ namespace Pvz.Runtime
                 _board.ShowStatus($"Сдано возвратов: {handed} · +{handed * _shift.Stats.PointsPerReturnHandedIn} очков", CounterBoard.Good);
             }
             else _board.ShowStatus(stillOut > 0 ? "Ящик возвратов пуст — положите коробки в него" : "Возвратов нет", CounterBoard.Neutral);
+        }
+
+        public const string LostOrderLine = "Ничего страшного,\nзайду, когда привезут";
+
+        /// <summary>T047 (#86): «Не найден», and rightly so — the order is a «потеряшка», the customer leaves calmly.</summary>
+        private void OnOrderLost(Order order)
+        {
+            PlaySound(FeedbackAudio.Sound.Success);
+            Say(LostOrderLine);
+            _board.ShowHeadline($"Потеряшка: заказ №{order.Number}", CounterBoard.Accent);
+            _board.ShowStatus($"+{_shift.Stats.PointsPerLostOrder} очков за честность", CounterBoard.Good);
+        }
+
+        /// <summary>T047: «Не найден», but the box is in the warehouse.</summary>
+        private void OnFalseNotFound(Order order)
+        {
+            PlaySound(FeedbackAudio.Sound.Error);
+            Say("Как не найден?\nПоищите ещё!");
+            _board.ShowHeadline("Коробка есть на складе!", CounterBoard.Bad);
+            _board.ShowStatus($"−{_shift.Stats.FalseNotFoundPenaltyPoints} очков · поищите в куче и на стеллаже", CounterBoard.Bad);
         }
 
         /// <summary>T045: everything is sold, but returns still lie outside the bin.</summary>
@@ -349,6 +373,7 @@ namespace Pvz.Runtime
                 case VisitState.Waiting: return $"{name} — ждёт";
                 case VisitState.Served: return Colored($"{name} — {(visit.IsReturn ? "принят" : "выдан")}", CounterBoard.Good);
                 case VisitState.Abandoned: return Colored($"{name} — ушёл без заказа", CounterBoard.Bad);
+                case VisitState.Lost: return Colored($"{name} — потеряшка", CounterBoard.Accent);
                 default: return Colored($"{name} — ушёл из очереди", CounterBoard.Muted);
             }
         }
@@ -562,7 +587,9 @@ namespace Pvz.Runtime
             _board.ShowStatus($"+{_shift.Stats.LastOrderPoints} очков", CounterBoard.Good);
         }
 
-        private void RefreshScore() => _board.ShowScore(_shift.Stats.Score, _shift.Stats.OrdersCompleted, _shift.OrdersTotal, _clock);
+        // T047: a «потеряшка» cannot be handed over — it is not counted in what is left to hand over.
+        private void RefreshScore() => _board.ShowScore(_shift.Stats.Score, _shift.Stats.OrdersCompleted,
+            _shift.OrdersTotal - _shift.Stats.LostOrders, _clock);
 
         private void Celebrate()
         {

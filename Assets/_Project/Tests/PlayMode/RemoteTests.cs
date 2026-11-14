@@ -160,6 +160,7 @@ namespace Pvz.Runtime.Tests
 
             var remote = PvzRemote.Launch(0);
             var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.UseLostChance(0); // the order box is in the room: the hand aims at it (T047)
             director.UseScoreStore(new Pvz.Core.MemoryScoreStore());
             remote.Execute("begin normal");
             StringAssert.Contains("\"hand\":true", remote.Execute("hand on"));

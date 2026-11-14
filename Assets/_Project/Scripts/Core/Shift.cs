@@ -32,6 +32,7 @@ namespace Pvz.Core
             Desk.ReturnOpened += OnReturnOpened;
             Desk.OrderCompleted += OnOrderCompleted;
             Desk.OrderAbandoned += OnOrderAbandoned;
+            Desk.OrderLost += OnOrderLost;
             Desk.ReturnAccepted += OnReturnAccepted;
         }
 
@@ -113,6 +114,22 @@ namespace Pvz.Core
         {
             var visit = Book.OpenPickup(order);
             if (visit != null) Book.Abandon(visit); // the order goes back to the pool for the next customers
+            // T047: unless a box of it is missing — the next customer would wait for it in vain all the same.
+            foreach (var box in order.Boxes)
+                if (_missing.Contains(box)) { _notForSale.Add(order.Number); break; }
+        }
+
+        /// <summary>T047: every box of the order not handed over yet is missing from the warehouse.</summary>
+        private bool OnlyMissingLeft(ServiceSession session)
+        {
+            var any = false;
+            foreach (var box in session.Order.Boxes)
+            {
+                if (session.IsDelivered(box)) continue;
+                if (!_missing.Contains(box)) return false;
+                any = true;
+            }
+            return any;
         }
 
         private void OnReturnAccepted(ReturnRequest request)
@@ -159,6 +176,59 @@ namespace Pvz.Core
         /// hatch — other days' orders). They are scanned as «another order», never come to the counter and do not count
         /// towards the shift. Set before customers come.
         /// </summary>
+        private readonly HashSet<BoxId> _missing = new HashSet<BoxId>();
+
+        /// <summary>
+        /// T047 (#86): boxes that are in the orders but not in the warehouse (never delivered, lost). Set before customers
+        /// come; the boxes are not dropped out of the hatch.
+        /// </summary>
+        public void MarkMissing(IEnumerable<BoxId> boxes)
+        {
+            if (boxes == null) throw new ArgumentNullException(nameof(boxes));
+            foreach (var box in boxes) _missing.Add(box);
+        }
+
+        public bool IsMissing(BoxId box) => _missing.Contains(box);
+
+        public int MissingCount => _missing.Count;
+
+        /// <summary>T047: an order was reported lost («Не найден», and rightly so).</summary>
+        public event Action<Order> OrderLost;
+
+        /// <summary>T047: «Не найден» was pressed, but every box of the order is in the warehouse.</summary>
+        public event Action<Order> FalseNotFound;
+
+        /// <summary>
+        /// T047 (#86): the player reports that a box of the order at the counter is not in the warehouse. True and the
+        /// order is closed as lost (the customer leaves calmly, a few points for honesty, its other boxes stay unsold);
+        /// false and it is a penalty — the box is there, the customer keeps waiting.
+        /// </summary>
+        public bool DeclareNotFound()
+        {
+            if (!Desk.HasActiveOrder) return false;
+            var session = Desk.ActiveSession;
+            var missing = false;
+            foreach (var box in session.Order.Boxes)
+                if (!session.IsDelivered(box) && _missing.Contains(box)) { missing = true; break; }
+            if (!missing)
+            {
+                Stats.OnFalseNotFound();
+                FalseNotFound?.Invoke(session.Order);
+                return false;
+            }
+            Desk.CloseAsLost();
+            return true;
+        }
+
+        private void OnOrderLost(Order order)
+        {
+            var visit = Book.OpenPickup(order);
+            if (visit != null) Book.MarkLost(visit);
+            _notForSale.Add(order.Number); // its boxes still in the warehouse are not sold to anyone else
+            Stats.OnLostOrder();
+            OrderLost?.Invoke(order);
+        }
+
         public void MarkNotForSale(IEnumerable<string> orderNumbers)
         {
             if (orderNumbers == null) throw new ArgumentNullException(nameof(orderNumbers));
@@ -319,8 +389,17 @@ namespace Pvz.Core
             CheckTime(now);
             if (!Desk.HasActiveOrder) return;
             var session = Desk.ActiveSession;
+            // T047: what is left of the order is nowhere in the warehouse — nothing can complete it but «Не найден».
+            var onlyMissingLeft = OnlyMissingLeft(session);
+            if (onlyMissingLeft && IsTimeUp)
+            {
+                // The shift is over and nobody said «Не найден»: the customer gives up (the shift must be able to end).
+                Desk.Abandon();
+                return;
+            }
             var patience = PatienceFor(session.Order);
-            if (patience <= 0 || session.DeliveredCount > 0) return;
+            // A customer who already got part of the order waits for the rest — unless the rest does not exist.
+            if (patience <= 0 || (session.DeliveredCount > 0 && !onlyMissingLeft)) return;
             var waited = now - session.OpenedAt;
             if (!session.Hurried && waited >= patience * HurryFraction)
             {
@@ -579,6 +658,7 @@ namespace Pvz.Core
             BoxReceived -= Stats.OnBoxReceived;
             Desk.OrderCompleted -= OnOrderCompleted;
             Desk.OrderAbandoned -= OnOrderAbandoned;
+            Desk.OrderLost -= OnOrderLost;
             Desk.OrderOpened -= OnOrderOpened;
             Desk.ReturnOpened -= OnReturnOpened;
             Desk.ReturnAccepted -= OnReturnAccepted;

@@ -148,6 +148,15 @@ namespace Pvz.Runtime
         private bool ShiftRunning => director != null && director.IsStarted && !director.IsShiftOver;
 
         public const string HandInReturnsCaption = "СДАТЬ\nВОЗВРАТЫ";
+        public const string NotFoundCaption = "НЕ\nНАЙДЕН";
+
+        /// <summary>T047 (#86): «Не найден» — a box of the order at the counter is not in the warehouse.</summary>
+        public void DeclareNotFound()
+        {
+            if (director == null || !ShiftRunning) return;
+            director.DeclareNotFound();
+            RefreshText();
+        }
 
         /// <summary>T045: the returns waiting for the hand-in, on the shift screen (nothing when there are none).</summary>
         public static string ReturnsLine(int inBin, int pending) =>

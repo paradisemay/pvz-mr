@@ -48,6 +48,28 @@ namespace Pvz.Core
             return extra;
         }
 
+        /// <summary>
+        /// T047 (#86): «потеряшки» — with <paramref name="percent"/> chance an order of the stock misses one of its boxes
+        /// (never delivered, lost): the box stays in the order but is not put into the warehouse. Orders not for sale
+        /// (spares) are left alone; a multi-box order misses only one box. Deterministic for a seed.
+        /// </summary>
+        public static List<BoxId> PickMissing(IEnumerable<BoxRecord> stock, ICollection<string> notForSale, int percent, IRandomSource random)
+        {
+            if (random == null) throw new ArgumentNullException(nameof(random));
+            var missing = new List<BoxId>();
+            if (percent <= 0 || stock == null) return missing;
+            var byOrder = new SortedDictionary<string, List<BoxId>>(StringComparer.Ordinal); // a stable order: the same seed, the same picks
+            foreach (var box in stock)
+            {
+                if (notForSale != null && notForSale.Contains(box.OrderNumber)) continue;
+                if (!byOrder.TryGetValue(box.OrderNumber, out var boxes)) byOrder[box.OrderNumber] = boxes = new List<BoxId>();
+                boxes.Add(box.Id);
+            }
+            foreach (var boxes in byOrder.Values)
+                if (random.Range(0, 100) < percent) missing.Add(boxes[random.Range(0, boxes.Count)]);
+            return missing;
+        }
+
         /// <summary>A four-digit order number not used yet and not a look-alike of one (traps are hand-made, not random).</summary>
         private static string NewNumber(HashSet<string> taken, IRandomSource random)
         {

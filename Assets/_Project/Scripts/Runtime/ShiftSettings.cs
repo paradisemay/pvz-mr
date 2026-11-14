@@ -76,6 +76,8 @@ namespace Pvz.Runtime
         [SerializeField, Range(0, 100)] private int returnChancePercent = 20;
         [Tooltip("T045: chance that a customer checks a handed-over box and refuses it (to the returns bin).")]
         [SerializeField, Range(0, 100)] private int refusalChancePercent = 15;
+        [Tooltip("T047: chance that an order of the stock misses one of its boxes («потеряшка»).")]
+        [SerializeField, Range(0, 100)] private int lostChancePercent = 10;
 
         [Header("Random events")]
         [Tooltip("Chance (0..100) that a customer is in a hurry: less patience, bonus points.")]
@@ -176,6 +178,10 @@ namespace Pvz.Runtime
         public int BagChancePercent => bagChancePercent;
         public int ReturnChancePercent => returnChancePercent;
         public int RefusalChancePercent => refusalChancePercent;
+        public int LostChancePercent => lostChancePercent;
+
+        /// <summary>T047: how often an order misses a box — applied to existing presets too.</summary>
+        internal void ConfigureLost(int percent) => lostChancePercent = Mathf.Clamp(percent, 0, 100);
 
         /// <summary>T045: how often customers refuse a box — applied to existing presets too.</summary>
         internal void ConfigureRefusals(int percent) => refusalChancePercent = Mathf.Clamp(percent, 0, 100);
