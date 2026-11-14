@@ -84,6 +84,7 @@ namespace Pvz.Runtime.Remote
         /// </summary>
         public void PointAt(Vector3 target, float reach = 0.5f, Transform targetObject = null, Transform ignore = null)
         {
+            StopAiming(); // a new target replaces an aim still in progress
             var hand = ClearShot(target, reach, targetObject, ignore);
             SetPose(hand, Quaternion.LookRotation(target - hand, Vector3.up));
         }
@@ -137,6 +138,13 @@ namespace Pvz.Runtime.Remote
         }
 
         private Coroutine _aim;
+
+        private void StopAiming()
+        {
+            if (_aim == null) return;
+            StopCoroutine(_aim);
+            _aim = null;
+        }
 
         /// <summary>Still turning a held object onto its target (see <see cref="AimHeld"/>).</summary>
         public bool IsAiming => _aim != null;

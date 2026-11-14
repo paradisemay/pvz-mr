@@ -381,6 +381,7 @@ namespace Pvz.Runtime.Remote
             switch (verb)
             {
                 case "on":
+                    if (_hand.IsOn) break; // already on: never jump a hand that may hold something
                     _hand.TurnOn();
                     if (Camera.main != null) _hand.PointAt(Camera.main.transform.position + Camera.main.transform.forward);
                     _hand.Teleport(_hand.TargetPosition, _hand.TargetRotation); // nothing is held yet

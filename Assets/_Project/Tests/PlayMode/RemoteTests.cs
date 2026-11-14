@@ -22,11 +22,21 @@ namespace Pvz.Runtime.Tests
             yield return null;
         }
 
+        private static (UnityEngine.InputSystem.InputSettings.EditorInputBehaviorInPlayMode editor,
+            UnityEngine.InputSystem.InputSettings.BackgroundBehavior background)? _savedInput;
+
         [UnityTearDown]
         public IEnumerator Forget()
         {
             if (PvzRemote.Instance != null) Object.Destroy(PvzRemote.Instance.gameObject);
             Time.timeScale = 1f;
+            if (_savedInput.HasValue)
+            {
+                var settings = UnityEngine.InputSystem.InputSystem.settings;
+                settings.editorInputBehaviorInPlayMode = _savedInput.Value.editor;
+                settings.backgroundBehavior = _savedInput.Value.background;
+                _savedInput = null;
+            }
             WarehouseLayoutKeeper.StoreOverride = null;
             CareerKeeper.StoreOverride = null;
             yield return null;
@@ -117,24 +127,12 @@ namespace Pvz.Runtime.Tests
         public IEnumerator VirtualHand_GrabsTheScanner_AndScansTheOrderBox()
         {
             // Batch-mode editor: the Game view has no focus, and the Input System would drop device input without this.
+            // Restored in the tear-down, which runs after a failure or a timeout too.
             var settings = UnityEngine.InputSystem.InputSystem.settings;
-            var behaviour = settings.editorInputBehaviorInPlayMode;
-            var background = settings.backgroundBehavior;
+            _savedInput = (settings.editorInputBehaviorInPlayMode, settings.backgroundBehavior);
             settings.editorInputBehaviorInPlayMode = UnityEngine.InputSystem.InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
             settings.backgroundBehavior = UnityEngine.InputSystem.InputSettings.BackgroundBehavior.IgnoreFocus;
-            try
-            {
-                yield return ScanWithTheVirtualHand();
-            }
-            finally
-            {
-                settings.editorInputBehaviorInPlayMode = behaviour;
-                settings.backgroundBehavior = background;
-            }
-        }
 
-        private static IEnumerator ScanWithTheVirtualHand()
-        {
             var remote = PvzRemote.Launch(0);
             var director = Object.FindFirstObjectByType<ShiftDirector>();
             director.UseScoreStore(new Pvz.Core.MemoryScoreStore());
