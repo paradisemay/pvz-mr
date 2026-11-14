@@ -77,6 +77,9 @@ namespace Pvz.Editor
             Capture("01_overview", new Vector3(-2.6f, 2.5f, -2.9f), new Vector3(0.1f, 0.8f, 0.6f), 55f);
             Capture("02_player_view", new Vector3(0f, 1.6f, -0.2f), new Vector3(0.1f, 1.62f, 1.6f), 72f);
             Capture("23_hatch_pile", new Vector3(0.35f, 1.6f, -0.7f), new Vector3(-1.35f, 1.05f, 0.45f), 72f);
+            var shelved = StageShelf(); // T037: boxes the player put on the rack
+            Capture("24_shelf_rack", new Vector3(0.05f, 1.62f, -0.45f), new Vector3(1.45f, 0.85f, 0.35f), 68f);
+            foreach (var shelvedBox in shelved) Object.DestroyImmediate(shelvedBox.gameObject);
             Capture("19_computer_shift", ComputerCameraFrom, ComputerCameraAt, 48f);
             Capture("03_counter_closeup", new Vector3(0.35f, 1.55f, 0.15f), new Vector3(0.15f, 1.2f, 1.1f), 60f);
 
@@ -274,6 +277,22 @@ namespace Pvz.Editor
         /// The pile under the supply hatch as play mode leaves it (no physics in the editor: stacked by hand) — the stock and
         /// the spare boxes of the default settings.
         /// </summary>
+        /// <summary>A few boxes laid out on the shelves of the rack, as a player sorts them.</summary>
+        private static System.Collections.Generic.List<QrBox> StageShelf()
+        {
+            var rack = GameObject.Find("Shelf Rack").transform;
+            var prefab = AssetDatabase.LoadAssetAtPath<QrBox>(PvzAssetFactory.PrefabsDir + "/Box_Supply.prefab");
+            var places = new[] { (0.5f, -0.25f, "BOX-101"), (0.5f, 0.22f, "BOX-102"), (0.95f, -0.2f, "BOX-103"), (1.4f, 0.1f, "BOX-104"), (0.05f, -0.2f, "BOX-201") };
+            var boxes = new System.Collections.Generic.List<QrBox>();
+            foreach (var (shelf, x, id) in places)
+            {
+                var box = Object.Instantiate(prefab, rack.TransformPoint(new Vector3(x, shelf + 0.13f, 0f)), rack.rotation);
+                box.AssignId(id, QrTextures.Create(id));
+                boxes.Add(box);
+            }
+            return boxes;
+        }
+
         private static System.Collections.Generic.List<QrBox> StagePile()
         {
             var hatch = Object.FindFirstObjectByType<SupplyHatch>();

@@ -46,6 +46,27 @@ namespace Pvz.Editor
 
         // Materials are only initialised when created: an artist may retune existing ones and a rebuild keeps that.
 
+        /// <summary>
+        /// A physics material (T037): cardboard boxes that grip the shelves and each other instead of sliding like ice.
+        /// Created once in the materials folder; kept if it exists (it may have been tuned).
+        /// </summary>
+        public static PhysicsMaterial PhysicMaterialAsset(string name, float dynamicFriction, float staticFriction, float bounciness)
+        {
+            var path = $"{MaterialsDir}/{name}.physicMaterial";
+            var existing = AssetDatabase.LoadAssetAtPath<PhysicsMaterial>(path);
+            if (existing != null) return existing;
+            var material = new PhysicsMaterial(name)
+            {
+                dynamicFriction = dynamicFriction,
+                staticFriction = staticFriction,
+                bounciness = bounciness,
+                frictionCombine = PhysicsMaterialCombine.Maximum,
+                bounceCombine = PhysicsMaterialCombine.Minimum,
+            };
+            AssetDatabase.CreateAsset(material, path);
+            return material;
+        }
+
         public static Material Lit(string name, Color color, float smoothness = 0.2f)
         {
             var mat = LoadOrCreateMaterial(name, LitShader, out var created);
