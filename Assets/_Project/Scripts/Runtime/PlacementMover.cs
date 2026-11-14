@@ -77,6 +77,7 @@ namespace Pvz.Runtime
                 handle.gameObject.SetActive(false);
             }
             foreach (var (body, _, _) in _riders) if (body != null) body.WakeUp();
+            WakeNeighbours(); // loose boxes the moved thing now touches must feel it, not stay stuck inside it
             MovingChanged?.Invoke(false);
         }
 
@@ -160,11 +161,9 @@ namespace Pvz.Runtime
         private void CarryRiders()
         {
             var rig = keeper.Rig;
+            _riders.RemoveAll(r => r.body == null || IsHeld(r.body)); // taken off meanwhile: it is the player's now, for good
             foreach (var (body, position, rotation) in _riders)
             {
-                if (body == null) continue;
-                var grab = body.GetComponent<XRGrabInteractable>();
-                if (grab != null && grab.isSelected) continue; // taken off the counter meanwhile
                 body.transform.SetPositionAndRotation(rig.TransformPoint(position), rig.rotation * rotation);
                 body.position = body.transform.position;
                 body.rotation = body.transform.rotation;
@@ -174,6 +173,36 @@ namespace Pvz.Runtime
                     body.angularVelocity = Vector3.zero;
                 }
             }
+        }
+
+        private void WakeNeighbours()
+        {
+            if (riderZoneSize.sqrMagnitude < 1e-6f || keeper == null || keeper.Rig == null) return;
+            var rig = keeper.Rig;
+            foreach (var hit in Physics.OverlapBox(rig.TransformPoint(riderZoneCenter), riderZoneSize / 2f + Vector3.one * 0.15f, rig.rotation, ~0,
+                         QueryTriggerInteraction.Ignore))
+                if (hit.attachedRigidbody != null && !hit.attachedRigidbody.isKinematic) hit.attachedRigidbody.WakeUp();
+        }
+
+        private static bool IsHeld(Rigidbody body)
+        {
+            var grab = body.GetComponent<XRGrabInteractable>();
+            return grab != null && grab.isSelected;
+        }
+
+        /// <summary>
+        /// Puts the moved thing at a pose while moving (e.g. «Стойку ко мне»), carrying what lies on it; nothing is saved —
+        /// «Применить» or «Отмена» decide.
+        /// </summary>
+        public void PlaceWhileMoving(Vector3 position, Quaternion rotation)
+        {
+            if (!IsMoving) return;
+            keeper.Rig.SetPositionAndRotation(keeper.Clamp(new Vector3(position.x, _rigHeight, position.z)), rotation);
+            _referenceRigYaw = keeper.Rig.eulerAngles.y;
+            _wasHeld = false; // a held handle starts turning from here
+            CarryRiders();
+            keeper.AfterMoveQuietly();
+            if (handle != null && !handle.isSelected) SnapHandle();
         }
 
         private void SnapHandle()

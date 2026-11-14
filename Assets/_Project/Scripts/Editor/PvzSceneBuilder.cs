@@ -144,7 +144,7 @@ namespace Pvz.Editor
             CreateComputerKey(movingKeys, 4, "ПРИМЕНИТЬ", ComputerKey.Action.ApplyMove, pc.Computer, font, new Color(0.35f, 0.8f, 0.45f));
             pc.Computer.ConfigureMover(mover, movingKeys.gameObject);
             director.ConfigureCounterPlacement(placement);
-            CreateRecenterButton(pc.SettingsBeforeShift, mrSetup, placement, font); // on the counter-moving screen, before the shift
+            CreateRecenterButton(pc.SettingsBeforeShift, mrSetup, placement, mover, font); // on the counter-moving screen, before the shift
             var counterBoard = counter.GetComponentInChildren<CounterBoard>(true);
             counterBoard.ConfigureHowToPlay(CreateHowToPlayCard(startMenu, font));
             PrefabUtility.RecordPrefabInstancePropertyModifications(counterBoard); // an override on the counter prefab instance
@@ -169,7 +169,7 @@ namespace Pvz.Editor
             var rackMover = rack.gameObject.AddComponent<PlacementMover>();
             var rackTop = ShelfHeights[ShelfHeights.Length - 1] + 0.3f;
             rackMover.Configure(rackPlacement, CreatePlacementHandle(playArea, "Rack Handle", rack.TransformPoint(RackHandleOffset)), RackHandleOffset,
-                new Vector3(0f, rackTop / 2f, 0f), new Vector3(RackWidth, rackTop, RackDepth));
+                new Vector3(0f, rackTop / 2f + 0.02f, 0f), new Vector3(RackWidth - 0.1f, rackTop, RackDepth - 0.08f)); // on the shelves, not beside the posts
             pc.Computer.ConfigureRackMover(rackMover);
             CreateComputerKey(pc.Settings, 1, "ПЕРЕНЕСТИ\nСТЕЛЛАЖ", ComputerKey.Action.MoveRack, pc.Computer, font, new Color(0.98f, 0.55f, 0.15f));
             // The career between shifts and the counter themes it opens (T022).
@@ -348,11 +348,11 @@ namespace Pvz.Editor
         }
 
         /// <summary>«Стойку ко мне» (settings, before the shift): moves the play area in front of the player.</summary>
-        private static void CreateRecenterButton(Transform group, MrSessionSetup session, PlacementKeeper placement,
+        private static void CreateRecenterButton(Transform group, MrSessionSetup session, PlacementKeeper placement, PlacementMover mover,
             TMPro.TMP_FontAsset font)
         {
             var go = CreateKey(group, 1, "Recenter Button", "СТОЙКУ\nКО МНЕ", new Color(0.35f, 0.6f, 0.95f), font, out _);
-            go.AddComponent<RecenterButton>().Configure(session, placement);
+            go.AddComponent<RecenterButton>().Configure(session, placement, mover);
         }
 
         /// <summary>Where the handle of the counter hangs, relative to the counter rig: above the front edge, in reach.</summary>

@@ -2,6 +2,7 @@ using System.Collections;
 using System.Linq;
 using NUnit.Framework;
 using Pvz.Core;
+using Unity.XR.CoreUtils;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
@@ -211,6 +212,26 @@ namespace Pvz.Runtime.Tests
             foreach (var box in _director.RemainingBoxes)
                 Assert.Less(new Vector2(box.transform.position.x - under.x, box.transform.position.z - under.z).magnitude, 1.6f,
                     $"{box.RawId} fell under the moved hatch");
+        }
+
+        /// <summary>T037 review: «Стойку ко мне» while moving the counter is undone by «Отмена» and saves nothing.</summary>
+        [UnityTest]
+        public IEnumerator RecenterWhileMoving_ThenCancel_PutsTheCounterBack_AndSavesNothing()
+        {
+            var rig = _placement.Rig;
+            var before = new Pose(rig.position, rig.rotation);
+            Object.FindFirstObjectByType<XROrigin>().transform.position = new Vector3(1.2f, 0f, -0.8f); // the player stepped aside
+            yield return null;
+            yield return StartMoving();
+            Object.FindFirstObjectByType<RecenterButton>(FindObjectsInactive.Include).Press();
+            yield return null;
+            Assert.Greater(Vector3.Distance(before.position, rig.position), 0.5f, "the counter came to the player");
+            Assert.IsFalse(_placement.HasSaved, "nothing is saved while moving");
+
+            Key(ComputerKey.Action.CancelMove).Press();
+            yield return null;
+            Assert.Less(Vector3.Distance(before.position, rig.position), 1e-3f, "«Отмена» puts it back");
+            Assert.IsFalse(_placement.HasSaved);
         }
 
         [UnityTest]
