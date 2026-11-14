@@ -140,6 +140,9 @@ namespace Pvz.Editor
             grab.useDynamicAttach = false;
             grab.movementType = XRBaseInteractable.MovementType.VelocityTracking;
             grab.throwOnDetach = false;
+            // Picked up by the ray from afar, the scanner comes to the hand like a real handheld one (T033: it used to hang
+            // a metre ahead on the ray, awkward to aim and easy to bump into the computer).
+            grab.farAttachMode = UnityEngine.XR.Interaction.Toolkit.Attachment.InteractableFarAttachMode.Near;
 
             var scanner = root.AddComponent<HandScanner>();
             scanner.Configure(muzzle, beam, screenText);
@@ -260,16 +263,7 @@ namespace Pvz.Editor
             summaryGo.AddComponent<ShiftSummaryPanel>().Configure(summaryRoot, summaryText);
             summaryRoot.SetActive(false);
 
-            // Restart button (player side of the counter top)
-            var button = new GameObject("RestartButton");
-            button.transform.SetParent(root.transform, false);
-            button.transform.localPosition = new Vector3(-0.15f, CounterHeight + 0.03f, -0.2f);
-            Primitive(PrimitiveType.Cube, "Cap", button.transform, Vector3.zero, new Vector3(0.24f, 0.06f, 0.14f), _button, true);
-            Text("Label", button.transform, new Vector3(0, 0.032f, 0), new Vector2(0.22f, 0.11f), "НОВАЯ\nСМЕНА", _font,
-                Color.white, 0.6f, localRot: Quaternion.Euler(90, 0, 0));
-            button.AddComponent<XRSimpleInteractable>();
-            button.AddComponent<RestartButton>();
-            button.SetActive(false);
+            // «Новая смена» and the other menu keys live on the counter computer (T033, PvzSceneBuilder.CreateComputer).
 
             var audio = root.AddComponent<AudioSource>();
             audio.playOnAwake = false;

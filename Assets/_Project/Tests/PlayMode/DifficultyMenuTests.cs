@@ -53,8 +53,8 @@ namespace Pvz.Runtime.Tests
             yield return null;
 
             var keeper = Object.FindFirstObjectByType<CareerKeeper>();
-            var button = Object.FindFirstObjectByType<ThemeButton>();
-            Assert.IsNotNull(button, "the menu has a theme button");
+            var button = Object.FindFirstObjectByType<ThemeButton>(FindObjectsInactive.Include); // on the settings screen of the computer
+            Assert.IsNotNull(button, "the computer settings have a theme key");
             Assert.AreEqual("classic", keeper.Skin.ThemeId, "nothing chosen yet");
             StringAssert.Contains("до темы «Ночь»", Object.FindFirstObjectByType<CounterBoard>().Footer);
 

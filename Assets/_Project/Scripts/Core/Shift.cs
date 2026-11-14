@@ -155,6 +155,16 @@ namespace Pvz.Core
         /// <summary>Seconds of the shift left, or null when there is no time limit or the clock has not started.</summary>
         public double? TimeLeft(double now) => Clock.TimeLeft(now);
 
+        /// <summary>
+        /// The player ends the shift early (T033, «Завершить смену» on the counter computer): it goes as when the time runs
+        /// out — the line goes home, the customer at the counter is served to the end, no delivery comes any more.
+        /// </summary>
+        public void EndNow(double now)
+        {
+            Clock.EndNow();
+            CheckTime(now);
+        }
+
         /// <summary>The time ran out: the line goes home (the customer at the counter stays), then <see cref="TimeUp"/>.</summary>
         private void CheckTime(double now)
         {

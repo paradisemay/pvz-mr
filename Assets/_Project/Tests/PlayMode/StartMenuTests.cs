@@ -42,7 +42,7 @@ namespace Pvz.Runtime.Tests
             origin.transform.SetPositionAndRotation(new Vector3(-0.8f, 0f, -1.0f), Quaternion.Euler(0f, 90f, 0f));
             yield return null;
 
-            Object.FindFirstObjectByType<RecenterButton>().Press();
+            Object.FindFirstObjectByType<RecenterButton>(FindObjectsInactive.Include).Press(); // a key of the settings screen
             yield return null;
 
             Assert.AreEqual(camera.position.x, playArea.position.x, 0.01f);
@@ -78,15 +78,17 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest]
-        public IEnumerator StartMenu_IsHidden_OnceTheShiftBegins()
+        public IEnumerator HowToPlayCard_IsHidden_OnceTheShiftBegins_TheComputerStays()
         {
-            var recenter = Object.FindFirstObjectByType<RecenterButton>();
-            Assert.IsTrue(recenter.gameObject.activeInHierarchy);
+            var howTo = GameObject.Find("How To Play");
+            var computer = Object.FindFirstObjectByType<PvzComputer>();
+            Assert.IsTrue(howTo.activeInHierarchy);
 
             Object.FindFirstObjectByType<ShiftDirector>().Begin();
             yield return null;
 
-            Assert.IsFalse(recenter.gameObject.activeInHierarchy);
+            Assert.IsFalse(howTo.activeInHierarchy);
+            Assert.IsTrue(computer.gameObject.activeInHierarchy, "the computer and its keys stay on the counter (#77)");
         }
 
         [UnityTest]

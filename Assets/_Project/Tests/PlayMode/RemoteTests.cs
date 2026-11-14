@@ -156,7 +156,7 @@ namespace Pvz.Runtime.Tests
             yield return WaitFrames(5);
             remote.Execute("hand trigger off");
             yield return WaitFrames(5);
-            var status = remote.Execute("hand");
+            var status = remote.Execute("hand debug") + " box@" + director.TryGetBox(new Pvz.Core.BoxId(box), out var target) + " " + target.transform.position;
             StringAssert.Contains("НУЖНАЯ КОРОБКА", director.Scanner.ScreenText, status);
         }
 

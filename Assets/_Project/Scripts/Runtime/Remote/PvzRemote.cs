@@ -184,7 +184,7 @@ namespace Pvz.Runtime.Remote
                 {
                     case "ping": return RemoteProtocol.Ok("pong", true);
                     case "help": return RemoteProtocol.Ok("commands", "ping state begin recenter reset-layout theme restart scan give bag " +
-                                                                      "return move timescale area autoplay shot record view hand");
+                                                                      "return move timescale area autoplay shot record view hand pc");
                     case "state": return State();
                     case "begin": return Begin(args.Length > 0 ? args[0] : "normal");
                     case "recenter": return Press<RecenterButton>(b => b.Press());
@@ -206,6 +206,7 @@ namespace Pvz.Runtime.Remote
                     case "shot": return Shot(args.Length > 0 ? args[0] : "shot", args.Length > 1 ? args[1] : _view);
                     case "record": return Record(args);
                     case "hand": return Hand(args);
+                    case "pc": return Computer(Arg(args, 0));
                     default: return RemoteProtocol.Error($"unknown command «{name}» (try help)");
                 }
             }
@@ -240,6 +241,8 @@ namespace Pvz.Runtime.Remote
             {
                 json.Add("headline", board.Headline).Add("status", board.Status).Add("footer", board.Footer).Add("orders", board.Orders);
             }
+            var pc = FindFirstObjectByType<PvzComputer>();
+            if (pc != null) json.Add("computer", pc.Current.ToString()).Add("screen", pc.ScreenText);
             if (director == null) return json.Add("director", false).ToString();
 
             json.Add("started", director.IsStarted).Add("shiftOver", director.IsShiftOver)
@@ -293,8 +296,8 @@ namespace Pvz.Runtime.Remote
 
         private static string Press<T>(Action<T> press) where T : Component
         {
-            var button = FindFirstObjectByType<T>(FindObjectsInactive.Exclude);
-            if (button == null) return RemoteProtocol.Error($"no active {typeof(T).Name} (the start menu is hidden during a shift)");
+            var button = FindFirstObjectByType<T>(FindObjectsInactive.Include); // keys of other computer screens are hidden
+            if (button == null) return RemoteProtocol.Error($"no {typeof(T).Name} in the scene");
             press(button);
             return RemoteProtocol.Ok("pressed", typeof(T).Name);
         }
@@ -365,6 +368,22 @@ namespace Pvz.Runtime.Remote
             target.position = position;
             if (body != null) body.position = position;
             Physics.SyncTransforms();
+        }
+
+        /// <summary>pc settings|back|end: the keys of the counter computer (T033); without an argument — its screen.</summary>
+        private static string Computer(string key)
+        {
+            var pc = FindFirstObjectByType<PvzComputer>();
+            if (pc == null) return RemoteProtocol.Error("no computer in the scene");
+            switch ((key ?? string.Empty).ToLowerInvariant())
+            {
+                case "settings": pc.OpenSettings(); break;
+                case "back": pc.Back(); break;
+                case "end": pc.EndShift(); break;
+                case "": break;
+                default: return RemoteProtocol.Error("pc settings|back|end");
+            }
+            return new Json().Add("ok", true).Add("computer", pc.Current.ToString()).Add("screen", pc.ScreenText).ToString();
         }
 
         // ---------- virtual controller (real XRI input path) ----------

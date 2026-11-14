@@ -40,10 +40,14 @@ namespace Pvz.Editor
                 new[] { ("Лёгкая", 450), ("Обычная", 525), ("Сложная", 0) });
             Capture("00_difficulty_menu", new Vector3(0f, 1.65f, -0.35f), new Vector3(-0.1f, 1.5f, 1.1f), 75f);
             Capture("16_how_to_play", new Vector3(-0.75f, 1.8f, -0.3f), new Vector3(-1.2f, 2.14f, 1.08f), 45f);
-            foreach (var button in Object.FindObjectsByType<DifficultyButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
-            foreach (var button in Object.FindObjectsByType<RecenterButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false); // start menu is hidden during play
-            foreach (var button in Object.FindObjectsByType<ResetWarehouseButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
-            foreach (var button in Object.FindObjectsByType<ThemeButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
+
+            // The counter computer (T033): its screens and the keys each one shows.
+            var computer = Object.FindFirstObjectByType<PvzComputer>();
+            computer.Preview(PvzComputer.Screen.Menu, PvzComputer.MenuText, beforeShift: true);
+            Capture("17_computer_menu", ComputerCameraFrom, ComputerCameraAt, 48f);
+            computer.Preview(PvzComputer.Screen.Settings, PvzComputer.SettingsText, beforeShift: true);
+            Capture("18_computer_settings", ComputerCameraFrom, ComputerCameraAt, 48f);
+            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen("2781", 2, 1, false, null, 2, 263, false), beforeShift: false);
 
             // Stage a moment of play: a customer at the counter asking for an order.
             var customerPrefab = AssetDatabase.LoadAssetAtPath<Customer>(PvzAssetFactory.PrefabsDir + "/Customer.prefab");
@@ -64,6 +68,7 @@ namespace Pvz.Editor
 
             Capture("01_overview", new Vector3(-2.6f, 2.5f, -2.9f), new Vector3(0.1f, 0.8f, 0.6f), 55f);
             Capture("02_player_view", new Vector3(0f, 1.6f, -0.2f), new Vector3(0.1f, 1.62f, 1.6f), 72f);
+            Capture("19_computer_shift", ComputerCameraFrom, ComputerCameraAt, 48f);
             Capture("03_counter_closeup", new Vector3(0.35f, 1.55f, 0.15f), new Vector3(0.15f, 1.2f, 1.1f), 60f);
 
             var box = Object.FindFirstObjectByType<QrBox>();
@@ -188,6 +193,9 @@ namespace Pvz.Editor
                 summary.Show(stats, 3);
                 SetSummaryDemoText(summary);
                 Capture("06_shift_summary", new Vector3(0f, 1.6f, -0.4f), new Vector3(0f, 1.75f, 1.1f), 65f);
+                computer.Preview(PvzComputer.Screen.Summary,
+                    "Смена завершена\nОчки: 1220\nВыдано заказов: 5\n\n«Новая смена» — сыграть ещё.", beforeShift: false);
+                Capture("20_computer_summary", ComputerCameraFrom, ComputerCameraAt, 48f);
             }
 
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -230,6 +238,10 @@ namespace Pvz.Editor
             var simulator = GameObject.Find("XR Interaction Simulator");
             if (simulator != null) simulator.SetActive(false);
         }
+
+        /// <summary>Where the player stands looking down at the computer and its keys.</summary>
+        private static readonly Vector3 ComputerCameraFrom = new Vector3(-0.12f, 1.62f, 0.38f);
+        private static readonly Vector3 ComputerCameraAt = new Vector3(-0.14f, 1.16f, 1.0f);
 
         private static void Capture(string name, Vector3 from, Vector3 lookAt, float fov, Vector3? up = null)
         {

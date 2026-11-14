@@ -115,5 +115,43 @@ namespace Pvz.Core.Tests
                 Assert.IsFalse(shift.IsTimeUp);
             }
         }
+    
+        /// <summary>T033 (#77): «Завершить смену» on the counter computer ends the shift as if the time ran out.</summary>
+        [Test]
+        public void EndNow_EndsTheShift_LikeTimeUp_EvenWithoutALimit()
+        {
+            using (var shift = TimedShift(0))
+            {
+                shift.Start(0);
+                Assert.IsTrue(shift.TryEnqueue(out var atCounter));
+                Assert.IsTrue(shift.TryEnqueue(out var second));
+                shift.OpenNext(1);
+                IReadOnlyList<Visit> sentAway = null;
+                var raised = 0;
+                shift.TimeUp += v => { sentAway = v; raised++; };
+
+                shift.EndNow(5);
+                shift.Tick(6);
+
+                Assert.IsTrue(shift.IsTimeUp);
+                Assert.IsTrue(shift.Clock.EndedEarly);
+                Assert.AreEqual(1, raised, "raised once");
+                CollectionAssert.AreEqual(new[] { second }, sentAway);
+                Assert.IsFalse(shift.IsOver, "the customer at the counter is served to the end");
+                foreach (var box in atCounter.Order.Boxes) shift.Desk.Handover(box, 7);
+                Assert.IsTrue(shift.IsOver);
+            }
+        }
+
+        [Test]
+        public void EndNow_BeforeTheStart_DoesNothing()
+        {
+            using (var shift = TimedShift(60))
+            {
+                shift.EndNow(0);
+                Assert.IsFalse(shift.IsTimeUp);
+                Assert.IsFalse(shift.Clock.EndedEarly);
+            }
+        }
     }
 }
