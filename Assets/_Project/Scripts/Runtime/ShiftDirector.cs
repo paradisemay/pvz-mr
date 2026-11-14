@@ -68,12 +68,16 @@ namespace Pvz.Runtime
         /// <summary>Sets the shift length, counted from the start of the shift (tests; 0 = no limit).</summary>
         internal void UseTimeLimit(double seconds) => Shift.TimeLimitSeconds = seconds;
 
-        /// <summary>Sets how often customers are in a hurry or forget the order number (tests).</summary>
-        internal void UseEventChances(int urgentPercent, int forgotNumberPercent)
-        {
-            Shift.UrgentChancePercent = urgentPercent;
-            Shift.ForgotNumberChancePercent = forgotNumberPercent;
-        }
+        /// <summary>Sets how often customers are in a hurry (tests).</summary>
+        internal void UseEventChances(int urgentPercent) => Shift.UrgentChancePercent = urgentPercent;
+
+        /// <summary>
+        /// Tests that are not about the customer's code: it is read as soon as the customer reaches the counter, as if the
+        /// player scanned the phone at once (T035).
+        /// </summary>
+        internal void UseAutoCustomerCode(bool on = true) => _autoCustomerCode = on;
+
+        private bool _autoCustomerCode;
 
         public IReadOnlyList<DifficultyButton> DifficultyButtons => difficultyButtons;
 
@@ -175,7 +179,7 @@ namespace Pvz.Runtime
                 ReturnChancePercent = settings.ReturnChancePercent,
                 UrgentChancePercent = settings.UrgentChancePercent,
                 UrgentPatienceFactor = settings.UrgentPatienceFactor,
-                ForgotNumberChancePercent = settings.ForgotNumberChancePercent,
+                RequiresCustomerCode = true, // T035: the customer shows a barcode on the phone first
                 TimeLimitSeconds = settings.ShiftDurationSeconds,
             };
             Shift.Start(Now);
@@ -201,6 +205,8 @@ namespace Pvz.Runtime
             _subscribed = true;
             scanner.BoxScanned += OnBoxScanned;
             scanner.Missed += OnScanMissed;
+            scanner.PhoneScanned += OnPhoneScanned;
+            Desk.CodeScanned += OnCodeScanned;
             handoverZone.BoxEntered += OnBoxEnteredZone;
             handoverZone.BagEntered += OnBagEnteredZone;
             Desk.BagRequested += OnBagRequested;
@@ -214,6 +220,8 @@ namespace Pvz.Runtime
             _subscribed = false;
             scanner.BoxScanned -= OnBoxScanned;
             scanner.Missed -= OnScanMissed;
+            scanner.PhoneScanned -= OnPhoneScanned;
+            Desk.CodeScanned -= OnCodeScanned;
             handoverZone.BoxEntered -= OnBoxEnteredZone;
             handoverZone.BagEntered -= OnBagEnteredZone;
             Desk.BagRequested -= OnBagRequested;
@@ -343,9 +351,15 @@ namespace Pvz.Runtime
             }
 
             Shift.OpenNext(Now); // a return puts its box on the counter (OnReturnOpened)
+            if (Desk.AwaitsCode)
+            {
+                // T035: the customer holds out the phone; the order opens when its barcode is scanned (OnCodeScanned).
+                if (front.Customer.Phone != null) front.Customer.Phone.Show(Desk.HasActiveReturn ? "КОД ВОЗВРАТА" : "КОД ЗАКАЗА");
+                if (_autoCustomerCode) Shift.ScanCustomerCode();
+            }
             // Boxes the player prepared before the customer arrived are handed over at once (outside the
             // OrderOpened event, so Core never re-enters itself).
-            if (Desk.HasActiveOrder) HandOverBoxesAlreadyInZone();
+            else if (Desk.HasActiveOrder) HandOverBoxesAlreadyInZone();
 
             yield return new WaitUntil(() => !Desk.HasCustomer);
             if (front.ReturnBox != null) Destroy(front.ReturnBox.gameObject); // taken back and written off
@@ -435,6 +449,25 @@ namespace Pvz.Runtime
         }
 
         private void OnScanMissed() => _presenter.ShowScanMissed();
+
+        /// <summary>The scanner read a phone: the code of the customer at the counter opens their order (T035).</summary>
+        private void OnPhoneScanned(CustomerPhone phone)
+        {
+            if (IsShiftOver || phone == null) return;
+            if (CurrentCustomer == null || phone.Owner != CurrentCustomer || !Desk.AwaitsCode)
+            {
+                _presenter.ShowNotThisCode();
+                return;
+            }
+            Shift.ScanCustomerCode();
+        }
+
+        /// <summary>The code is read: the phone goes away, boxes already waiting in the zone are handed over.</summary>
+        private void OnCodeScanned()
+        {
+            if (CurrentCustomer != null && CurrentCustomer.Phone != null) CurrentCustomer.Phone.Hide();
+            if (Desk.HasActiveOrder) HandOverBoxesAlreadyInZone();
+        }
 
         /// <summary>The returning customer at the counter puts their box next to the handover zone to be scanned.</summary>
         private void OnReturnOpened(ReturnRequest request)

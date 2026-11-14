@@ -314,8 +314,31 @@ namespace Pvz.Editor
             bubble.Configure(bubbleRoot, bubbleText);
             bubbleRoot.SetActive(false);
 
+            // The phone with the order's barcode (T035): held out in the right hand, the screen to the player.
+            var phoneRoot = new GameObject("Phone");
+            phoneRoot.transform.SetParent(body, false);
+            phoneRoot.transform.localPosition = new Vector3(-0.24f, 1.32f, 0.4f); // the player sees it right of the computer, not behind it
+            phoneRoot.transform.localRotation = Quaternion.Euler(-12f, 180f, 0f); // its front (-Z) faces the player (+Z of the customer)
+            var phoneBody = new GameObject("Body");
+            phoneBody.transform.SetParent(phoneRoot.transform, false);
+            Primitive(PrimitiveType.Cube, "Case", phoneBody.transform, Vector3.zero, new Vector3(0.08f, 0.155f, 0.01f),
+                Lit("PhoneCase", new Color(0.12f, 0.12f, 0.14f), 0.7f));
+            Primitive(PrimitiveType.Quad, "Screen", phoneBody.transform, new Vector3(0f, 0.012f, -0.0056f), new Vector3(0.07f, 0.12f, 1f),
+                Unlit("PhoneScreen", new Color(0.95f, 0.96f, 0.98f)));
+            Primitive(PrimitiveType.Quad, "Barcode", phoneBody.transform, new Vector3(0f, -0.012f, -0.0058f), new Vector3(0.062f, 0.032f, 1f),
+                Unlit("Barcode", Color.white, BarcodeTexture()));
+            var phoneCaption = Text("Caption", phoneBody.transform, new Vector3(0f, 0.035f, -0.006f), new Vector2(0.064f, 0.04f),
+                "КОД ЗАКАЗА", _font, new Color(0.1f, 0.1f, 0.12f), 0.12f);
+            // Generous hit box, so the scanner ray catches the phone easily; it exists only while the phone is shown.
+            var phoneHit = phoneBody.AddComponent<BoxCollider>();
+            phoneHit.size = new Vector3(0.13f, 0.21f, 0.05f);
+            var phone = phoneRoot.AddComponent<CustomerPhone>();
+            phone.Configure(phoneBody, phoneCaption);
+            phoneBody.SetActive(false);
+
             var customer = root.AddComponent<Customer>();
             customer.Configure(bubble, carry, body, new[] { torso.GetComponent<Renderer>(), armL.GetComponent<Renderer>(), armR.GetComponent<Renderer>() });
+            customer.ConfigurePhone(phone);
             // Voice from where the customer stands: 3D sound, heard across a room.
             var voiceSource = root.AddComponent<AudioSource>();
             voiceSource.playOnAwake = false;

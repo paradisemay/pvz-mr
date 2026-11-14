@@ -26,15 +26,6 @@ namespace Pvz.Core.Tests
         [Test]
         public void Null_IsNeverALookAlike() => Assert.IsFalse(OrderNumbers.LookAlike(null, "2781"));
 
-        [Test]
-        public void OneDigitLookAlike_SharesTheHint_SoBothCannotBeForgotten()
-        {
-            // 1781 / 2781: easy to confuse, and «…81» names both — the forgetful-customer rule must see it.
-            Assert.IsTrue(OrderNumbers.LookAlike("1781", "2781"));
-            Assert.IsTrue(OrderNumbers.SameHint("1781", "2781"));
-            Assert.IsFalse(OrderNumbers.SameHint("2718", "2781"), "a swap of the last digits changes the hint");
-        }
-
         private static PickupDesk DeskWithLookAlikes() => new PickupDesk(new BoxCatalog(new[]
         {
             new BoxRecord(TestData.Box1, "2781"),
@@ -68,15 +59,6 @@ namespace Pvz.Core.Tests
             Assert.AreEqual(HandoverStatus.WrongBox, outcome.Status);
             Assert.IsTrue(outcome.LooksLikeTheWantedOrder);
             Assert.IsFalse(desk.Handover(TestData.Box3, 2).LooksLikeTheWantedOrder);
-        }
-
-        [Test]
-        public void NoWarning_ForACustomerWhoForgotTheNumber()
-        {
-            var desk = DeskWithLookAlikes();
-            desk.OpenOrder(new Order("2781", new[] { TestData.Box1 }, forgotNumber: true), 0);
-            Assert.IsFalse(desk.Scan(TestData.Box2).LooksLikeTheWantedOrder, "the customer only said «…81»");
-            Assert.IsFalse(desk.Handover(TestData.Box2, 1).LooksLikeTheWantedOrder);
         }
 
         [Test]

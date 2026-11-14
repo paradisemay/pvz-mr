@@ -155,6 +155,16 @@ namespace Pvz.Core
         /// <summary>Seconds of the shift left, or null when there is no time limit or the clock has not started.</summary>
         public double? TimeLeft(double now) => Clock.LimitSeconds > 0 ? Clock.TimeLeft(now) : null; // a shift without a limit shows no clock, even when ended early
 
+        /// <summary>The customer shows a barcode on their phone, scanned before anything is served (T035).</summary>
+        public bool RequiresCustomerCode
+        {
+            get => Desk.RequiresCustomerCode;
+            set => Desk.RequiresCustomerCode = value;
+        }
+
+        /// <summary>The player scanned the barcode the customer at the counter shows.</summary>
+        public bool ScanCustomerCode() => Desk.ScanCustomerCode();
+
         /// <summary>
         /// The player ends the shift early (T033, «Завершить смену» on the counter computer): it goes as when the time runs
         /// out — the line goes home, the customer at the counter is served to the end, no delivery comes any more.
@@ -190,7 +200,6 @@ namespace Pvz.Core
             _random = random ?? throw new ArgumentNullException(nameof(random));
             _generator = new OrderGenerator(_random, BagChancePercent) {
                 UrgentChancePercent = UrgentChancePercent,
-                ForgotNumberChancePercent = ForgotNumberChancePercent,
             };
         }
 
@@ -277,13 +286,6 @@ namespace Pvz.Core
             set => _generator.UrgentChancePercent = value;
         }
 
-        /// <summary>Probability (0..100) that a customer remembers only the end of the order number.</summary>
-        public int ForgotNumberChancePercent
-        {
-            get => _generator.ForgotNumberChancePercent;
-            set => _generator.ForgotNumberChancePercent = value;
-        }
-
         /// <summary>How many customers may wait in line (including the one at the counter).</summary>
         public int QueueLength { get; set; } = 1;
 
@@ -341,7 +343,7 @@ namespace Pvz.Core
         /// <summary>A new pickup customer joins the line; returns their visit (null when nothing is left to promise).</summary>
         private Visit JoinPickup()
         {
-            var order = _generator.CreateRandomOrder(Desk.Catalog, ReservedNumbers(), KnownOrderNumbers());
+            var order = _generator.CreateRandomOrder(Desk.Catalog, ReservedNumbers());
             if (order == null) return null;
             var visit = Visit.Pickup(order);
             Join(visit);
@@ -402,17 +404,6 @@ namespace Pvz.Core
         {
             var visit = Book.OpenPickup(order);
             if (visit != null) LeaveQueue(visit);
-        }
-
-        /// <summary>
-        /// Every order this shift has or will have: stock, deliveries waiting to be scanned and the planned delivery.
-        /// A forgetful customer's hint must stay unambiguous against all of them.
-        /// </summary>
-        private IEnumerable<string> KnownOrderNumbers()
-        {
-            foreach (var number in _orderNumbers) yield return number;
-            if (!HasScheduledDelivery) yield break;
-            foreach (var box in _supplyPlan.Boxes) yield return box.OrderNumber;
         }
 
         private HashSet<string> ReservedNumbers()

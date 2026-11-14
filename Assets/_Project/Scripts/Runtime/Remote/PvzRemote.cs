@@ -183,7 +183,7 @@ namespace Pvz.Runtime.Remote
                 switch (name)
                 {
                     case "ping": return RemoteProtocol.Ok("pong", true);
-                    case "help": return RemoteProtocol.Ok("commands", "ping state begin recenter reset-layout theme restart scan give bag " +
+                    case "help": return RemoteProtocol.Ok("commands", "ping state begin recenter reset-layout theme restart code scan give bag " +
                                                                       "return move timescale area autoplay shot record view hand pc");
                     case "state": return State();
                     case "begin": return Begin(args.Length > 0 ? args[0] : "normal");
@@ -195,6 +195,7 @@ namespace Pvz.Runtime.Remote
                         SceneManager.LoadScene(SceneManager.GetActiveScene().path);
                         return RemoteProtocol.Ok("restarting", true);
                     case "scan": return Scan(Arg(args, 0));
+                    case "code": return ScanCode();
                     case "give": return Give(Arg(args, 0));
                     case "bag": return Bag();
                     case "return": return ScanReturn();
@@ -268,10 +269,10 @@ namespace Pvz.Runtime.Remote
                     .Add("boxes", new Json.Raw(Json.Array(session.Order.Boxes.Select(b => Json.Quote(b.Value)))))
                     .Add("left", session.RemainingCount)
                     .Add("awaitingBag", session.AwaitingBag)
-                    .Add("urgent", session.Order.IsUrgent)
-                    .Add("forgotNumber", session.Order.ForgotNumber).ToString()));
+                    .Add("urgent", session.Order.IsUrgent).ToString()));
             }
             if (desk.HasActiveReturn) json.Add("return", desk.ActiveReturn.Box.Value);
+            json.Add("awaitsCode", desk.AwaitsCode);
             json.Add("boxes", new Json.Raw(Json.Array(director.RemainingBoxes.Where(b => b != null).Select(b =>
             {
                 var p = b.transform.localPosition;
@@ -326,6 +327,16 @@ namespace Pvz.Runtime.Remote
             if (!TryBox(id, out var box, out var error)) return RemoteProtocol.Error(error);
             Director.Scanner.ScanDirect(box);
             return RemoteProtocol.Ok("scanner", Director.Scanner.ScreenText);
+        }
+
+        /// <summary>code: scans the barcode on the phone of the customer at the counter (T035).</summary>
+        private static string ScanCode()
+        {
+            var director = Director;
+            var phone = director != null && director.CurrentCustomer != null ? director.CurrentCustomer.Phone : null;
+            if (phone == null || !phone.IsShown) return RemoteProtocol.Error("no phone shown at the counter");
+            director.Scanner.ScanDirect(phone);
+            return RemoteProtocol.Ok("scanner", director.Scanner.ScreenText);
         }
 
         private static string ScanReturn()
@@ -453,6 +464,16 @@ namespace Pvz.Runtime.Remote
             error = null;
             targetObject = null;
             var what = Arg(args, 1);
+            if (string.Equals(what, "phone", StringComparison.OrdinalIgnoreCase))
+            {
+                var director = Director;
+                var phone = director != null && director.CurrentCustomer != null ? director.CurrentCustomer.Phone : null;
+                if (phone == null || !phone.IsShown) { error = "no phone shown at the counter"; return false; }
+                var hit = phone.GetComponentInChildren<Collider>();
+                target = hit != null ? hit.bounds.center : phone.transform.position;
+                targetObject = phone.transform;
+                return true;
+            }
             if (string.Equals(what, "handle", StringComparison.OrdinalIgnoreCase))
             {
                 var mover = FindFirstObjectByType<CounterMover>();
@@ -600,6 +621,13 @@ namespace Pvz.Runtime.Remote
                 }
 
                 var desk = director.Desk;
+                if (desk.AwaitsCode && director.CurrentCustomer != null && director.CurrentCustomer.Phone != null
+                    && !director.CurrentCustomer.IsWalking)
+                {
+                    director.Scanner.ScanDirect(director.CurrentCustomer.Phone); // T035: the code on the phone first
+                    yield return pause;
+                    continue;
+                }
                 if (desk.HasActiveReturn && director.CurrentReturnBox != null)
                 {
                     director.Scanner.ScanDirect(director.CurrentReturnBox);

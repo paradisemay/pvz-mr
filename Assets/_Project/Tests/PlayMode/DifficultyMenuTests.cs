@@ -104,6 +104,9 @@ namespace Pvz.Runtime.Tests
 
                 StringAssert.Contains("возьмите сканер", board.Status);
                 director.Scanner.SimulateGrab();
+                StringAssert.Contains("телефон клиента", board.Status, "T035: first the code on the customer's phone");
+                director.Scanner.ScanDirect(director.CurrentCustomer.Phone);
+                StringAssert.Contains("на коробку", board.Status);
                 StringAssert.Contains("курок", board.Status);
 
                 var wanted = director.Desk.ActiveOrder.Boxes[0];

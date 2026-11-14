@@ -40,20 +40,23 @@ namespace Pvz.Editor.Tests
         }
 
         [Test]
-        public void AForgottenNumber_StaysHidden_UntilTheOrderIsHandedOver()
+        public void BeforeTheCode_TheCustomerIsJustAClient_ThenTheNumberShows()
         {
             using (var shift = NewShift())
             {
-                shift.ForgotNumberChancePercent = 100;
+                shift.RequiresCustomerCode = true;
                 shift.TryEnqueue(out var visit);
-                Assert.IsTrue(visit.Order.ForgotNumber);
                 shift.OpenNext(0);
-                var text = ShiftPresenter.OrderListText(shift.Book.Entries, 7);
-                StringAssert.Contains("№••" + visit.Order.NumberHint, text);
-                StringAssert.DoesNotContain(visit.Order.Number, text);
+                var known = new System.Collections.Generic.HashSet<Pvz.Core.Visit>();
+                var text = ShiftPresenter.OrderListText(shift.Book.Entries, 7, known.Contains);
+                StringAssert.Contains("Клиент — у стойки", text);
+                StringAssert.DoesNotContain(visit.Order.Number, text, "T035: the number is on the phone, not known yet");
 
+                shift.ScanCustomerCode();
+                known.Add(visit);
+                StringAssert.Contains($"№{visit.Order.Number} — у стойки", ShiftPresenter.OrderListText(shift.Book.Entries, 7, known.Contains));
                 foreach (var box in visit.Order.Boxes) shift.Desk.Handover(box, 1);
-                StringAssert.Contains($"№{visit.Order.Number} — выдан", ShiftPresenter.OrderListText(shift.Book.Entries, 7));
+                StringAssert.Contains($"№{visit.Order.Number} — выдан", ShiftPresenter.OrderListText(shift.Book.Entries, 7, known.Contains));
             }
         }
 

@@ -189,16 +189,18 @@ namespace Pvz.Runtime
                 session?.Order.Number, session?.Order.Boxes.Count ?? 0, session?.DeliveredCount ?? 0, session?.AwaitingBag ?? false,
                 desk.HasActiveReturn ? desk.ActiveReturn.OrderNumber : null,
                 Math.Max(0, director.QueuedVisits.Count - (desk.HasCustomer ? 1 : 0)),
-                director.Shift.TimeLeft(Time.timeAsDouble), IsConfirmingEnd);
+                director.Shift.TimeLeft(Time.timeAsDouble), IsConfirmingEnd, desk.AwaitsCode);
         }
 
         /// <summary>The shift screen: the order at the counter, how many of its items are handed over, the line, the time.</summary>
         public static string OrderScreen(string orderNumber, int items, int delivered, bool awaitingBag, string returnNumber,
-            int waiting, double? timeLeft, bool confirmingEnd)
+            int waiting, double? timeLeft, bool confirmingEnd, bool awaitingCode = false)
         {
             var text = new StringBuilder();
             if (confirmingEnd) text.Append("<color=#FF8A70>Нажмите ещё раз, чтобы\nзавершить смену</color>\n\n");
-            if (orderNumber != null)
+            // T035: before the code nothing about the customer is known.
+            if (awaitingCode) text.Append("Клиент у стойки\nОтсканируйте код на его телефоне\n");
+            else if (orderNumber != null)
             {
                 text.Append("Заказ №").Append(orderNumber).Append('\n');
                 text.Append("Товаров: ").Append(items).Append(" · выдано: ").Append(delivered).Append('\n');

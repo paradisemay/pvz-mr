@@ -71,8 +71,6 @@ namespace Pvz.Runtime
         [SerializeField, Range(0, 100)] private int urgentChancePercent = 15;
         [Tooltip("Share of the usual patience an urgent customer has.")]
         [SerializeField, Range(0.1f, 1f)] private float urgentPatienceFactor = 0.6f;
-        [Tooltip("Chance (0..100) that a customer remembers only the last digits of the order number.")]
-        [SerializeField, Range(0, 100)] private int forgotNumberChancePercent = 15;
 
         [Header("Pacing (seconds, m/s)")]
         [SerializeField, Min(0)] private float firstCustomerDelay = 2f;
@@ -123,13 +121,12 @@ namespace Pvz.Runtime
         /// <summary>Used by the editor builder to create the difficulty presets.</summary>
         internal void ConfigureDifficulty(string name, float patience, int supplyAfter, int bagChance,
             float walkSpeed, float betweenCustomers, int queue, bool tutorial, int returnChance,
-            int urgentChance, int forgotNumberChance, float shiftSeconds, int careerPercent)
+            int urgentChance, float shiftSeconds, int careerPercent)
         {
             careerPointsPercent = careerPercent;
             shiftDurationSeconds = shiftSeconds;
             returnChancePercent = returnChance;
             urgentChancePercent = urgentChance;
-            forgotNumberChancePercent = forgotNumberChance;
             queueLength = queue;
             showTutorial = tutorial;
             displayName = name;
@@ -149,7 +146,6 @@ namespace Pvz.Runtime
         public int CareerPointsPercent => careerPointsPercent;
         public int UrgentChancePercent => urgentChancePercent;
         public float UrgentPatienceFactor => urgentPatienceFactor;
-        public int ForgotNumberChancePercent => forgotNumberChancePercent;
 
         public SupplyPlan CreateSupplyPlan() => !HasSupply
             ? SupplyPlan.None

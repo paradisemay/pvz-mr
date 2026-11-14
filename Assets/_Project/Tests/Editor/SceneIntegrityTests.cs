@@ -155,17 +155,6 @@ namespace Pvz.Editor.Tests
             Assert.GreaterOrEqual(biggest, 3, $"{settingsPath}: no big order in the delivery");
         }
 
-        /// <summary>T014: a forgetful customer's «…NN» must name exactly one order of the shift.</summary>
-        [TestCase(PvzSceneBuilder.SettingsPath)]
-        [TestCase(PvzSceneBuilder.EasySettingsPath)]
-        [TestCase(PvzSceneBuilder.HardSettingsPath)]
-        public void Presets_HaveDistinctNumberEndings(string settingsPath)
-        {
-            var numbers = AllOrderNumbers(settingsPath);
-            Assert.IsFalse(numbers.Any(a => numbers.Any(b => Core.OrderNumbers.SameHint(a, b))),
-                $"{settingsPath}: two orders end the same way: {string.Join(", ", numbers)}");
-        }
-
         private static string[] AllOrderNumbers(string settingsPath)
         {
             var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(settingsPath);

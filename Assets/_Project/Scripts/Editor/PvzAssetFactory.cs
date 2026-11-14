@@ -126,6 +126,41 @@ namespace Pvz.Editor
             return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
         }
 
+        /// <summary>
+        /// The barcode on a customer's phone (T035): black bars of varying width on white, with quiet margins. Decorative —
+        /// the scanner recognises the phone itself, like the QR on boxes.
+        /// </summary>
+        public static Texture2D BarcodeTexture()
+        {
+            const int width = 128, height = 32;
+            var path = $"{TexturesDir}/Barcode.png";
+            var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            var random = new System.Random(4207);
+            var bars = new bool[width];
+            for (var x = 10; x < width - 10;)
+            {
+                var run = random.Next(1, 4);
+                var black = random.Next(2) == 0;
+                for (var i = 0; i < run && x < width - 10; i++, x++) bars[x] = black;
+            }
+            for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
+                tex.SetPixel(x, y, bars[x] && y > 3 && y < height - 4 ? Color.black : Color.white);
+            tex.Apply();
+            File.WriteAllBytes(path, tex.EncodeToPNG());
+            Object.DestroyImmediate(tex);
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+            {
+                importer.textureType = TextureImporterType.Default;
+                importer.filterMode = FilterMode.Point;
+                importer.mipmapEnabled = true;
+                importer.wrapMode = TextureWrapMode.Clamp;
+                importer.SaveAndReimport();
+            }
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        }
+
         // ---------- Font ----------
 
         /// <summary>Dynamic TMP font asset from Liberation Sans with Cyrillic glyphs pre-baked.</summary>
