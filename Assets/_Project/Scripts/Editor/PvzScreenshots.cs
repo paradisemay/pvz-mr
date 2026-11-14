@@ -46,6 +46,9 @@ namespace Pvz.Editor
             var computer = Object.FindFirstObjectByType<PvzComputer>();
             computer.Preview(PvzComputer.Screen.Menu, PvzComputer.MenuText, beforeShift: true);
             Capture("17_computer_menu", ComputerCameraFrom, ComputerCameraAt, 48f);
+            // T041: the headset gave no room mesh (the room was not scanned): the menu says what to do.
+            computer.Preview(PvzComputer.Screen.Menu, PvzComputer.MenuText + "\n\n" + RoomMesh.MissingText, beforeShift: true);
+            Capture("26_room_not_scanned", ComputerCameraFrom, ComputerCameraAt, 48f);
             computer.Preview(PvzComputer.Screen.Settings, PvzComputer.SettingsText, beforeShift: true);
             Capture("18_computer_settings", ComputerCameraFrom, ComputerCameraAt, 48f);
             // Moving the counter (T034): the orange handle above its front edge and the moving screen.

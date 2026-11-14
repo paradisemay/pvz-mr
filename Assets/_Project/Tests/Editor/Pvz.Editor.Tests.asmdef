@@ -5,6 +5,7 @@
         "Pvz.Core",
         "Pvz.Runtime",
         "Unity.XR.ARFoundation",
+        "Unity.XR.CoreUtils",
         "Pvz.Editor",
         "Unity.XR.Interaction.Toolkit",
         "UnityEngine.TestRunner",

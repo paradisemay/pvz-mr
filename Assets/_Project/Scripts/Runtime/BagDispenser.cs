@@ -44,7 +44,7 @@ namespace Pvz.Runtime
 
         private bool SpotIsClear()
         {
-            var count = Physics.OverlapBoxNonAlloc(transform.position, spotHalfExtents, _overlap, transform.rotation, ~0,
+            var count = Physics.OverlapBoxNonAlloc(transform.position, spotHalfExtents, _overlap, transform.rotation, RoomMesh.Without(~0),
                 QueryTriggerInteraction.Ignore);
             return count == 0;
         }

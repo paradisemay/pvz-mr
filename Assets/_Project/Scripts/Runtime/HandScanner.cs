@@ -160,7 +160,7 @@ namespace Pvz.Runtime
         private Collider FindTarget(Vector3 origin, Vector3 direction, out Vector3 endPoint)
         {
             endPoint = origin + direction * range;
-            var count = Physics.RaycastNonAlloc(origin, direction, _hits, range, scanMask, QueryTriggerInteraction.Ignore);
+            var count = Physics.RaycastNonAlloc(origin, direction, _hits, range, RoomMesh.Without(scanMask), QueryTriggerInteraction.Ignore); // not the invisible furniture mesh
             var bestDistance = float.MaxValue;
             Collider best = null;
             LastHit = $"nothing within {range:0.0} m";

@@ -45,6 +45,42 @@ namespace Pvz.Runtime.Tests
             Assert.IsNotNull(Key(ComputerKey.Action.OpenSettings));
             Assert.IsNull(Key(ComputerKey.Action.EndShift), "no «Завершить смену» before the shift");
             StringAssert.Contains("сложность", _computer.ScreenText);
+            StringAssert.DoesNotContain(RoomMesh.MissingText, _computer.ScreenText, "the editor has no meshing: nothing to say");
+        }
+
+        [UnityTest]
+        public IEnumerator TheInvisibleFurnitureMesh_DoesNotBlockTheScanRay()
+        {
+            var scanner = _director.Scanner;
+            scanner.GetComponent<Rigidbody>().isKinematic = true;
+            var target = new GameObject("Target").AddComponent<BoxCollider>();
+            target.transform.position = new Vector3(0f, 1.8f, -0.9f);
+            var furniture = GameObject.CreatePrimitive(PrimitiveType.Cube); // a chunk of the room mesh on the line
+            furniture.layer = LayerMask.NameToLayer(RoomMesh.LayerName);
+            furniture.transform.position = new Vector3(0f, 1.8f, -1.3f);
+            furniture.transform.localScale = new Vector3(0.4f, 0.4f, 0.05f);
+            var from = new Vector3(0f, 1.8f, -1.8f);
+            scanner.transform.SetPositionAndRotation(from, Quaternion.LookRotation(Vector3.forward));
+            Physics.SyncTransforms();
+            yield return new WaitForFixedUpdate();
+
+            scanner.Fire();
+            StringAssert.Contains("Target", scanner.LastHit, "the ray passed the furniture mesh");
+            Object.Destroy(target.gameObject);
+            Object.Destroy(furniture);
+        }
+
+        [UnityTest]
+        public IEnumerator AnUnscannedRoom_IsReportedOnTheMenu_AndTheNoteGoesOnceTheMeshComes()
+        {
+            var room = Object.FindFirstObjectByType<RoomMesh>();
+            room.enabled = false; // the editor has no meshing subsystem: the headset's answers are played by hand
+            room.Report(RoomMesh.State.Missing);
+            yield return null;
+            StringAssert.Contains(RoomMesh.MissingText, _computer.ScreenText, "T041: scan the room in the headset settings");
+            room.Report(RoomMesh.State.Ready);
+            yield return null;
+            StringAssert.DoesNotContain(RoomMesh.MissingText, _computer.ScreenText);
         }
 
         [UnityTest]
