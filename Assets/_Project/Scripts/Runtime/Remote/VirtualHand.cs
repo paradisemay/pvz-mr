@@ -94,27 +94,68 @@ namespace Pvz.Runtime.Remote
         /// <paramref name="targetObject"/> first (no other box, counter or wall in between): the player's side first, then
         /// around the target and higher up. Without a target object (or no clear spot) — the player's side.
         /// </summary>
-        public static Vector3 ClearShot(Vector3 target, float reach, Transform targetObject, Transform ignore)
+        public static Vector3 ClearShot(Vector3 target, float reach, Transform targetObject, Transform ignore) =>
+            TryClearShot(target, reach, targetObject, ignore, 0f, out var spot) ? spot : PlayerSide(target, reach);
+
+        private static Vector3 PlayerSide(Vector3 target, float reach)
         {
             var head = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
             var toPlayer = Vector3.ProjectOnPlane(head - target, Vector3.up);
             if (toPlayer.sqrMagnitude < 1e-4f) toPlayer = Vector3.back;
-            toPlayer.Normalize();
-            var fallback = target + toPlayer * reach + Vector3.up * 0.3f;
-            if (targetObject == null) return fallback;
+            return target + toPlayer.normalized * reach + Vector3.up * 0.3f;
+        }
+
+        /// <summary>
+        /// Like <see cref="ClearShot"/>, but says when there is no clear spot, and checks a line <paramref name="radius"/>
+        /// thick (a ray from a held scanner wobbles a little; a hair-thin clear line still grazed the next box).
+        /// </summary>
+        public static bool TryClearShot(Vector3 target, float reach, Transform targetObject, Transform ignore, float radius, out Vector3 spot)
+        {
+            spot = PlayerSide(target, reach);
+            if (targetObject == null) return false;
+            var toPlayer = Vector3.ProjectOnPlane(spot - target, Vector3.up).normalized;
             foreach (var up in new[] { 0.3f, 0.6f, 0.1f, 0.9f })
             foreach (var yaw in new[] { 0f, 30f, -30f, 60f, -60f, 90f, -90f, 135f, -135f, 180f })
             {
-                var spot = target + Quaternion.Euler(0f, yaw, 0f) * toPlayer * reach + Vector3.up * up;
-                if (FirstHit(spot, target, ignore) is Transform hit && hit.IsChildOf(targetObject)) return spot;
+                var candidate = target + Quaternion.Euler(0f, yaw, 0f) * toPlayer * reach + Vector3.up * up;
+                if (FirstHit(candidate, target, ignore, radius) is Transform hit && hit.IsChildOf(targetObject))
+                {
+                    spot = candidate;
+                    return true;
+                }
             }
-            return fallback;
+            return false;
         }
 
-        private static Transform FirstHit(Vector3 from, Vector3 to, Transform ignore)
+        /// <summary>
+        /// Aims a held object's <paramref name="muzzle"/> (the scanner's ray) at the target from a spot with a clear line
+        /// (#93): the clear line is checked from where the muzzle will be, not from the hand — the muzzle sits 10–15 cm
+        /// off the hand, and a line clear from the hand still hit the monitor, a bag or the next box in a pile.
+        /// The hand goes where the muzzle lands on that spot, then <see cref="AimHeld"/> trims the turn.
+        /// False (the hand does not move) when no spot within reach has a clear line.
+        /// </summary>
+        public bool AimHeldAt(Transform muzzle, Vector3 target, Transform targetObject, Transform ignore, float reach = 0.5f)
+        {
+            if (muzzle == null) return false;
+            var spot = PlayerSide(target, reach); // a bare point (no object to see): from the player's side
+            if (targetObject != null && !TryClearShot(target, reach, targetObject, ignore, 0.02f, out spot) &&
+                !TryClearShot(target, reach, targetObject, ignore, 0f, out spot)) return false;
+            // The held object is attached rigidly: the muzzle's pose in the hand's frame stays as it is now.
+            var muzzleOffset = Quaternion.Inverse(WorldRotation) * (muzzle.position - WorldPosition);
+            var muzzleTurn = Quaternion.Inverse(WorldRotation) * muzzle.rotation;
+            var hand = Quaternion.LookRotation(target - spot, Vector3.up) * Quaternion.Inverse(muzzleTurn);
+            StopAiming();
+            SetPose(spot - hand * muzzleOffset, hand);
+            AimHeld(muzzle, target);
+            return true;
+        }
+
+        private static Transform FirstHit(Vector3 from, Vector3 to, Transform ignore, float radius = 0f)
         {
             var direction = to - from;
-            var hits = Physics.RaycastAll(from, direction.normalized, direction.magnitude + 0.5f, ~0, QueryTriggerInteraction.Ignore);
+            var hits = radius > 0f
+                ? Physics.SphereCastAll(from, radius, direction.normalized, direction.magnitude + 0.5f, ~0, QueryTriggerInteraction.Ignore)
+                : Physics.RaycastAll(from, direction.normalized, direction.magnitude + 0.5f, ~0, QueryTriggerInteraction.Ignore);
             Transform first = null;
             var best = float.MaxValue;
             foreach (var hit in hits)

@@ -439,10 +439,14 @@ namespace Pvz.Runtime.Remote
                     var held = FindFirstObjectByType<HandScanner>();
                     var holding = held != null && held.IsHeld;
                     // Aim from a spot with a clear line to the target (other boxes, the counter are not in the way).
-                    // A scanner caught by the far ray hangs ahead of the hand on its ray: keep the muzzle, not the hand, 0.5 m away.
-                    var reach = holding ? Vector3.Distance(held.Muzzle.position, _hand.WorldPosition) + 0.5f : 0.5f;
-                    _hand.PointAt(target, reach, targetObject, holding ? held.transform : null);
-                    if (holding) _hand.AimHeld(held.Muzzle, target); // aim the scan ray, not the hand
+                    if (!holding)
+                    {
+                        _hand.PointAt(target, 0.5f, targetObject);
+                        break;
+                    }
+                    // Holding the scanner: the line is checked from where its muzzle will be, 0.5 m from the target (#93).
+                    if (!_hand.AimHeldAt(held.Muzzle, target, targetObject, held.transform))
+                        return RemoteProtocol.Error($"no clear line from the scanner to {args[1]} (something is in the way from every side)");
                     break;
                 case "to":
                     if (!_hand.IsOn) return RemoteProtocol.Error("hand on first");
