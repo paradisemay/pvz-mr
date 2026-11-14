@@ -445,6 +445,8 @@ namespace Pvz.Runtime.Remote
                         break;
                     }
                     // Holding the scanner: the line is checked from where its muzzle will be, 0.5 m from the target (#93).
+                    if (targetObject != null && targetObject.IsChildOf(held.transform))
+                        return RemoteProtocol.Error("the scanner is already in the hand");
                     if (!_hand.AimHeldAt(held.Muzzle, target, targetObject, held.transform))
                         return RemoteProtocol.Error($"no clear line from the scanner to {args[1]} (something is in the way from every side)");
                     break;

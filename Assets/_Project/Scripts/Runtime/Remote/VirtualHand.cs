@@ -106,8 +106,10 @@ namespace Pvz.Runtime.Remote
         }
 
         /// <summary>
-        /// Like <see cref="ClearShot"/>, but says when there is no clear spot, and checks a line <paramref name="radius"/>
-        /// thick (a ray from a held scanner wobbles a little; a hair-thin clear line still grazed the next box).
+        /// Like <see cref="ClearShot"/>, but says when there is no clear spot. A spot is clear when it is not inside
+        /// anything and the thin line from it (the scan ray itself) reaches the target first; with a
+        /// <paramref name="radius"/>, a line that thick must reach it first too (a held scanner wobbles a little, and a
+        /// hair-thin clear line still grazed the next box).
         /// </summary>
         public static bool TryClearShot(Vector3 target, float reach, Transform targetObject, Transform ignore, float radius, out Vector3 spot)
         {
@@ -118,36 +120,13 @@ namespace Pvz.Runtime.Remote
             foreach (var yaw in new[] { 0f, 30f, -30f, 60f, -60f, 90f, -90f, 135f, -135f, 180f })
             {
                 var candidate = target + Quaternion.Euler(0f, yaw, 0f) * toPlayer * reach + Vector3.up * up;
-                if (FirstHit(candidate, target, ignore, radius) is Transform hit && hit.IsChildOf(targetObject))
-                {
-                    spot = candidate;
-                    return true;
-                }
+                if (Inside(candidate, ignore, targetObject)) continue; // a ray never sees the collider it starts in
+                if (!(FirstHit(candidate, target, ignore) is Transform thin && thin.IsChildOf(targetObject))) continue;
+                if (radius > 0f && !(FirstHit(candidate, target, ignore, radius) is Transform thick && thick.IsChildOf(targetObject))) continue;
+                spot = candidate;
+                return true;
             }
             return false;
-        }
-
-        /// <summary>
-        /// Aims a held object's <paramref name="muzzle"/> (the scanner's ray) at the target from a spot with a clear line
-        /// (#93): the clear line is checked from where the muzzle will be, not from the hand — the muzzle sits 10–15 cm
-        /// off the hand, and a line clear from the hand still hit the monitor, a bag or the next box in a pile.
-        /// The hand goes where the muzzle lands on that spot, then <see cref="AimHeld"/> trims the turn.
-        /// False (the hand does not move) when no spot within reach has a clear line.
-        /// </summary>
-        public bool AimHeldAt(Transform muzzle, Vector3 target, Transform targetObject, Transform ignore, float reach = 0.5f)
-        {
-            if (muzzle == null) return false;
-            var spot = PlayerSide(target, reach); // a bare point (no object to see): from the player's side
-            if (targetObject != null && !TryClearShot(target, reach, targetObject, ignore, 0.02f, out spot) &&
-                !TryClearShot(target, reach, targetObject, ignore, 0f, out spot)) return false;
-            // The held object is attached rigidly: the muzzle's pose in the hand's frame stays as it is now.
-            var muzzleOffset = Quaternion.Inverse(WorldRotation) * (muzzle.position - WorldPosition);
-            var muzzleTurn = Quaternion.Inverse(WorldRotation) * muzzle.rotation;
-            var hand = Quaternion.LookRotation(target - spot, Vector3.up) * Quaternion.Inverse(muzzleTurn);
-            StopAiming();
-            SetPose(spot - hand * muzzleOffset, hand);
-            AimHeld(muzzle, target);
-            return true;
         }
 
         private static Transform FirstHit(Vector3 from, Vector3 to, Transform ignore, float radius = 0f)
@@ -168,14 +147,51 @@ namespace Pvz.Runtime.Remote
             return first;
         }
 
+        private static readonly Collider[] Overlaps = new Collider[8];
+
+        private static bool Inside(Vector3 point, Transform ignore, Transform targetObject)
+        {
+            var count = Physics.OverlapSphereNonAlloc(point, 0.02f, Overlaps, ~0, QueryTriggerInteraction.Ignore);
+            for (var i = 0; i < count; i++)
+            {
+                var other = Overlaps[i].transform;
+                if ((ignore != null && other.IsChildOf(ignore)) || other.IsChildOf(targetObject)) continue;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Aims a held object's <paramref name="muzzle"/> (the scanner's ray) at the target from a spot with a clear line
+        /// (#93): the clear line is checked from where the muzzle will be, not from the hand — the muzzle sits 10–15 cm
+        /// off the hand, and a line clear from the hand still hit the monitor, a bag or the next box in a pile.
+        /// The spot is chosen at once (false — and the hand stops — when no spot within reach has a clear line); the hand
+        /// then waits until the held object has caught up with it, measures where the muzzle sits in the hand, and goes
+        /// where that puts the muzzle on the spot, pointing at the target.
+        /// </summary>
+        public bool AimHeldAt(Transform muzzle, Vector3 target, Transform targetObject, Transform ignore, float reach = 0.5f)
+        {
+            StopAiming(); // a new aim, or a refused one, replaces any aim still in progress
+            PlannedSpot = null;
+            if (muzzle == null) return false;
+            var spot = PlayerSide(target, reach); // a bare point (no object to see): from the player's side
+            if (targetObject != null && !TryClearShot(target, reach, targetObject, ignore, 0.02f, out spot) &&
+                !TryClearShot(target, reach, targetObject, ignore, 0f, out spot)) return false;
+            _aim = StartCoroutine(AimHeldRoutine(muzzle, target, spot));
+            return true;
+        }
+
+        /// <summary>Where the muzzle is being put (diagnostics, tests); set once the held object was measured.</summary>
+        public Vector3? PlannedSpot { get; private set; }
+
         /// <summary>
         /// Turns the hand over a few frames until <paramref name="muzzle"/> (of something held at an angle, e.g. the
         /// scanner) points at <paramref name="target"/>.
         /// </summary>
         public void AimHeld(Transform muzzle, Vector3 target)
         {
-            if (_aim != null) StopCoroutine(_aim);
-            _aim = StartCoroutine(AimHeldRoutine(muzzle, target));
+            StopAiming();
+            _aim = StartCoroutine(AimHeldRoutine(muzzle, target, null));
         }
 
         private Coroutine _aim;
@@ -190,29 +206,39 @@ namespace Pvz.Runtime.Remote
         /// <summary>Still turning a held object onto its target (see <see cref="AimHeld"/>).</summary>
         public bool IsAiming => _aim != null;
 
-        private System.Collections.IEnumerator AimHeldRoutine(Transform muzzle, Vector3 target)
+        private System.Collections.IEnumerator AimHeldRoutine(Transform muzzle, Vector3 target, Vector3? spot)
         {
             // The held object is attached rigidly (fixed attach point) but follows by velocity tracking, so it lags while
-            // the hand moves: wait until both have settled, then solve for the hand rotation that points the muzzle at
-            // the target. Two or three passes absorb the muzzle's offset from the hand.
+            // the hand moves (and one caught by the far ray is still flying to the hand): wait until both have settled,
+            // then solve for the hand pose that puts the muzzle on the spot (or, without one, keeps the hand where it
+            // is) pointing at the target. A few passes absorb what is left of the lag.
+            var body = muzzle != null ? muzzle.GetComponentInParent<Rigidbody>() : null;
             for (var pass = 0; pass < 4 && muzzle != null; pass++)
             {
-                yield return Settle();
+                yield return Settle(body);
                 if (muzzle == null) break;
-                var toTarget = target - muzzle.position;
-                if (Vector3.Angle(muzzle.forward, toTarget) < 0.5f) break;
-                var muzzleInHand = Quaternion.Inverse(WorldRotation) * muzzle.rotation;
-                TargetRotation = Quaternion.LookRotation(toTarget, Vector3.up) * Quaternion.Inverse(muzzleInHand);
+                var at = spot ?? muzzle.position;
+                var toTarget = target - at;
+                if (Vector3.Angle(muzzle.forward, target - muzzle.position) < 0.5f && (muzzle.position - at).sqrMagnitude < 1e-4f) break;
+                var muzzleOffset = Quaternion.Inverse(WorldRotation) * (muzzle.position - WorldPosition);
+                var muzzleTurn = Quaternion.Inverse(WorldRotation) * muzzle.rotation;
+                var hand = Quaternion.LookRotation(toTarget, Vector3.up) * Quaternion.Inverse(muzzleTurn);
+                // Turning about the hand would swing the muzzle off the checked spot: move the hand with it.
+                SetPose(spot.HasValue ? spot.Value - hand * muzzleOffset : TargetPosition, hand);
+                if (spot.HasValue) PlannedSpot = spot;
             }
             _aim = null;
         }
 
-        private System.Collections.IEnumerator Settle()
+        private System.Collections.IEnumerator Settle(Rigidbody held = null)
         {
             var deadline = Time.unscaledTime + 5f;
             while (IsMoving && Time.unscaledTime < deadline) yield return null;
             var settleUntil = Time.unscaledTime + 0.4f;
             while (Time.unscaledTime < settleUntil) yield return null;
+            // A held object still catching up with the hand (velocity tracking, or flying in from the far ray).
+            while (held != null && !held.isKinematic && held.linearVelocity.sqrMagnitude > 0.0004f && Time.unscaledTime < deadline + 2f)
+                yield return null;
         }
 
         public void SetGrip(bool on)
