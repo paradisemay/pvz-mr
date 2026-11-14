@@ -497,6 +497,9 @@ namespace Pvz.Core
             {
                 if (visit.ReservedOrderNumber != null) numbers.Add(visit.ReservedOrderNumber);
             }
+            // #106: an order whose boxes are still being received from the delivery is not ready — a customer for it
+            // would get the boxes received so far, and the rest would be sold again under the same number.
+            foreach (var pending in _pendingIntake.Values) numbers.Add(pending.OrderNumber);
             return numbers;
         }
 
