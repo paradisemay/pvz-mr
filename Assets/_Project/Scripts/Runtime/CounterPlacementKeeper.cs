@@ -72,9 +72,16 @@ namespace Pvz.Runtime
         public bool RestoreSaved()
         {
             if (rig == null || !_store.TryLoad(out var placement)) return false;
+            // A place far from where the counter stands now (in front of the player) means the room changed — another room,
+            // a redrawn boundary. Restoring it would put the counter, and the computer that moves it, out of reach.
+            var offset = new Vector2(placement.X - rig.position.x, placement.Z - rig.position.z);
+            if (offset.magnitude > MaxRestoreDistance) return false;
             Place(placement);
             return true;
         }
+
+        /// <summary>Saved places farther than this from the player at the start are not restored.</summary>
+        public const float MaxRestoreDistance = 5f;
 
         /// <summary>Remembers where the rig stands now.</summary>
         public void SaveCurrent()

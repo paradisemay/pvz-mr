@@ -140,6 +140,40 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest]
+        public IEnumerator APlaceFarAway_IsNotRestored_TheRoomChanged()
+        {
+            var store = new MemoryTextStore();
+            new CounterPlacementStore(store).Save(new CounterPlacement(20f, -14f, 0f));
+            yield return Load(store);
+            yield return null;
+            Assert.Less(_placement.Rig.position.magnitude, 0.01f, "the counter stays in front of the player, within reach");
+        }
+
+        [UnityTest]
+        public IEnumerator ABoxOnTheCounter_RidesAlong()
+        {
+            var rig = _placement.Rig;
+            var box = Object.FindObjectsByType<QrBox>(FindObjectsSortMode.None).First();
+            var body = box.GetComponent<Rigidbody>();
+            // Put a box down on the counter top and let it settle, as a player would.
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            body.position = rig.TransformPoint(new Vector3(0.38f, 1.25f, 1.02f)); // on the handover zone, clear of the keys
+            body.rotation = rig.rotation;
+            yield return new WaitForSeconds(1.5f);
+            var local = rig.InverseTransformPoint(box.transform.position);
+            Assert.Greater(local.y, 1.0f, "the box lies on the counter top");
+
+            yield return StartMoving();
+            _mover.Follow(_mover.Handle.transform.position + new Vector3(1f, 0f, 0.5f), Vector3.right);
+            yield return null;
+            Assert.Less(Vector3.Distance(local, rig.InverseTransformPoint(box.transform.position)), 0.02f, "the box moved with the counter");
+            Key(ComputerKey.Action.ApplyMove).Press();
+            yield return new WaitForSeconds(1f);
+            Assert.Greater(rig.InverseTransformPoint(box.transform.position).y, 1.0f, "and still lies on it");
+        }
+
+        [UnityTest]
         public IEnumerator Recenter_PutsTheCounterInFrontOfThePlayer_AndSavesIt()
         {
             yield return StartMoving();

@@ -370,6 +370,8 @@ namespace Pvz.Editor
             grab.useDynamicAttach = true;
             grab.movementType = XRBaseInteractable.MovementType.VelocityTracking;
             grab.throwOnDetach = false;
+            // Let go anywhere, a bag stays in the room: it does not go back under the dispenser and ride with the counter (T034).
+            grab.retainTransformParent = false;
 
             root.AddComponent<ParcelBag>().Configure(grab, rb);
             return SavePrefab(root, "ParcelBag");
