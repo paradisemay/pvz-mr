@@ -87,8 +87,7 @@ namespace Pvz.Editor
             counter.transform.localPosition = CounterPosition;
 
             var scanner = ((GameObject)PrefabUtility.InstantiatePrefab(scannerPrefab.gameObject, rig)).GetComponent<HandScanner>();
-            scanner.transform.SetPositionAndRotation(CounterPosition + new Vector3(-0.48f, PvzPrefabBuilder.CounterHeight + 0.04f, -0.05f),
-                Quaternion.Euler(0f, -90f, 90f));
+            var scannerHolder = CreateScannerHolder(rig, scanner, font); // T038: the scanner lies in a holder and comes back to it when dropped
 
             // T036: no boxes stand in the room before the shift — the stock of every shift drops out of the supply hatch.
             var boxesRoot = new GameObject("Boxes").transform;
@@ -135,8 +134,10 @@ namespace Pvz.Editor
             var placement = new GameObject("Counter Placement").AddComponent<PlacementKeeper>();
             placement.Configure(rig, mrSetup);
             var mover = placement.gameObject.AddComponent<PlacementMover>();
+            var counterTop = new Bounds(CounterPosition + new Vector3(0f, PvzPrefabBuilder.CounterHeight + 0.26f, 0f), new Vector3(1.5f, 0.5f, 0.65f));
             mover.Configure(placement, CreatePlacementHandle(playArea, "Counter Handle", CounterHandleOffset), CounterHandleOffset,
-                CounterPosition + new Vector3(0f, PvzPrefabBuilder.CounterHeight + 0.26f, 0f), new Vector3(1.5f, 0.5f, 0.65f)); // what lies on the top rides along
+                counterTop.center, counterTop.size); // what lies on the top rides along
+            scannerHolder.Configure(scanner, scannerHolder.transform.Find("Cradle"), mover, counterTop); // a scanner on the top stays there
             var movingKeys = new GameObject("Moving Keys").transform;
             movingKeys.SetParent(pc.Computer.transform, false);
             CreateComputerKey(pc.Settings, 0, "ПЕРЕНЕСТИ\nСТОЙКУ", ComputerKey.Action.MoveCounter, pc.Computer, font, new Color(0.98f, 0.55f, 0.15f));
@@ -452,6 +453,36 @@ namespace Pvz.Editor
         /// The shelf rack (T037, #81): four shelves on four posts, a low lip at the front and back of each shelf so a box does
         /// not slide off, a grippy surface. The player arranges boxes on it; it is moved like the counter.
         /// </summary>
+        /// <summary>Where the scanner lies on the counter (counter rig space): on its side, the nose to the left.</summary>
+        public static readonly Vector3 ScannerHolderPosition = CounterPosition + new Vector3(-0.54f, PvzPrefabBuilder.CounterHeight, -0.05f);
+
+        /// <summary>
+        /// T038 (#76): a dark tray marked «СКАНЕР» on the counter top. The scanner starts in it, clicks into it
+        /// when let go nearby, and returns to it when dropped on the floor or lost.
+        /// </summary>
+        private static ScannerHolder CreateScannerHolder(Transform rig, HandScanner scanner, TMPro.TMP_FontAsset font)
+        {
+            var root = new GameObject("Scanner Holder").transform;
+            root.SetParent(rig, false);
+            root.localPosition = ScannerHolderPosition;
+            var dark = Lit("ScannerHolder", new Color(0.16f, 0.17f, 0.19f), 0.35f);
+            // The scanner's footprint lying on its side: nose at -x, grip away from the player (+z); the front strip is free for the label,
+            // the tray stops short of the computer's «Настройки» key in front of it, and its rims stay below the bag dispenser's spot check.
+            Primitive(PrimitiveType.Cube, "Tray", root, new Vector3(-0.0125f, 0.003f, 0.03f), new Vector3(0.195f, 0.006f, 0.2f), dark, true);
+            foreach (var side in new[] { -1f, 1f })
+                Primitive(PrimitiveType.Cube, "Stop", root, new Vector3(-0.0125f + side * 0.1025f, 0.008f, 0.03f), new Vector3(0.01f, 0.016f, 0.2f), dark, true);
+            Text("Label", root, new Vector3(-0.0125f, 0.0065f, -0.053f), new Vector2(0.17f, 0.026f), "СКАНЕР", font, new Color(0.98f, 0.8f, 0.3f), 0.3f,
+                localRot: Quaternion.Euler(90f, 0f, 0f)); // lies flat in front of the scanner, read by the player
+
+            var cradle = new GameObject("Cradle").transform;
+            cradle.SetParent(root, false);
+            cradle.localPosition = new Vector3(0f, 0.044f, 0f);
+            cradle.localRotation = Quaternion.Euler(0f, -90f, 90f);
+            scanner.transform.SetPositionAndRotation(cradle.position, cradle.rotation);
+
+            return root.gameObject.AddComponent<ScannerHolder>(); // configured once the counter mover exists
+        }
+
         private static Transform CreateShelfRack(Transform playArea)
         {
             var root = new GameObject("Shelf Rack").transform;

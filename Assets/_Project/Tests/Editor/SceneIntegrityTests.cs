@@ -35,6 +35,7 @@ namespace Pvz.Editor.Tests
         [TestCase(typeof(ShiftSummaryPanel))]
         [TestCase(typeof(MrSessionSetup))]
         [TestCase(typeof(SupplyHatch))]
+        [TestCase(typeof(ScannerHolder))]
         [TestCase(typeof(BagDispenser))]
         [TestCase(typeof(DifficultyButton))]
         [TestCase(typeof(RecenterButton))]

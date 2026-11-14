@@ -86,6 +86,8 @@ namespace Pvz.Editor
             var box = Object.FindFirstObjectByType<QrBox>();
             Capture("04_box_qr", box.transform.position + new Vector3(0.35f, 0.35f, -0.45f), box.transform.position, 45f);
             Capture("05_scanner", scanner.transform.position + new Vector3(-0.18f, 0.22f, -0.25f), scanner.transform.position, 40f);
+            var holder = Object.FindFirstObjectByType<ScannerHolder>().transform; // T038: the scanner in its holder
+            Capture("25_scanner_holder", holder.position + new Vector3(0.12f, 0.32f, -0.42f), holder.position + new Vector3(0f, 0.03f, 0f), 42f);
 
             // «Похожие заказы»: the customer wants №2781, the scanner caught a box of №2718.
             var (lookAlikeText, lookAlikeColor) = ShiftPresenter.ScanResultText(new Pvz.Core.ScanOutcome(Pvz.Core.ScanStatus.OtherOrder, new Pvz.Core.BoxId("BOX-103"), "2718", looksLikeTheWantedOrder: true));
