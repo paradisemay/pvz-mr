@@ -53,6 +53,9 @@ namespace Pvz.Runtime
         /// <summary>Where the scan ray starts and points.</summary>
         public Transform Muzzle => muzzle != null ? muzzle : transform;
 
+        /// <summary>What the last scan ray hit first (diagnostics for the debug remote).</summary>
+        public string LastHit { get; private set; } = string.Empty;
+
         private void Awake()
         {
             _grab = GetComponent<XRGrabInteractable>();
@@ -146,6 +149,7 @@ namespace Pvz.Runtime
             var count = Physics.RaycastNonAlloc(origin, direction, _hits, range, scanMask, QueryTriggerInteraction.Ignore);
             var bestDistance = float.MaxValue;
             QrBox best = null;
+            LastHit = $"nothing within {range:0.0} m";
             for (var i = 0; i < count; i++)
             {
                 var hit = _hits[i];
@@ -154,6 +158,7 @@ namespace Pvz.Runtime
                 bestDistance = hit.distance;
                 endPoint = hit.point;
                 best = hit.collider.GetComponentInParent<QrBox>();
+                LastHit = $"{hit.collider.name} @ {hit.distance:0.00} m";
             }
             return best;
         }
