@@ -237,8 +237,27 @@ namespace Pvz.Runtime.Tests
             yield return WaitUntil(() => returned == null, 10f, "the returned box is taken back");
         }
 
+        /// <summary>T035: a customer whose code nobody scans gives up, puts the phone away; their order was never known.</summary>
         [UnityTest, Timeout(60000)]
+        public IEnumerator ACustomerWhoseCodeIsNotScanned_LeavesAndPutsThePhoneAway()
+        {
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            var board = Object.FindFirstObjectByType<CounterBoard>();
+            director.UseAutoCustomerCode(false);
+            director.UsePatience(3);
+            yield return WaitUntil(() => director.Desk.HasActiveOrder && !director.CurrentCustomer.IsWalking, 40f,
+                "first customer at the counter");
+            var customer = director.CurrentCustomer;
+            var order = director.Desk.ActiveOrder;
+            Assert.IsTrue(customer.Phone.IsShown);
+            yield return WaitUntil(() => director.Stats.OrdersAbandoned == 1, 20f, "the customer gave up");
+            Assert.IsFalse(customer.Phone.IsShown, "the phone is put away at once");
+            StringAssert.DoesNotContain(order.Number, board.Status, "their order was never known");
+            Assert.AreEqual(0, director.Stats.Scans);
+        }
+
         /// <summary>T035 (#79): the customer shows the barcode on the phone; the order opens only when it is scanned.</summary>
+        [UnityTest, Timeout(60000)]
         public IEnumerator Customer_ShowsTheCodeOnThePhone_AndTheOrderOpensWhenItIsScanned()
         {
             var director = Object.FindFirstObjectByType<ShiftDirector>();

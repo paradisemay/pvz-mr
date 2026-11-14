@@ -373,8 +373,10 @@ namespace Pvz.Runtime
         private void OnScannerGrabbed()
         {
             if (_step != TutorialStep.TakeScanner) return; // only the very first pickup advances the tutorial
-            _step = _shift.Desk.AwaitsCode ? TutorialStep.ScanCode : TutorialStep.Scan;
-            if (_shift.Desk.HasActiveOrder) ShowCurrentHint();
+            // With codes, the phone comes first — also when the scanner is taken before the customer arrives.
+            var codeFirst = _shift.Desk.AwaitsCode || (_shift.Desk.RequiresCustomerCode && !_shift.Desk.HasCustomer);
+            _step = codeFirst ? TutorialStep.ScanCode : TutorialStep.Scan;
+            if (_shift.Desk.HasCustomer) ShowCurrentHint();
         }
 
         private void OnBoxScanned(ScanOutcome outcome)
@@ -512,7 +514,9 @@ namespace Pvz.Runtime
             PlaySound(FeedbackAudio.Sound.Error);
             Say("Всё, я ухожу!");
             _board.ShowHeadline("Клиент ушёл без заказа", CounterBoard.Bad);
-            _board.ShowStatus($"Заказ №{SpokenNumber(order)} остался на складе", CounterBoard.Bad);
+            // Left before the code was scanned: their order was never known (T035).
+            _board.ShowStatus(_shift.Desk.IsCodeScanned ? $"Заказ №{SpokenNumber(order)} остался на складе" : "Клиент не дождался скана кода",
+                CounterBoard.Bad);
         }
 
         private void OnOrderCompleted(OrderResult result)

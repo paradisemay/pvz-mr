@@ -621,10 +621,11 @@ namespace Pvz.Runtime.Remote
                 }
 
                 var desk = director.Desk;
-                if (desk.AwaitsCode && director.CurrentCustomer != null && director.CurrentCustomer.Phone != null
-                    && !director.CurrentCustomer.IsWalking)
+                if (desk.AwaitsCode && director.CurrentCustomer != null && !director.CurrentCustomer.IsWalking)
                 {
-                    director.Scanner.ScanDirect(director.CurrentCustomer.Phone); // T035: the code on the phone first
+                    // T035: the code on the phone first (a customer without a phone: the code is taken as read).
+                    if (director.CurrentCustomer.Phone != null) director.Scanner.ScanDirect(director.CurrentCustomer.Phone);
+                    else director.Shift.ScanCustomerCode();
                     yield return pause;
                     continue;
                 }

@@ -207,6 +207,7 @@ namespace Pvz.Runtime
             scanner.Missed += OnScanMissed;
             scanner.PhoneScanned += OnPhoneScanned;
             Desk.CodeScanned += OnCodeScanned;
+            Shift.OrderAbandoned += OnOrderAbandoned;
             handoverZone.BoxEntered += OnBoxEnteredZone;
             handoverZone.BagEntered += OnBagEnteredZone;
             Desk.BagRequested += OnBagRequested;
@@ -222,6 +223,7 @@ namespace Pvz.Runtime
             scanner.Missed -= OnScanMissed;
             scanner.PhoneScanned -= OnPhoneScanned;
             Desk.CodeScanned -= OnCodeScanned;
+            Shift.OrderAbandoned -= OnOrderAbandoned;
             handoverZone.BoxEntered -= OnBoxEnteredZone;
             handoverZone.BagEntered -= OnBagEnteredZone;
             Desk.BagRequested -= OnBagRequested;
@@ -460,6 +462,12 @@ namespace Pvz.Runtime
                 return;
             }
             Shift.ScanCustomerCode();
+        }
+
+        /// <summary>The customer gave up (also before their code was scanned): the phone goes away at once.</summary>
+        private void OnOrderAbandoned(Order order)
+        {
+            if (CurrentCustomer != null && CurrentCustomer.Phone != null) CurrentCustomer.Phone.Hide();
         }
 
         /// <summary>The code is read: the phone goes away, boxes already waiting in the zone are handed over.</summary>
