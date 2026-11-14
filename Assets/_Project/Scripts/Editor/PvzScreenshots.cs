@@ -57,7 +57,7 @@ namespace Pvz.Editor
             computer.Preview(PvzComputer.Screen.Moving, PvzComputer.MovingText, beforeShift: true);
             Capture("21_counter_move", new Vector3(-0.95f, 1.85f, -0.55f), new Vector3(0.05f, 1.25f, 0.75f), 60f);
             handle.SetActive(false);
-            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen("2781", 2, 1, false, null, 2, 263, false), beforeShift: false);
+            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen("2781", 2, 1, false, null, 2, 263, false, scanned: 2), beforeShift: false);
 
             // Stage a moment of play: a customer at the counter asking for an order.
             var customerPrefab = AssetDatabase.LoadAssetAtPath<Customer>(PvzAssetFactory.PrefabsDir + "/Customer.prefab");
@@ -98,6 +98,11 @@ namespace Pvz.Editor
             // Straight at the scanner screen (TMP text reads from behind its forward axis).
             var screen = scanner.GetComponentInChildren<TMP_Text>(true).transform;
             Capture("13_lookalike", screen.position - screen.forward * 0.2f, screen.position, 35f, screen.up);
+            // T043 (#83): the right box, and how much of the order the scanner has found — also said aloud.
+            var (countText, countColor) = ShiftPresenter.ScanResultText(new Pvz.Core.ScanOutcome(Pvz.Core.ScanStatus.Matches,
+                new Pvz.Core.BoxId("BOX-002"), "2781", false, itemsInOrder: 3, itemsScanned: 2));
+            scanner.ShowResult(countText, countColor);
+            Capture("27_scanner_count", screen.position - screen.forward * 0.2f, screen.position, 35f, screen.up);
             scanner.ShowResult("Заказ №2781\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
 
             // Two-box order handed over; the customer now asks for a bag.
@@ -173,7 +178,7 @@ namespace Pvz.Editor
             Capture("22_customer_phone", phonePoint + new Vector3(-0.12f, 0.1f, -0.6f), phonePoint, 45f);
             scanner.ShowResult("Заказ №2781\nКОД ПРИНЯТ", CounterBoard.Good);
             customer.Phone.Hide();
-            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen("2781", 2, 1, false, null, 2, 263, false), beforeShift: false);
+            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen("2781", 2, 1, false, null, 2, 263, false, scanned: 2), beforeShift: false);
             customer.ShowPatience(0.55);
 
             // An order handed over: confetti over the handover zone (T018).

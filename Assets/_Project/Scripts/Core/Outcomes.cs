@@ -20,13 +20,22 @@ namespace Pvz.Core
 
     public readonly struct ScanOutcome
     {
-        public ScanOutcome(ScanStatus status, BoxId box, string boxOrderNumber, bool looksLikeTheWantedOrder = false)
+        public ScanOutcome(ScanStatus status, BoxId box, string boxOrderNumber, bool looksLikeTheWantedOrder = false,
+            int itemsInOrder = 0, int itemsScanned = 0)
         {
             Status = status;
             Box = box;
             BoxOrderNumber = boxOrderNumber;
             LooksLikeTheWantedOrder = status == ScanStatus.OtherOrder && looksLikeTheWantedOrder;
+            ItemsInOrder = itemsInOrder;
+            ItemsScanned = itemsScanned;
         }
+
+        /// <summary>T043 (#83): items in the order of the customer at the counter (0 — no order there).</summary>
+        public int ItemsInOrder { get; }
+
+        /// <summary>T043 (#83): of them, found by the scanner (or already handed over), this scan included.</summary>
+        public int ItemsScanned { get; }
 
         public ScanStatus Status { get; }
         public BoxId Box { get; }

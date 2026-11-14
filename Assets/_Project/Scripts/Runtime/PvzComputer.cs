@@ -226,12 +226,12 @@ namespace Pvz.Runtime
                 session?.Order.Number, session?.Order.Boxes.Count ?? 0, session?.DeliveredCount ?? 0, session?.AwaitingBag ?? false,
                 desk.HasActiveReturn ? desk.ActiveReturn.OrderNumber : null,
                 Math.Max(0, director.QueuedVisits.Count - (desk.HasCustomer ? 1 : 0)),
-                director.Shift.TimeLeft(Time.timeAsDouble), IsConfirmingEnd, desk.AwaitsCode);
+                director.Shift.TimeLeft(Time.timeAsDouble), IsConfirmingEnd, desk.AwaitsCode, session?.ScannedCount ?? 0);
         }
 
-        /// <summary>The shift screen: the order at the counter, how many of its items are handed over, the line, the time.</summary>
+        /// <summary>The shift screen: the order at the counter, how many of its items are scanned and handed over, the line, the time.</summary>
         public static string OrderScreen(string orderNumber, int items, int delivered, bool awaitingBag, string returnNumber,
-            int waiting, double? timeLeft, bool confirmingEnd, bool awaitingCode = false)
+            int waiting, double? timeLeft, bool confirmingEnd, bool awaitingCode = false, int scanned = -1)
         {
             var text = new StringBuilder();
             if (confirmingEnd) text.Append("<color=#FF8A70>Нажмите ещё раз, чтобы\nзавершить смену</color>\n\n");
@@ -240,7 +240,9 @@ namespace Pvz.Runtime
             else if (orderNumber != null)
             {
                 text.Append("Заказ №").Append(orderNumber).Append('\n');
+                // T043 (#83): «Товаров 8, отсканировано 7» — scanned never lags behind what is already handed over.
                 text.Append("Товаров: ").Append(items).Append(" · выдано: ").Append(delivered).Append('\n');
+                text.Append("Отсканировано: ").Append(Math.Max(scanned, delivered)).Append('\n');
                 if (awaitingBag) text.Append("Нужен пакет\n");
             }
             else if (returnNumber != null) text.Append("Возврат по заказу №").Append(returnNumber).Append("\nОтсканируйте коробку\n");

@@ -12,6 +12,7 @@ namespace Pvz.Runtime
         private readonly Shift _shift;
         private readonly CounterBoard _board;
         private readonly HandScanner _scanner;
+        private readonly ScannerVoice _voice; // T043: the scanner's Russian voice (optional)
         private readonly FeedbackAudio _audio;
         private readonly FeedbackEffects _effects;
 
@@ -31,6 +32,7 @@ namespace Pvz.Runtime
             if (scanner == null) throw new ArgumentNullException(nameof(scanner));
             _board = board;
             _scanner = scanner;
+            _voice = scanner.GetComponent<ScannerVoice>();
             _audio = audio != null ? audio : null;
             _effects = effects != null ? effects : null;
 
@@ -384,11 +386,17 @@ namespace Pvz.Runtime
             PlaySound(FeedbackAudio.Sound.Beep);
             var (text, color) = ScanResultText(outcome);
             _scanner.ShowResult(text, color);
+            if (_voice != null) _voice.SayScan(outcome);
             if (outcome.Status != ScanStatus.NoActiveOrder) _scanner.Flash(color); // every judged scan is confirmed visually
             var tutorialScanning = _step == TutorialStep.Scan || _step == TutorialStep.TakeScanner;
             if (outcome.Status == ScanStatus.Matches && tutorialScanning) { _step = TutorialStep.Carry; ShowCurrentHint(); }
             else if (outcome.Status == ScanStatus.OtherOrder && tutorialScanning) ShowHint(HintWrongBox);
         }
+
+        /// <summary>T043 (#83): the customer's order so far («Товаров: 8», «Отсканировано: 7») under a judged scan.</summary>
+        public static string ItemCount(ScanOutcome outcome) => outcome.ItemsInOrder > 0
+            ? $"\n<size=70%>Товаров: {outcome.ItemsInOrder}\nОтсканировано: {outcome.ItemsScanned}</size>"
+            : string.Empty;
 
         /// <summary>What the scanner screen shows for a scan (also used for the PR screenshots).</summary>
         public static (string text, UnityEngine.Color color) ScanResultText(ScanOutcome outcome)
@@ -396,11 +404,11 @@ namespace Pvz.Runtime
             switch (outcome.Status)
             {
                 case ScanStatus.Matches:
-                    return ($"Заказ №{outcome.BoxOrderNumber}\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
+                    return ($"Заказ №{outcome.BoxOrderNumber}\nНУЖНАЯ КОРОБКА" + ItemCount(outcome), CounterBoard.Good);
                 case ScanStatus.OtherOrder:
-                    return (outcome.LooksLikeTheWantedOrder
+                    return ((outcome.LooksLikeTheWantedOrder
                         ? $"Заказ №{outcome.BoxOrderNumber}\nПОХОЖ —\nНЕ ТОТ!"
-                        : $"Заказ №{outcome.BoxOrderNumber}\nНЕ ТОТ ЗАКАЗ", CounterBoard.Bad);
+                        : $"Заказ №{outcome.BoxOrderNumber}\nНЕ ТОТ ЗАКАЗ") + ItemCount(outcome), CounterBoard.Bad);
                 case ScanStatus.ReturnAccepted:
                     return ($"Заказ №{outcome.BoxOrderNumber}\nВОЗВРАТ ПРИНЯТ", CounterBoard.Good);
                 case ScanStatus.CodeNotScanned:
@@ -521,6 +529,7 @@ namespace Pvz.Runtime
 
         private void OnOrderCompleted(OrderResult result)
         {
+            if (_voice != null) _voice.SayOrderDone();
             _step = TutorialStep.Off; // the player has done it once
 
             Say("Спасибо!\nХорошего дня!");
