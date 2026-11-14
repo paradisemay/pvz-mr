@@ -103,12 +103,14 @@ namespace Pvz.Runtime
         private void OnEnable()
         {
             foreach (var button in difficultyButtons) if (button != null) button.Chosen += Begin;
+            if (counterPlacement != null) counterPlacement.Moved += RepositionLine;
             if (Shift != null) Subscribe();
         }
 
         private void OnDisable()
         {
             foreach (var button in difficultyButtons) if (button != null) button.Chosen -= Begin;
+            if (counterPlacement != null) counterPlacement.Moved -= RepositionLine;
             Unsubscribe();
         }
 
@@ -514,6 +516,21 @@ namespace Pvz.Runtime
         internal void ConfigureEffects(FeedbackEffects feedbackEffects) => effects = feedbackEffects;
 
         internal void ConfigureCareer(CareerKeeper careerKeeper) => career = careerKeeper;
+
+        [Tooltip("Optional: the counter can be moved (T034); the line then walks to its new place.")]
+        [SerializeField] private CounterPlacementKeeper counterPlacement;
+
+        internal void ConfigureCounterPlacement(CounterPlacementKeeper keeper) => counterPlacement = keeper;
+
+        /// <summary>The counter moved: everyone in line walks to their place at it again.</summary>
+        public void RepositionLine()
+        {
+            for (var i = 0; i < _line.Count; i++)
+            {
+                if (_line[i].Customer != null)
+                    _line[i].Customer.GoTo(SlotPosition(i), customerServicePoint.rotation, settings.CustomerWalkSpeed);
+            }
+        }
 
         public FeedbackEffects Effects => effects;
 

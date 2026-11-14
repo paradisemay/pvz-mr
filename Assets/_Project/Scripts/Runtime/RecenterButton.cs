@@ -12,6 +12,7 @@ namespace Pvz.Runtime
     public sealed class RecenterButton : MonoBehaviour
     {
         [SerializeField] private MrSessionSetup session;
+        [SerializeField] private CounterPlacementKeeper placement;
 
         private PressableButton _button;
 
@@ -24,8 +25,13 @@ namespace Pvz.Runtime
         public void Press()
         {
             if (session != null) session.AlignPlayAreaToPlayer();
+            if (placement != null) placement.ResetToDefault(); // the counter in front of the player is its new saved place (T034)
         }
 
-        internal void Configure(MrSessionSetup mrSession) => session = mrSession;
+        internal void Configure(MrSessionSetup mrSession, CounterPlacementKeeper counterPlacement = null)
+        {
+            session = mrSession;
+            placement = counterPlacement;
+        }
     }
 }

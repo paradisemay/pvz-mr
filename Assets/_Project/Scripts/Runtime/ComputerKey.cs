@@ -6,7 +6,7 @@ namespace Pvz.Runtime
     [RequireComponent(typeof(PressableButton))]
     public sealed class ComputerKey : MonoBehaviour
     {
-        public enum Action { OpenSettings, Back, EndShift }
+        public enum Action { OpenSettings, Back, EndShift, MoveCounter, ApplyMove, CancelMove }
 
         [SerializeField] private PvzComputer computer;
         [SerializeField] private Action action;
@@ -27,6 +27,9 @@ namespace Pvz.Runtime
                 case Action.OpenSettings: computer.OpenSettings(); break;
                 case Action.Back: computer.Back(); break;
                 case Action.EndShift: computer.EndShift(); break;
+                case Action.MoveCounter: computer.StartMovingCounter(); break;
+                case Action.ApplyMove: computer.ApplyMove(); break;
+                case Action.CancelMove: computer.CancelMove(); break;
             }
         }
 
