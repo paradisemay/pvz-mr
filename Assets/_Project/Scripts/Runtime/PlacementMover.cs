@@ -114,6 +114,7 @@ namespace Pvz.Runtime
             var rotation = Quaternion.Euler(0f, _referenceRigYaw + Mathf.DeltaAngle(_referenceHandleYaw, handleYaw), 0f);
             var position = handlePosition - rotation * handleOffset;
             position.y = _rigHeight;
+            position = keeper.Clamp(position); // e.g. the hatch stays where its boxes land within reach
             rig.SetPositionAndRotation(position, rotation);
             CarryRiders();
             keeper.AfterMoveQuietly();

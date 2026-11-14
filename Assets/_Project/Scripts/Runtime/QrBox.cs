@@ -59,6 +59,9 @@ namespace Pvz.Runtime
         }
 
         /// <summary>Puts the box back where the shift started (relative to the play area).</summary>
+        /// <summary>Where a lost box comes back (set by the supply hatch); null: where the box first was.</summary>
+        public System.Func<Vector3> Respawn { get; set; }
+
         public void ReturnToStart()
         {
             if (body != null && !body.isKinematic)
@@ -66,7 +69,8 @@ namespace Pvz.Runtime
                 body.linearVelocity = Vector3.zero;
                 body.angularVelocity = Vector3.zero;
             }
-            transform.localPosition = _startLocalPosition;
+            if (Respawn != null) transform.position = Respawn(); // out of the hatch where it is now (T036)
+            else transform.localPosition = _startLocalPosition;
             transform.localRotation = _startLocalRotation;
             if (body != null)
             {

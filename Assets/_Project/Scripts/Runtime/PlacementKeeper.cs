@@ -15,6 +15,8 @@ namespace Pvz.Runtime
         [SerializeField] private string storeKey = PlacementStore.CounterKey;
         [Tooltip("What it is, for the computer screen while moving it («стойку», «люк»).")]
         [SerializeField] private string displayName = "стойку";
+        [Tooltip("How far (m, on the floor) from the play area's centre it may stand; 0 = anywhere. The hatch: its boxes must land within reach.")]
+        [SerializeField, Min(0f)] private float maxReach;
         [Tooltip("On a headset the play area is first put in front of the player; the saved place is restored after that.")]
         [SerializeField] private MrSessionSetup session;
 
@@ -106,8 +108,19 @@ namespace Pvz.Runtime
         public void Place(Placement placement)
         {
             if (rig == null) return;
-            rig.SetPositionAndRotation(new Vector3(placement.X, rig.position.y, placement.Z), Quaternion.Euler(0f, placement.Yaw, 0f));
+            rig.SetPositionAndRotation(Clamp(new Vector3(placement.X, rig.position.y, placement.Z)), Quaternion.Euler(0f, placement.Yaw, 0f));
             AfterMove();
+        }
+
+        /// <summary>Keeps a position within <see cref="maxReach"/> of the play area's centre (on the floor).</summary>
+        public Vector3 Clamp(Vector3 position)
+        {
+            if (maxReach <= 0f || rig == null) return position;
+            var centre = rig.parent != null ? rig.parent.position : Vector3.zero;
+            var offset = new Vector2(position.x - centre.x, position.z - centre.z);
+            if (offset.magnitude <= maxReach) return position;
+            offset = offset.normalized * maxReach;
+            return new Vector3(centre.x + offset.x, position.y, centre.z + offset.y);
         }
 
         /// <summary>Dynamic bodies of the rig (the scanner, a bag) are teleported cleanly with it.</summary>
@@ -135,8 +148,10 @@ namespace Pvz.Runtime
             Physics.SyncTransforms();
         }
 
-        internal void Configure(Transform placedRig, MrSessionSetup mrSession, string key = PlacementStore.CounterKey, string name = "стойку")
+        internal void Configure(Transform placedRig, MrSessionSetup mrSession, string key = PlacementStore.CounterKey, string name = "стойку",
+            float reach = 0f)
         {
+            maxReach = reach;
             rig = placedRig;
             session = mrSession;
             storeKey = key;

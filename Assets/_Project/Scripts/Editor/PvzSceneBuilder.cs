@@ -154,7 +154,8 @@ namespace Pvz.Editor
 
             // The supply hatch is moved like the counter (T036): settings → «Место люка», a handle hanging from it.
             var hatchPlacement = hatch.gameObject.AddComponent<PlacementKeeper>();
-            hatchPlacement.Configure(hatch.transform, mrSetup, Pvz.Core.PlacementStore.HatchKey, "люк");
+            hatchPlacement.Configure(hatch.transform, mrSetup, Pvz.Core.PlacementStore.HatchKey, "люк",
+                Pvz.Core.WarehouseBounds.MaxReach - 1f); // its boxes must land within reach (a box farther is lost)
             var hatchMover = hatch.gameObject.AddComponent<PlacementMover>();
             hatchMover.Configure(hatchPlacement, CreatePlacementHandle(playArea, "Hatch Handle", hatch.transform.TransformPoint(HatchHandleOffset)),
                 HatchHandleOffset);

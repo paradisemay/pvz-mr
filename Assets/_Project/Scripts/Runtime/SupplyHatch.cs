@@ -86,6 +86,7 @@ namespace Pvz.Runtime
                     var rotation = Quaternion.Euler(0f, (float)random.NextDouble() * 360f, (float)(random.NextDouble() * 2 - 1) * 10f);
                     var box = Instantiate(boxPrefab, DropPoint + offset, rotation, boxesRoot != null ? boxesRoot : transform.parent);
                     box.AssignId(id, QrTextures.Create(id));
+                    box.Respawn = () => DropPoint + offset; // a lost box falls out of the hatch again, wherever it is now
                     var body = box.GetComponent<Rigidbody>();
                     if (body != null) body.angularVelocity = new Vector3((float)random.NextDouble() - 0.5f, 0f, (float)random.NextDouble() - 0.5f);
                     BoxDropped?.Invoke(box);

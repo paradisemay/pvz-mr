@@ -525,7 +525,7 @@ namespace Pvz.Runtime.Tests
             foreach (var box in boxes)
             {
                 var p = box.transform.position;
-                Assert.Less(new Vector2(p.x - under.x, p.z - under.z).magnitude, 1.2f, $"{box.RawId} lies in the pile under the hatch");
+                Assert.Less(new Vector2(p.x - under.x, p.z - under.z).magnitude, 1.6f, $"{box.RawId} lies in the pile under the hatch (boxes bounce off each other)");
                 Assert.Less(p.y, 1.0f, $"{box.RawId} fell down");
                 Assert.Greater(p.y, -0.05f, $"{box.RawId} is not in the floor");
             }

@@ -85,6 +85,8 @@ namespace Pvz.Editor.Tests
             Assert.IsNotEmpty(settings.SpareBoxes, "a few spare boxes fall out with the stock");
             Assert.IsEmpty(settings.SpareBoxes.Select(b => b.orderNumber).Intersect(settings.Boxes.Concat(settings.SupplyBoxes).Select(b => b.orderNumber)),
                 "spare boxes are other days' orders");
+            Assert.IsEmpty(settings.SpareBoxes.Select(b => b.boxId).Intersect(settings.Boxes.Concat(settings.SupplyBoxes).Select(b => b.boxId)),
+                "a spare box id must not repeat a box of the shift or the delivery");
         }
 
         [Test]

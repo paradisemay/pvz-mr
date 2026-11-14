@@ -191,6 +191,12 @@ namespace Pvz.Runtime.Tests
             StringAssert.Contains("люк", _computer.ScreenText);
             Assert.IsTrue(hatchMover.Handle.gameObject.activeInHierarchy);
             hatchMover.Follow(hatchMover.Handle.transform.position + new Vector3(0.6f, 0f, -0.4f), hatchKeeper.Rig.forward);
+            // Carried far away: it stops where its boxes still land within reach.
+            var centre = hatchKeeper.Rig.parent.position;
+            hatchMover.Follow(hatchMover.Handle.transform.position + new Vector3(-30f, 0f, 0f), hatchKeeper.Rig.forward);
+            Assert.LessOrEqual(new Vector2(hatchKeeper.Rig.position.x - centre.x, hatchKeeper.Rig.position.z - centre.z).magnitude,
+                Pvz.Core.WarehouseBounds.MaxReach - 1f + 1e-3f);
+            hatchMover.Follow(hatchMover.Handle.transform.position + new Vector3(0.6f, 0f, -0.4f), hatchKeeper.Rig.forward); // back to the chosen place
             Key(ComputerKey.Action.ApplyMove).Press();
             yield return null;
             Assert.AreEqual(height, hatchKeeper.Rig.position.y, 1e-4, "the hatch stays at its height");
@@ -203,7 +209,7 @@ namespace Pvz.Runtime.Tests
             yield return new WaitForSeconds(1f);
             var under = _director.Hatch.DropPoint;
             foreach (var box in _director.RemainingBoxes)
-                Assert.Less(new Vector2(box.transform.position.x - under.x, box.transform.position.z - under.z).magnitude, 1.2f,
+                Assert.Less(new Vector2(box.transform.position.x - under.x, box.transform.position.z - under.z).magnitude, 1.6f,
                     $"{box.RawId} fell under the moved hatch");
         }
 

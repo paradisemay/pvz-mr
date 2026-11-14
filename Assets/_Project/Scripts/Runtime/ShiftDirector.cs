@@ -43,6 +43,7 @@ namespace Pvz.Runtime
         private ShiftPresenter _presenter;
         private int _customersSpawned;
         private int _supplySeed;
+        private int _deliveries;
         private bool _subscribed;
 
         public Shift Shift { get; private set; }
@@ -324,7 +325,7 @@ namespace Pvz.Runtime
                 Debug.LogError("[ShiftDirector] A delivery arrived but there is no supply hatch in the scene.", this);
                 return;
             }
-            StartCoroutine(hatch.Drop(delivery.Select(b => b.Id.Value).ToArray(), _supplySeed, settings.DefaultCeilingHeight));
+            StartCoroutine(hatch.Drop(delivery.Select(b => b.Id.Value).ToArray(), _supplySeed + ++_deliveries, settings.DefaultCeilingHeight));
         }
 
         /// <summary>
