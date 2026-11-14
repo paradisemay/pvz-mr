@@ -22,6 +22,27 @@ namespace Pvz.Core
         public double OpenedAt { get; }
         public int Mistakes { get; private set; }
         public int DeliveredCount => _delivered.Count;
+
+        private readonly HashSet<BoxId> _scanned = new HashSet<BoxId>();
+
+        /// <summary>
+        /// T043 (#83): items of the order the scanner found — or handed over without a scan: the count only goes up as
+        /// the order gets done («Товаров 8, отсканировано 7»).
+        /// </summary>
+        public int ScannedCount
+        {
+            get
+            {
+                var count = _scanned.Count;
+                foreach (var id in _delivered) if (!_scanned.Contains(id)) count++;
+                return count;
+            }
+        }
+
+        internal void MarkScanned(BoxId id)
+        {
+            if (Order.Contains(id)) _scanned.Add(id);
+        }
         public int RemainingCount => Order.Boxes.Count - _delivered.Count;
         public bool BagDelivered { get; private set; }
 
