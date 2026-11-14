@@ -66,6 +66,31 @@ namespace Pvz.Runtime.Tests
             StringAssert.Contains("\"autoplay\":false", remote.Execute("state"));
         }
 
+        /// <summary>
+        /// #106: a hard shift by the autopilot — a long stock (T044), a delivery and returns: no order is sold twice, and
+        /// the summary never says more customers were served than the shift had.
+        /// </summary>
+        [UnityTest, Timeout(300000)]
+        public IEnumerator Autoplay_AHardShift_SellsEveryOrderOnce()
+        {
+            var remote = PvzRemote.Launch(0);
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.UseScoreStore(new Pvz.Core.MemoryScoreStore());
+            director.UseStockSeed(777);
+            StringAssert.Contains("\"ok\":true", remote.Execute("begin hard"));
+            var sold = new System.Collections.Generic.List<string>();
+            director.Desk.OrderCompleted += r => sold.Add(r.Order.Number);
+            remote.Execute("timescale 4");
+            remote.Execute("autoplay on");
+
+            var deadline = Time.realtimeSinceStartup + 240f;
+            while (!director.IsShiftOver && Time.realtimeSinceStartup < deadline) yield return null;
+            var log = string.Join(", ", sold);
+            Assert.IsTrue(director.IsShiftOver, log);
+            CollectionAssert.AllItemsAreUnique(sold, "an order sold twice: " + log);
+            Assert.LessOrEqual(director.Stats.OrdersCompleted, director.OrdersTotal, log);
+        }
+
         [UnityTest]
         public IEnumerator Shot_SavesAPicture_AndBadCommandsAnswerWithAnError()
         {
