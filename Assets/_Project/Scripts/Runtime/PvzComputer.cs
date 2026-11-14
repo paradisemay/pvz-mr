@@ -60,6 +60,8 @@ namespace Pvz.Runtime
         {
             if (Time.unscaledTime < _nextRefresh) return;
             _nextRefresh = Time.unscaledTime + 0.25f;
+            // The confirmation ran out: the key reads «Завершить смену» again, not «Точно?».
+            if (endShiftLabel != null && !IsConfirmingEnd && endShiftLabel.text != EndShiftCaption) endShiftLabel.text = EndShiftCaption;
             RefreshText();
         }
 
@@ -73,7 +75,13 @@ namespace Pvz.Runtime
             Show(Screen.Settings);
         }
 
-        public void Back() => Show(_beforeSettings);
+        public void Back()
+        {
+            if (Current == Screen.Settings) Show(_beforeSettings);
+        }
+
+        /// <summary>Between the start and the end of a shift (settings are limited then).</summary>
+        private bool ShiftRunning => director != null && director.IsStarted && !director.IsShiftOver;
 
         /// <summary>«Завершить смену»: the first press asks to confirm, the second (within a few seconds) ends the shift.</summary>
         public void EndShift()
@@ -97,10 +105,10 @@ namespace Pvz.Runtime
         public void Show(Screen screen)
         {
             Current = screen;
-            var shiftRunning = director != null && director.IsStarted && !director.IsShiftOver;
+            var shiftRunning = ShiftRunning;
             if (menuKeys != null) menuKeys.SetActive(screen == Screen.Menu);
             if (settingsKeys != null) settingsKeys.SetActive(screen == Screen.Settings);
-            if (settingsBeforeShiftKeys != null) settingsBeforeShiftKeys.SetActive(screen == Screen.Settings && director != null && !director.IsStarted);
+            if (settingsBeforeShiftKeys != null) settingsBeforeShiftKeys.SetActive(screen == Screen.Settings && !shiftRunning);
             if (shiftKeys != null) shiftKeys.SetActive(screen == Screen.Shift);
             if (summaryKeys != null) summaryKeys.SetActive(screen == Screen.Summary);
             if (screen == Screen.Settings && shiftRunning) _beforeSettings = Screen.Shift;
@@ -116,7 +124,7 @@ namespace Pvz.Runtime
             screenText.text = Current switch
             {
                 Screen.Menu => MenuText,
-                Screen.Settings => director != null && director.IsStarted ? SettingsDuringShiftText : SettingsText,
+                Screen.Settings => ShiftRunning ? SettingsDuringShiftText : SettingsText,
                 Screen.Shift => ShiftText(),
                 _ => SummaryText(),
             };

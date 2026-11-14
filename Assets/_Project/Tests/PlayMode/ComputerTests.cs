@@ -91,6 +91,26 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest]
+        public IEnumerator EndShift_Unconfirmed_ExpiresAndTheKeyReadsAsBefore()
+        {
+            _director.Begin();
+            yield return null;
+            var end = Key(ComputerKey.Action.EndShift);
+            var label = end.GetComponentInChildren<TMPro.TMP_Text>();
+            end.Press();
+            Assert.AreEqual("ТОЧНО?", label.text);
+            yield return new WaitForSecondsRealtime(3.6f);
+            Assert.IsFalse(_computer.IsConfirmingEnd);
+            Assert.AreEqual(PvzComputer.EndShiftCaption, label.text, "the key is «Завершить смену» again");
+            end.Press();
+            yield return null;
+            Assert.IsFalse(_director.Shift.IsTimeUp, "a press after the window only asks again");
+
+            _computer.Back(); // not on the settings screen: nothing happens
+            Assert.AreEqual(PvzComputer.Screen.Shift, _computer.Current);
+        }
+
+        [UnityTest]
         public IEnumerator EndShift_AsksToConfirm_ThenEndsTheShift_AndOffersANewOne()
         {
             _director.Begin();

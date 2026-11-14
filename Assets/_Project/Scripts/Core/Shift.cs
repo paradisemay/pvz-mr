@@ -153,7 +153,7 @@ namespace Pvz.Core
         public void Start(double now) => Clock.Start(now);
 
         /// <summary>Seconds of the shift left, or null when there is no time limit or the clock has not started.</summary>
-        public double? TimeLeft(double now) => Clock.TimeLeft(now);
+        public double? TimeLeft(double now) => Clock.LimitSeconds > 0 ? Clock.TimeLeft(now) : null; // a shift without a limit shows no clock, even when ended early
 
         /// <summary>
         /// The player ends the shift early (T033, «Завершить смену» on the counter computer): it goes as when the time runs

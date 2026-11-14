@@ -298,6 +298,10 @@ namespace Pvz.Runtime.Remote
         {
             var button = FindFirstObjectByType<T>(FindObjectsInactive.Include); // keys of other computer screens are hidden
             if (button == null) return RemoteProtocol.Error($"no {typeof(T).Name} in the scene");
+            var director = Director;
+            var running = director != null && director.IsStarted && !director.IsShiftOver;
+            if (running && (button is RecenterButton || button is ResetWarehouseButton))
+                return RemoteProtocol.Error($"{typeof(T).Name} is a before-the-shift setting (the computer hides it during a shift)");
             press(button);
             return RemoteProtocol.Ok("pressed", typeof(T).Name);
         }

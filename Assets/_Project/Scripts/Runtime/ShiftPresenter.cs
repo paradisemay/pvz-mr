@@ -172,7 +172,8 @@ namespace Pvz.Runtime
         private void OnTimeUp(System.Collections.Generic.IReadOnlyList<Visit> sentAway)
         {
             PlaySound(FeedbackAudio.Sound.Error);
-            _board.ShowHeadline("Время смены вышло!", CounterBoard.Bad);
+            if (_shift.Clock.EndedEarly) _board.ShowHeadline("Смена завершается", CounterBoard.Accent); // the player chose to end it
+            else _board.ShowHeadline("Время смены вышло!", CounterBoard.Bad);
             _board.ShowStatus(_shift.Desk.HasCustomer ? "Обслужите последнего клиента" : "Касса закрывается", CounterBoard.Neutral);
         }
 

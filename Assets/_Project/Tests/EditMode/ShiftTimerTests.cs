@@ -135,6 +135,7 @@ namespace Pvz.Core.Tests
 
                 Assert.IsTrue(shift.IsTimeUp);
                 Assert.IsTrue(shift.Clock.EndedEarly);
+                Assert.IsNull(shift.TimeLeft(6), "a shift without a limit shows no clock, even ended early");
                 Assert.AreEqual(1, raised, "raised once");
                 CollectionAssert.AreEqual(new[] { second }, sentAway);
                 Assert.IsFalse(shift.IsOver, "the customer at the counter is served to the end");
