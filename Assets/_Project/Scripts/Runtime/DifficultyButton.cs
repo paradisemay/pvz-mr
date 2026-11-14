@@ -6,25 +6,22 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 namespace Pvz.Runtime
 {
     /// <summary>A button on the counter that starts the shift with its difficulty.</summary>
-    [RequireComponent(typeof(XRSimpleInteractable))]
+    [RequireComponent(typeof(PressableButton))]
     public sealed class DifficultyButton : MonoBehaviour
     {
         [SerializeField] private ShiftSettings settings;
 
-        private XRSimpleInteractable _interactable;
+        private PressableButton _button;
 
         public event Action<ShiftSettings> Chosen;
 
         public ShiftSettings Settings => settings;
 
-        private void Awake() => _interactable = GetComponent<XRSimpleInteractable>();
-        private void OnEnable() => _interactable.selectExited.AddListener(OnReleased);
-        private void OnDisable() => _interactable.selectExited.RemoveListener(OnReleased);
+        private void Awake() => _button = GetComponent<PressableButton>();
+        private void OnEnable() => _button.Pressed += OnPressed;
+        private void OnDisable() => _button.Pressed -= OnPressed;
 
-        private void OnReleased(SelectExitEventArgs args)
-        {
-            if (!args.isCanceled) Press();
-        }
+        private void OnPressed() => Press();
 
         /// <summary>Same as pressing the button with a controller (tests, debug).</summary>
         public void Press() => Chosen?.Invoke(settings);

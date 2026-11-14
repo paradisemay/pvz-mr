@@ -426,6 +426,12 @@ namespace Pvz.Runtime.Remote
                 target = new Vector3(x, y, z);
                 return true;
             }
+            foreach (var button in FindObjectsByType<PressableButton>(FindObjectsSortMode.None))
+            {
+                if (string.IsNullOrEmpty(what) || button.name.IndexOf(what, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                target = button.transform.position; // a counter button by part of its name (hand aim Обычная, hand aim Recenter…)
+                return true;
+            }
             if (!TryBox(what, out var box, out error)) return false;
             target = box.transform.position;
             return true;

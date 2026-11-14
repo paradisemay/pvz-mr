@@ -8,21 +8,18 @@ namespace Pvz.Runtime
     /// Start-menu button «Сбросить склад»: puts the boxes back where the game first placed them and forgets the saved
     /// arrangement (when the room changed and the boxes now stand in furniture or in the way).
     /// </summary>
-    [RequireComponent(typeof(XRSimpleInteractable))]
+    [RequireComponent(typeof(PressableButton))]
     public sealed class ResetWarehouseButton : MonoBehaviour
     {
         [SerializeField] private WarehouseLayoutKeeper keeper;
 
-        private XRSimpleInteractable _interactable;
+        private PressableButton _button;
 
-        private void Awake() => _interactable = GetComponent<XRSimpleInteractable>();
-        private void OnEnable() => _interactable.selectExited.AddListener(OnReleased);
-        private void OnDisable() => _interactable.selectExited.RemoveListener(OnReleased);
+        private void Awake() => _button = GetComponent<PressableButton>();
+        private void OnEnable() => _button.Pressed += OnPressed;
+        private void OnDisable() => _button.Pressed -= OnPressed;
 
-        private void OnReleased(SelectExitEventArgs args)
-        {
-            if (!args.isCanceled) Press();
-        }
+        private void OnPressed() => Press();
 
         public void Press()
         {
