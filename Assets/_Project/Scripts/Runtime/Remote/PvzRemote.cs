@@ -372,7 +372,7 @@ namespace Pvz.Runtime.Remote
         private VirtualHand _hand;
 
         /// <summary>
-        /// hand on|off · hand aim scanner|BOX-ID|x y z · hand grip on|off · hand trigger on|off · hand (status).
+        /// hand on|off · hand aim scanner|BOX-ID|button|x y z · hand grip on|off · hand trigger on|off · hand [debug] (status).
         /// </summary>
         private string Hand(string[] args)
         {
@@ -381,17 +381,21 @@ namespace Pvz.Runtime.Remote
             switch (verb)
             {
                 case "on":
+                    if (_hand.IsOn) break; // already on: never jump a hand that may hold something
                     _hand.TurnOn();
                     if (Camera.main != null) _hand.PointAt(Camera.main.transform.position + Camera.main.transform.forward);
+                    _hand.Teleport(_hand.TargetPosition, _hand.TargetRotation); // nothing is held yet
                     break;
                 case "off": _hand.TurnOff(); break;
                 case "aim":
                     if (!_hand.IsOn) return RemoteProtocol.Error("hand on first");
-                    if (!TryTarget(args, out var target, out var error)) return RemoteProtocol.Error(error);
+                    if (!TryTarget(args, out var target, out var error, out var targetObject)) return RemoteProtocol.Error(error);
                     var held = FindFirstObjectByType<HandScanner>();
                     var holding = held != null && held.IsHeld;
-                    // A scanner grabbed by the ray hangs where the ray caught it, ahead of the hand: step back further.
-                    _hand.PointAt(target, holding ? 1.3f : 0.5f);
+                    // Aim from a spot with a clear line to the target (other boxes, the counter are not in the way).
+                    // A scanner caught by the far ray hangs ahead of the hand on its ray: keep the muzzle, not the hand, 0.5 m away.
+                    var reach = holding ? Vector3.Distance(held.Muzzle.position, _hand.WorldPosition) + 0.5f : 0.5f;
+                    _hand.PointAt(target, reach, targetObject, holding ? held.transform : null);
                     if (holding) _hand.AimHeld(held.Muzzle, target); // aim the scan ray, not the hand
                     break;
                 case "grip":
@@ -401,6 +405,7 @@ namespace Pvz.Runtime.Remote
                     if (verb == "grip") _hand.SetGrip(on); else _hand.SetTrigger(on);
                     break;
                 case "": break;
+                case "debug": return HandStatus(debug: true);
                 default: return RemoteProtocol.Error("hand on|off|aim TARGET|grip on|off|trigger on|off");
             }
             return HandStatus();
@@ -408,16 +413,18 @@ namespace Pvz.Runtime.Remote
 
         private static string Vec(Vector3 v) => string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0.00} {1:0.00} {2:0.00}", v.x, v.y, v.z);
 
-        private static bool TryTarget(string[] args, out Vector3 target, out string error)
+        private static bool TryTarget(string[] args, out Vector3 target, out string error, out Transform targetObject)
         {
             target = default;
             error = null;
+            targetObject = null;
             var what = Arg(args, 1);
             if (string.Equals(what, "scanner", StringComparison.OrdinalIgnoreCase))
             {
                 var scanner = FindFirstObjectByType<HandScanner>();
                 if (scanner == null) { error = "no scanner"; return false; }
                 target = scanner.transform.position;
+                targetObject = scanner.transform;
                 return true;
             }
             if (args.Length >= 4 && RemoteProtocol.TryNumber(args[1], out var x) && RemoteProtocol.TryNumber(args[2], out var y) &&
@@ -430,60 +437,58 @@ namespace Pvz.Runtime.Remote
             {
                 if (string.IsNullOrEmpty(what) || button.name.IndexOf(what, StringComparison.OrdinalIgnoreCase) < 0) continue;
                 target = button.transform.position; // a counter button by part of its name (hand aim Обычная, hand aim Recenter…)
+                targetObject = button.transform;
                 return true;
             }
             if (!TryBox(what, out var box, out error)) return false;
             target = box.transform.position;
+            targetObject = box.transform;
             return true;
         }
 
-        private string HandStatus()
+        private string HandStatus(bool debug = false)
         {
             var selected = new List<string>();
             var hovered = new List<string>();
+            var details = new List<string>();
             foreach (var interactor in FindObjectsByType<UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInteractor>(FindObjectsSortMode.None))
             {
                 if (!interactor.isActiveAndEnabled) continue;
                 foreach (var i in interactor.interactablesSelected) selected.Add(interactor.name + ":" + i.transform.name);
                 foreach (var i in interactor.interactablesHovered) hovered.Add(interactor.name + ":" + i.transform.name);
+                if (!debug) continue;
+                details.Add($"{interactor.name}@{Vec(interactor.transform.position)}>{Vec(interactor.transform.forward)}");
+                if (interactor is UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInputInteractor input)
+                    details.Add($"{interactor.name}:selectActive={input.isSelectActive}");
             }
-            var active = new List<string>();
-            foreach (var interactor in FindObjectsByType<UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInteractor>(FindObjectsSortMode.None))
-                if (interactor.isActiveAndEnabled) active.Add($"{interactor.name}@{Vec(interactor.transform.position)}>{Vec(interactor.transform.forward)}");
-            var scannerObject = FindFirstObjectByType<HandScanner>();
-            if (scannerObject != null) active.Add($"muzzle@{Vec(scannerObject.Muzzle.position)}>{Vec(scannerObject.Muzzle.forward)}");
-            if (Camera.main != null) active.Add("head@" + Vec(Camera.main.transform.position));
-            var grab = scannerObject != null ? scannerObject.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>() : null;
-            foreach (var interactor in FindObjectsByType<UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInputInteractor>(FindObjectsSortMode.None))
+            var scanner = FindFirstObjectByType<HandScanner>();
+            if (debug)
             {
-                if (!interactor.isActiveAndEnabled) continue;
-                var selectable = grab != null && grab.IsSelectableBy((UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor)interactor);
-                active.Add($"{interactor.name}:selectActive={interactor.isSelectActive},canSelect={selectable}," +
-                           $"grabEnabled={(grab != null && grab.isActiveAndEnabled)},selectedBy={(grab != null ? grab.interactorsSelecting.Count : -1)}");
-            }
-            var manager = FindFirstObjectByType<UnityEngine.XR.Interaction.Toolkit.Inputs.InputActionManager>();
-            if (manager != null)
-                foreach (var asset in manager.actionAssets)
-                {
-                    var map = asset != null ? asset.FindActionMap("XRI Right Interaction") : null;
-                    if (map == null) continue;
-                    foreach (var a in new[] { "Select", "Activate" })
+                if (scanner != null) details.Add($"muzzle@{Vec(scanner.Muzzle.position)}>{Vec(scanner.Muzzle.forward)}");
+                if (Camera.main != null) details.Add("head@" + Vec(Camera.main.transform.position));
+                var manager = FindFirstObjectByType<UnityEngine.XR.Interaction.Toolkit.Inputs.InputActionManager>();
+                if (manager != null)
+                    foreach (var asset in manager.actionAssets)
                     {
-                        var action = map.FindAction(a);
-                        if (action != null)
-                            active.Add($"{a}:enabled={action.enabled},phase={action.phase},pressed={action.IsPressed()},controls={action.controls.Count}");
+                        var map = asset != null ? asset.FindActionMap("XRI Right Interaction") : null;
+                        if (map == null) continue;
+                        foreach (var a in new[] { "Select", "Activate" })
+                        {
+                            var action = map.FindAction(a);
+                            if (action != null) details.Add($"{a}:phase={action.phase},pressed={action.IsPressed()}");
+                        }
                     }
-                }
+            }
             var json = new Json().Add("ok", true).Add("hand", _hand != null && _hand.IsOn);
             if (_hand != null && _hand.IsOn)
             {
-                json.Add("grip", _hand.Grip).Add("trigger", _hand.Trigger).Add("pos", Vec(_hand.WorldPosition)).Add("device", _hand.DeviceReport);
+                json.Add("grip", _hand.Grip).Add("trigger", _hand.Trigger).Add("pos", Vec(_hand.WorldPosition)).Add("moving", _hand.IsMoving || _hand.IsAiming);
+                if (debug) json.Add("device", _hand.DeviceReport);
             }
             json.Add("mode", UnityEngine.XR.Interaction.Toolkit.Inputs.XRInputModalityManager.currentInputMode.Value.ToString())
-                .Add("interactors", string.Join(", ", active))
                 .Add("selected", string.Join(", ", selected)).Add("hovered", string.Join(", ", hovered));
-            var director = Director;
-            if (director != null && director.Scanner != null) json.Add("scanner", director.Scanner.ScreenText);
+            if (scanner != null) json.Add("scanner", scanner.ScreenText).Add("lastHit", scanner.LastHit);
+            if (debug) json.Add("debug", string.Join(", ", details));
             return json.ToString();
         }
 

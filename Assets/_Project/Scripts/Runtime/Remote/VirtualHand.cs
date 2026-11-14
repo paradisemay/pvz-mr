@@ -52,8 +52,27 @@ namespace Pvz.Runtime.Remote
             _device = null;
         }
 
+        /// <summary>
+        /// Where the hand is heading. It moves there at a human pace (<see cref="MoveSpeed"/>), not in one frame: a held
+        /// object follows by velocity tracking, and a one-frame jump of a metre threw the scanner across the room.
+        /// </summary>
+        public Vector3 TargetPosition { get; private set; }
+        public Quaternion TargetRotation { get; private set; } = Quaternion.identity;
+        public bool IsMoving => (WorldPosition - TargetPosition).sqrMagnitude > 1e-6f || Quaternion.Angle(WorldRotation, TargetRotation) > 0.1f;
+
+        public const float MoveSpeed = 1.2f;   // m/s
+        public const float TurnSpeed = 240f;   // deg/s
+
         public void SetPose(Vector3 worldPosition, Quaternion worldRotation)
         {
+            TargetPosition = worldPosition;
+            TargetRotation = worldRotation;
+        }
+
+        /// <summary>Puts the hand somewhere at once (when turning it on: nothing is held yet).</summary>
+        public void Teleport(Vector3 worldPosition, Quaternion worldRotation)
+        {
+            SetPose(worldPosition, worldRotation);
             WorldPosition = worldPosition;
             WorldRotation = worldRotation;
         }
@@ -63,13 +82,49 @@ namespace Pvz.Runtime.Remote
         /// the player's side and a bit above it, pointing at it — so the ray is not blocked by the counter even when the
         /// headset lies on a table below the counter top.
         /// </summary>
-        public void PointAt(Vector3 target, float reach = 0.5f)
+        public void PointAt(Vector3 target, float reach = 0.5f, Transform targetObject = null, Transform ignore = null)
         {
-            var head = Camera.main != null ? Camera.main.transform.position : transform.position;
+            StopAiming(); // a new target replaces an aim still in progress
+            var hand = ClearShot(target, reach, targetObject, ignore);
+            SetPose(hand, Quaternion.LookRotation(target - hand, Vector3.up));
+        }
+
+        /// <summary>
+        /// A spot <paramref name="reach"/> metres from the target from which a straight line reaches
+        /// <paramref name="targetObject"/> first (no other box, counter or wall in between): the player's side first, then
+        /// around the target and higher up. Without a target object (or no clear spot) — the player's side.
+        /// </summary>
+        public static Vector3 ClearShot(Vector3 target, float reach, Transform targetObject, Transform ignore)
+        {
+            var head = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
             var toPlayer = Vector3.ProjectOnPlane(head - target, Vector3.up);
             if (toPlayer.sqrMagnitude < 1e-4f) toPlayer = Vector3.back;
-            var hand = target + toPlayer.normalized * reach + Vector3.up * 0.3f;
-            SetPose(hand, Quaternion.LookRotation(target - hand, Vector3.up));
+            toPlayer.Normalize();
+            var fallback = target + toPlayer * reach + Vector3.up * 0.3f;
+            if (targetObject == null) return fallback;
+            foreach (var up in new[] { 0.3f, 0.6f, 0.1f, 0.9f })
+            foreach (var yaw in new[] { 0f, 30f, -30f, 60f, -60f, 90f, -90f, 135f, -135f, 180f })
+            {
+                var spot = target + Quaternion.Euler(0f, yaw, 0f) * toPlayer * reach + Vector3.up * up;
+                if (FirstHit(spot, target, ignore) is Transform hit && hit.IsChildOf(targetObject)) return spot;
+            }
+            return fallback;
+        }
+
+        private static Transform FirstHit(Vector3 from, Vector3 to, Transform ignore)
+        {
+            var direction = to - from;
+            var hits = Physics.RaycastAll(from, direction.normalized, direction.magnitude + 0.5f, ~0, QueryTriggerInteraction.Ignore);
+            Transform first = null;
+            var best = float.MaxValue;
+            foreach (var hit in hits)
+            {
+                if (ignore != null && hit.collider.transform.IsChildOf(ignore)) continue;
+                if (hit.distance >= best) continue;
+                best = hit.distance;
+                first = hit.collider.transform;
+            }
+            return first;
         }
 
         /// <summary>
@@ -84,15 +139,39 @@ namespace Pvz.Runtime.Remote
 
         private Coroutine _aim;
 
+        private void StopAiming()
+        {
+            if (_aim == null) return;
+            StopCoroutine(_aim);
+            _aim = null;
+        }
+
+        /// <summary>Still turning a held object onto its target (see <see cref="AimHeld"/>).</summary>
+        public bool IsAiming => _aim != null;
+
         private System.Collections.IEnumerator AimHeldRoutine(Transform muzzle, Vector3 target)
         {
-            for (var i = 0; i < 12 && muzzle != null; i++)
+            // The held object is attached rigidly (fixed attach point) but follows by velocity tracking, so it lags while
+            // the hand moves: wait until both have settled, then solve for the hand rotation that points the muzzle at
+            // the target. Two or three passes absorb the muzzle's offset from the hand.
+            for (var pass = 0; pass < 4 && muzzle != null; pass++)
             {
-                yield return null; // the held object follows the hand one frame later
-                var correction = Quaternion.FromToRotation(muzzle.forward, target - muzzle.position);
-                WorldRotation = correction * WorldRotation;
+                yield return Settle();
+                if (muzzle == null) break;
+                var toTarget = target - muzzle.position;
+                if (Vector3.Angle(muzzle.forward, toTarget) < 0.5f) break;
+                var muzzleInHand = Quaternion.Inverse(WorldRotation) * muzzle.rotation;
+                TargetRotation = Quaternion.LookRotation(toTarget, Vector3.up) * Quaternion.Inverse(muzzleInHand);
             }
             _aim = null;
+        }
+
+        private System.Collections.IEnumerator Settle()
+        {
+            var deadline = Time.unscaledTime + 5f;
+            while (IsMoving && Time.unscaledTime < deadline) yield return null;
+            var settleUntil = Time.unscaledTime + 0.4f;
+            while (Time.unscaledTime < settleUntil) yield return null;
         }
 
         public void SetGrip(bool on)
@@ -110,6 +189,8 @@ namespace Pvz.Runtime.Remote
         private void Update()
         {
             if (_device == null) return;
+            WorldPosition = Vector3.MoveTowards(WorldPosition, TargetPosition, MoveSpeed * Time.unscaledDeltaTime);
+            WorldRotation = Quaternion.RotateTowards(WorldRotation, TargetRotation, TurnSpeed * Time.unscaledDeltaTime);
             var origin = FindFirstObjectByType<XROrigin>();
             var space = origin != null && origin.CameraFloorOffsetObject != null ? origin.CameraFloorOffsetObject.transform : null;
             _state.devicePosition = space != null ? space.InverseTransformPoint(WorldPosition) : WorldPosition;
