@@ -24,6 +24,7 @@ namespace Pvz.Runtime.Tests
         public IEnumerator ForgetTestStore()
         {
             WarehouseLayoutKeeper.StoreOverride = null;
+            CounterPlacementKeeper.StoreOverride = null;
             CareerKeeper.StoreOverride = null;
             yield return null;
         }
@@ -32,6 +33,7 @@ namespace Pvz.Runtime.Tests
         private IEnumerator Load()
         {
             WarehouseLayoutKeeper.StoreOverride = _store;
+            CounterPlacementKeeper.StoreOverride = new Pvz.Core.MemoryTextStore();
             CareerKeeper.StoreOverride = (new Pvz.Core.MemoryScoreStore(), new Pvz.Core.MemoryTextStore());
             yield return SceneManager.LoadSceneAsync("Game", LoadSceneMode.Single);
             yield return null; // Start: the keeper restores the layout

@@ -82,10 +82,14 @@ namespace Pvz.Editor
             planeManager.enabled = false;
             mrSetup.gameObject.AddComponent<ScenePermissionGate>().Configure(planeManager);
 
-            var counter = (GameObject)PrefabUtility.InstantiatePrefab(counterPrefab, playArea);
+            // The counter and everything that belongs to it (computer, scanner, bags, the customers' path) is one rig that
+            // the player can move around the room (T034); boxes in the room are not part of it.
+            var rig = new GameObject("Counter Rig").transform;
+            rig.SetParent(playArea, false);
+            var counter = (GameObject)PrefabUtility.InstantiatePrefab(counterPrefab, rig);
             counter.transform.localPosition = CounterPosition;
 
-            var scanner = ((GameObject)PrefabUtility.InstantiatePrefab(scannerPrefab.gameObject, playArea)).GetComponent<HandScanner>();
+            var scanner = ((GameObject)PrefabUtility.InstantiatePrefab(scannerPrefab.gameObject, rig)).GetComponent<HandScanner>();
             scanner.transform.SetPositionAndRotation(CounterPosition + new Vector3(-0.48f, PvzPrefabBuilder.CounterHeight + 0.04f, -0.05f),
                 Quaternion.Euler(0f, -90f, 90f));
 
@@ -100,12 +104,12 @@ namespace Pvz.Editor
             }
 
             var points = new GameObject("Customer Points").transform;
-            points.SetParent(playArea, false);
+            points.SetParent(rig, false);
             var spawn = Marker("CustomerSpawn", points, CustomerSpawnPosition, 180f);
             var service = Marker("CustomerService", points, CustomerServicePosition, 180f);
 
             var dispenser = new GameObject("Bag Dispenser").AddComponent<BagDispenser>();
-            dispenser.transform.SetParent(playArea, false);
+            dispenser.transform.SetParent(rig, false);
             dispenser.transform.SetPositionAndRotation(CounterPosition + new Vector3(-0.58f, PvzPrefabBuilder.CounterHeight + 0.17f, 0.18f),
                 Quaternion.Euler(0f, 20f, 0f));
             dispenser.Configure(bagPrefab);
@@ -116,7 +120,7 @@ namespace Pvz.Editor
 
             // Shown before the shift only: the «Как играть» card. The keys are on the counter computer (T033).
             var startMenu = new GameObject("Start Menu").transform;
-            startMenu.SetParent(playArea, false);
+            startMenu.SetParent(rig, false);
             var pc = CreateComputer(counter.transform, font);
 
             var director = new GameObject("Shift Director").AddComponent<ShiftDirector>();
@@ -138,7 +142,19 @@ namespace Pvz.Editor
             CreateComputerKey(pc.Settings, 4, "НАЗАД", ComputerKey.Action.Back, pc.Computer, font, KeyGrey);
             pc.Computer.Configure(director, pc.Screen, pc.Title, pc.Menu.gameObject, pc.Settings.gameObject,
                 pc.SettingsBeforeShift.gameObject, pc.Shift.gameObject, pc.Summary.gameObject, endShift);
-            CreateRecenterButton(pc.SettingsBeforeShift, mrSetup, font);
+            // The counter can be moved at any time and its place in the room is kept (T034).
+            var placement = new GameObject("Counter Placement").AddComponent<CounterPlacementKeeper>();
+            placement.Configure(rig, mrSetup);
+            var mover = placement.gameObject.AddComponent<CounterMover>();
+            mover.Configure(placement, CreateCounterHandle(playArea), CounterHandleOffset);
+            var movingKeys = new GameObject("Moving Keys").transform;
+            movingKeys.SetParent(pc.Computer.transform, false);
+            CreateComputerKey(pc.Settings, 0, "ПЕРЕНЕСТИ\nСТОЙКУ", ComputerKey.Action.MoveCounter, pc.Computer, font, new Color(0.98f, 0.55f, 0.15f));
+            CreateComputerKey(movingKeys, 0, "ОТМЕНА", ComputerKey.Action.CancelMove, pc.Computer, font, KeyGrey);
+            CreateComputerKey(movingKeys, 4, "ПРИМЕНИТЬ", ComputerKey.Action.ApplyMove, pc.Computer, font, new Color(0.35f, 0.8f, 0.45f));
+            pc.Computer.ConfigureMover(mover, movingKeys.gameObject);
+            director.ConfigureCounterPlacement(placement);
+            CreateRecenterButton(pc.SettingsBeforeShift, mrSetup, placement, font);
             var counterBoard = counter.GetComponentInChildren<CounterBoard>(true);
             counterBoard.ConfigureHowToPlay(CreateHowToPlayCard(startMenu, font));
             PrefabUtility.RecordPrefabInstancePropertyModifications(counterBoard); // an override on the counter prefab instance
@@ -326,16 +342,46 @@ namespace Pvz.Editor
         }
 
         /// <summary>«Стойку ко мне» (settings, before the shift): moves the play area in front of the player.</summary>
-        private static void CreateRecenterButton(Transform group, MrSessionSetup session, TMPro.TMP_FontAsset font)
+        private static void CreateRecenterButton(Transform group, MrSessionSetup session, CounterPlacementKeeper placement,
+            TMPro.TMP_FontAsset font)
         {
-            var go = CreateKey(group, 0, "Recenter Button", "СТОЙКУ\nКО МНЕ", new Color(0.35f, 0.6f, 0.95f), font, out _);
-            go.AddComponent<RecenterButton>().Configure(session);
+            var go = CreateKey(group, 1, "Recenter Button", "СТОЙКУ\nКО МНЕ", new Color(0.35f, 0.6f, 0.95f), font, out _);
+            go.AddComponent<RecenterButton>().Configure(session, placement);
+        }
+
+        /// <summary>Where the handle of the counter hangs, relative to the counter rig: above the front edge, in reach.</summary>
+        public static readonly Vector3 CounterHandleOffset = CounterPosition + new Vector3(0f, 1.42f, -0.5f);
+
+        /// <summary>
+        /// The handle to carry the counter (T034): a big orange knob with a ring, grabbed with grip, kinematic — it follows
+        /// the hand, the counter follows it. Lives outside the rig (the rig moves after it), hidden until «Переместить стойку».
+        /// </summary>
+        private static UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable CreateCounterHandle(Transform playArea)
+        {
+            var go = new GameObject("Counter Handle");
+            go.transform.SetParent(playArea, false);
+            go.transform.position = CounterHandleOffset;
+            var orange = Lit("CounterHandle", new Color(0.98f, 0.55f, 0.15f), 0.6f);
+            Primitive(PrimitiveType.Sphere, "Knob", go.transform, Vector3.zero, Vector3.one * 0.12f, orange, true);
+            Primitive(PrimitiveType.Cylinder, "Ring", go.transform, Vector3.zero, new Vector3(0.22f, 0.006f, 0.22f), orange);
+            Primitive(PrimitiveType.Cylinder, "Stem", go.transform, new Vector3(0f, -0.2f, 0f), new Vector3(0.02f, 0.2f, 0.02f),
+                Lit("CounterHandleStem", new Color(0.3f, 0.3f, 0.32f)));
+            var body = go.AddComponent<Rigidbody>();
+            body.isKinematic = true;
+            body.useGravity = false;
+            var grab = go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
+            grab.movementType = UnityEngine.XR.Interaction.Toolkit.Interactables.XRBaseInteractable.MovementType.Instantaneous;
+            grab.throwOnDetach = false;
+            grab.useDynamicAttach = true; // held where the ray caught it
+            grab.farAttachMode = UnityEngine.XR.Interaction.Toolkit.Attachment.InteractableFarAttachMode.Far; // stays at arm's length
+            go.SetActive(false);
+            return grab;
         }
 
         /// <summary>«Сбросить склад» (settings, before the shift): boxes back to their first places, saved layout forgotten (T020).</summary>
         private static void CreateResetWarehouseButton(Transform group, WarehouseLayoutKeeper keeper, TMPro.TMP_FontAsset font)
         {
-            var go = CreateKey(group, 1, "Reset Warehouse Button", "СБРОСИТЬ\nСКЛАД", new Color(0.95f, 0.6f, 0.25f), font, out _);
+            var go = CreateKey(group, 3, "Reset Warehouse Button", "СБРОСИТЬ\nСКЛАД", new Color(0.95f, 0.6f, 0.25f), font, out _);
             go.AddComponent<ResetWarehouseButton>().Configure(keeper);
         }
 

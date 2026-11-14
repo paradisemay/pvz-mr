@@ -243,6 +243,8 @@ namespace Pvz.Runtime.Remote
             }
             var pc = FindFirstObjectByType<PvzComputer>();
             if (pc != null) json.Add("computer", pc.Current.ToString()).Add("screen", pc.ScreenText);
+            var placement = FindFirstObjectByType<CounterPlacementKeeper>();
+            if (placement != null && placement.Rig != null) json.Add("counterAt", placement.Current.Format());
             if (director == null) return json.Add("director", false).ToString();
 
             json.Add("started", director.IsStarted).Add("shiftOver", director.IsShiftOver)
@@ -384,8 +386,11 @@ namespace Pvz.Runtime.Remote
                 case "settings": pc.OpenSettings(); break;
                 case "back": pc.Back(); break;
                 case "end": pc.EndShift(); break;
+                case "move": pc.StartMovingCounter(); break;
+                case "apply": pc.ApplyMove(); break;
+                case "cancel": pc.CancelMove(); break;
                 case "": break;
-                default: return RemoteProtocol.Error("pc settings|back|end");
+                default: return RemoteProtocol.Error("pc settings|back|end|move|apply|cancel");
             }
             return new Json().Add("ok", true).Add("computer", pc.Current.ToString()).Add("screen", pc.ScreenText).ToString();
         }
@@ -421,6 +426,12 @@ namespace Pvz.Runtime.Remote
                     _hand.PointAt(target, reach, targetObject, holding ? held.transform : null);
                     if (holding) _hand.AimHeld(held.Muzzle, target); // aim the scan ray, not the hand
                     break;
+                case "to":
+                    if (!_hand.IsOn) return RemoteProtocol.Error("hand on first");
+                    if (args.Length < 4 || !RemoteProtocol.TryNumber(args[1], out var tx) || !RemoteProtocol.TryNumber(args[2], out var ty) ||
+                        !RemoteProtocol.TryNumber(args[3], out var tz)) return RemoteProtocol.Error("hand to x y z (metres, world)");
+                    _hand.SetPose(new Vector3(tx, ty, tz), _hand.TargetRotation); // carry what is held, keep the hand turned as it is
+                    break;
                 case "grip":
                 case "trigger":
                     if (!_hand.IsOn) return RemoteProtocol.Error("hand on first");
@@ -442,6 +453,14 @@ namespace Pvz.Runtime.Remote
             error = null;
             targetObject = null;
             var what = Arg(args, 1);
+            if (string.Equals(what, "handle", StringComparison.OrdinalIgnoreCase))
+            {
+                var mover = FindFirstObjectByType<CounterMover>();
+                if (mover == null || mover.Handle == null || !mover.Handle.gameObject.activeInHierarchy) { error = "no counter handle (pc settings, pc move first)"; return false; }
+                target = mover.Handle.transform.position;
+                targetObject = mover.Handle.transform;
+                return true;
+            }
             if (string.Equals(what, "scanner", StringComparison.OrdinalIgnoreCase))
             {
                 var scanner = FindFirstObjectByType<HandScanner>();

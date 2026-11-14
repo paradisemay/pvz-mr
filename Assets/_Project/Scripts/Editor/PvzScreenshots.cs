@@ -47,6 +47,12 @@ namespace Pvz.Editor
             Capture("17_computer_menu", ComputerCameraFrom, ComputerCameraAt, 48f);
             computer.Preview(PvzComputer.Screen.Settings, PvzComputer.SettingsText, beforeShift: true);
             Capture("18_computer_settings", ComputerCameraFrom, ComputerCameraAt, 48f);
+            // Moving the counter (T034): the orange handle above its front edge and the moving screen.
+            var handle = Object.FindFirstObjectByType<CounterMover>().Handle.gameObject;
+            handle.SetActive(true);
+            computer.Preview(PvzComputer.Screen.MovingCounter, PvzComputer.MovingText, beforeShift: true);
+            Capture("21_counter_move", new Vector3(-0.95f, 1.85f, -0.55f), new Vector3(0.05f, 1.25f, 0.75f), 60f);
+            handle.SetActive(false);
             computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen("2781", 2, 1, false, null, 2, 263, false), beforeShift: false);
 
             // Stage a moment of play: a customer at the counter asking for an order.
