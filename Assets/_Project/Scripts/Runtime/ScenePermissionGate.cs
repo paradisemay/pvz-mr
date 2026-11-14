@@ -35,7 +35,8 @@ namespace Pvz.Runtime
             callbacks.PermissionDenied += OnDenied;
             Permission.RequestUserPermission(ScenePermission, callbacks);
 #else
-            // Editor / Quest Link: no Android permission system.
+            // Editor / Quest Link: no Android permission system, and no room mesh (it would only warn and switch itself off).
+            meshes = null;
             OnGranted(ScenePermission);
 #endif
         }

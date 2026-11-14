@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 7828906153003934551}
   - component: {fileID: 6800395503025725551}
   - component: {fileID: 5765150723626929797}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: RoomMeshChunk
   m_TagString: Untagged
   m_Icon: {fileID: 0}

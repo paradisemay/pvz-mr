@@ -409,6 +409,9 @@ namespace Pvz.Editor
         public string RoomMeshChunk()
         {
             var root = new GameObject("RoomMeshChunk");
+            var layer = LayerMask.NameToLayer(RoomMesh.LayerName); // the game's own checks skip the furniture mesh
+            if (layer < 0) throw new System.InvalidOperationException("Layer RoomMesh is missing (ProjectSettings/TagManager.asset)");
+            root.layer = layer;
             root.AddComponent<MeshFilter>();
             root.AddComponent<MeshCollider>();
             return SavePrefab(root, "RoomMeshChunk");

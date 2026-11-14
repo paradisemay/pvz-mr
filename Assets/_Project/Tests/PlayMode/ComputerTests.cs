@@ -49,6 +49,28 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheInvisibleFurnitureMesh_DoesNotBlockTheScanRay()
+        {
+            var scanner = _director.Scanner;
+            scanner.GetComponent<Rigidbody>().isKinematic = true;
+            var target = new GameObject("Target").AddComponent<BoxCollider>();
+            target.transform.position = new Vector3(0f, 1.8f, -0.9f);
+            var furniture = GameObject.CreatePrimitive(PrimitiveType.Cube); // a chunk of the room mesh on the line
+            furniture.layer = LayerMask.NameToLayer(RoomMesh.LayerName);
+            furniture.transform.position = new Vector3(0f, 1.8f, -1.3f);
+            furniture.transform.localScale = new Vector3(0.4f, 0.4f, 0.05f);
+            var from = new Vector3(0f, 1.8f, -1.8f);
+            scanner.transform.SetPositionAndRotation(from, Quaternion.LookRotation(Vector3.forward));
+            Physics.SyncTransforms();
+            yield return new WaitForFixedUpdate();
+
+            scanner.Fire();
+            StringAssert.Contains("Target", scanner.LastHit, "the ray passed the furniture mesh");
+            Object.Destroy(target.gameObject);
+            Object.Destroy(furniture);
+        }
+
+        [UnityTest]
         public IEnumerator AnUnscannedRoom_IsReportedOnTheMenu_AndTheNoteGoesOnceTheMeshComes()
         {
             var room = Object.FindFirstObjectByType<RoomMesh>();

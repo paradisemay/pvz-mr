@@ -33,8 +33,36 @@ namespace Pvz.Runtime
 
         private float _runningSince = float.NaN;
 
+        /// <summary>
+        /// The layer of the room mesh's colliders. The game's own checks (the bag spot, the scan ray) skip it: invisible
+        /// triangles of a real table next to the counter must not block a bag or a scan.
+        /// </summary>
+        public const string LayerName = "RoomMesh";
+
+        /// <summary><paramref name="mask"/> without the room mesh's layer.</summary>
+        public static int Without(int mask)
+        {
+            var layer = LayerMask.NameToLayer(LayerName);
+            return layer < 0 ? mask : mask & ~(1 << layer);
+        }
+
         public State Current { get; private set; } = State.Off;
-        public int MeshCount => meshes != null && meshes.enabled && meshes.meshes != null ? meshes.meshes.Count : 0;
+
+        /// <summary>
+        /// Chunks that really became colliders: the manager lists a chunk before its mesh is generated (and keeps one
+        /// whose generation failed), and keeps its chunks as colliders after it is disabled.
+        /// </summary>
+        public int MeshCount
+        {
+            get
+            {
+                if (meshes == null || meshes.meshes == null) return 0;
+                var count = 0;
+                foreach (var chunk in meshes.meshes)
+                    if (chunk != null && chunk.gameObject.activeSelf && chunk.sharedMesh != null) count++;
+                return count;
+            }
+        }
         public bool IsMissing => Current == State.Missing;
 
         public event Action<State> Changed;
