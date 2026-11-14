@@ -405,6 +405,15 @@ namespace Pvz.Editor
         }
 
         /// <summary>Invisible plane with a collider so virtual boxes can rest on real tables/floor detected by the headset.</summary>
+        /// <summary>T041: one chunk of the room mesh — an invisible collider of the real furniture (no renderer).</summary>
+        public string RoomMeshChunk()
+        {
+            var root = new GameObject("RoomMeshChunk");
+            root.AddComponent<MeshFilter>();
+            root.AddComponent<MeshCollider>();
+            return SavePrefab(root, "RoomMeshChunk");
+        }
+
         public string ArPlane()
         {
             var root = new GameObject("ARPlane");

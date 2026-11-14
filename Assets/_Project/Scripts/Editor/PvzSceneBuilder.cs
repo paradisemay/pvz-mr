@@ -51,6 +51,7 @@ namespace Pvz.Editor
             var counterPath = prefabs.Counter();
             var customerPath = prefabs.Customer();
             var planePath = prefabs.ArPlane();
+            var roomMeshChunkPath = prefabs.RoomMeshChunk();
             var supplyBoxPath = prefabs.SupplyBox();
             var bagPath = prefabs.Bag();
             AssetDatabase.SaveAssets();
@@ -77,7 +78,9 @@ namespace Pvz.Editor
             // Saved disabled: Meta requires USE_SCENE before plane detection starts; the gate enables it.
             var planeManager = Object.FindFirstObjectByType<ARPlaneManager>();
             planeManager.enabled = false;
-            mrSetup.gameObject.AddComponent<ScenePermissionGate>().Configure(planeManager);
+            // T041: the room mesh (Meta Space Setup) as invisible colliders; also behind USE_SCENE, enabled by the gate.
+            var roomMesh = CreateRoomMesh(AssetDatabase.LoadAssetAtPath<GameObject>(roomMeshChunkPath).GetComponent<MeshFilter>());
+            mrSetup.gameObject.AddComponent<ScenePermissionGate>().Configure(planeManager, roomMesh.GetComponent<ARMeshManager>());
 
             // The counter and everything that belongs to it (computer, scanner, bags, the customers' path) is one rig that
             // the player can move around the room (T034); boxes in the room are not part of it.
@@ -172,6 +175,7 @@ namespace Pvz.Editor
             rackMover.Configure(rackPlacement, CreatePlacementHandle(playArea, "Rack Handle", rack.TransformPoint(RackHandleOffset)), RackHandleOffset,
                 new Vector3(0f, rackTop / 2f + 0.02f, 0f), new Vector3(RackWidth - 0.1f, rackTop, RackDepth - 0.08f)); // on the shelves, not beside the posts
             pc.Computer.ConfigureRackMover(rackMover);
+            pc.Computer.ConfigureRoomMesh(roomMesh); // the menu says when the room was not scanned
             CreateComputerKey(pc.Settings, 1, "ПЕРЕНЕСТИ\nСТЕЛЛАЖ", ComputerKey.Action.MoveRack, pc.Computer, font, new Color(0.98f, 0.55f, 0.15f));
             // The career between shifts and the counter themes it opens (T022).
             var careerKeeper = new GameObject("Career").AddComponent<CareerKeeper>();
@@ -453,6 +457,24 @@ namespace Pvz.Editor
         /// The shelf rack (T037, #81): four shelves on four posts, a low lip at the front and back of each shelf so a box does
         /// not slide off, a grippy surface. The player arranges boxes on it; it is moved like the counter.
         /// </summary>
+        /// <summary>
+        /// T041 (#82): the room mesh from the headset. ARMeshManager must be a child of the XR Origin (the meshes come in
+        /// session space); saved disabled — Meta gives the mesh only with USE_SCENE, the gate enables it.
+        /// </summary>
+        private static RoomMesh CreateRoomMesh(MeshFilter chunk)
+        {
+            var origin = Object.FindFirstObjectByType<XROrigin>();
+            var go = new GameObject("Room Mesh");
+            go.transform.SetParent(origin.transform, false);
+            var manager = go.AddComponent<ARMeshManager>();
+            manager.meshPrefab = chunk;
+            manager.normals = false; // colliders only, nothing is drawn
+            manager.enabled = false;
+            var room = go.AddComponent<RoomMesh>();
+            room.Configure(manager);
+            return room;
+        }
+
         /// <summary>Where the scanner lies on the counter (counter rig space): on its side, the nose to the left.</summary>
         public static readonly Vector3 ScannerHolderPosition = CounterPosition + new Vector3(-0.54f, PvzPrefabBuilder.CounterHeight, -0.05f);
 

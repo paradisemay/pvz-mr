@@ -45,6 +45,20 @@ namespace Pvz.Runtime.Tests
             Assert.IsNotNull(Key(ComputerKey.Action.OpenSettings));
             Assert.IsNull(Key(ComputerKey.Action.EndShift), "no «Завершить смену» before the shift");
             StringAssert.Contains("сложность", _computer.ScreenText);
+            StringAssert.DoesNotContain(RoomMesh.MissingText, _computer.ScreenText, "the editor has no meshing: nothing to say");
+        }
+
+        [UnityTest]
+        public IEnumerator AnUnscannedRoom_IsReportedOnTheMenu_AndTheNoteGoesOnceTheMeshComes()
+        {
+            var room = Object.FindFirstObjectByType<RoomMesh>();
+            room.enabled = false; // the editor has no meshing subsystem: the headset's answers are played by hand
+            room.Report(RoomMesh.State.Missing);
+            yield return null;
+            StringAssert.Contains(RoomMesh.MissingText, _computer.ScreenText, "T041: scan the room in the headset settings");
+            room.Report(RoomMesh.State.Ready);
+            yield return null;
+            StringAssert.DoesNotContain(RoomMesh.MissingText, _computer.ScreenText);
         }
 
         [UnityTest]

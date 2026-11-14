@@ -20,6 +20,8 @@ namespace Pvz.Runtime
         [SerializeField] private PlacementMover counterMover;
         [SerializeField] private PlacementMover hatchMover;
         [SerializeField] private PlacementMover rackMover;
+        [Tooltip("The room mesh (T041): the menu says when the room was not scanned on the headset.")]
+        [SerializeField] private RoomMesh roomMesh;
         [SerializeField] private GameObject movingKeys;
 
         /// <summary>What is being moved on the moving screen (null otherwise).</summary>
@@ -33,6 +35,8 @@ namespace Pvz.Runtime
 
         internal void ConfigureHatchMover(PlacementMover mover) => hatchMover = mover;
         internal void ConfigureRackMover(PlacementMover mover) => rackMover = mover;
+
+        internal void ConfigureRoomMesh(RoomMesh mesh) => roomMesh = mesh;
 
         /// <summary>«Перенести стеллаж» (T037).</summary>
         public void StartMovingRack() => StartMoving(rackMover);
@@ -97,13 +101,17 @@ namespace Pvz.Runtime
 
         private void OnEnable()
         {
+            if (roomMesh != null) roomMesh.Changed += OnRoomMeshChanged;
             if (director == null) return;
             director.ShiftStarted += OnShiftStarted;
             director.ShiftEnded += OnShiftEnded;
         }
 
+        private void OnRoomMeshChanged(RoomMesh.State state) => RefreshText();
+
         private void OnDisable()
         {
+            if (roomMesh != null) roomMesh.Changed -= OnRoomMeshChanged;
             if (director == null) return;
             director.ShiftStarted -= OnShiftStarted;
             director.ShiftEnded -= OnShiftEnded;
@@ -187,7 +195,7 @@ namespace Pvz.Runtime
             if (titleText != null) titleText.text = TitleFor(Current);
             screenText.text = Current switch
             {
-                Screen.Menu => MenuText,
+                Screen.Menu => MenuText + (roomMesh != null && roomMesh.IsMissing ? "\n\n" + RoomMesh.MissingText : string.Empty),
                 Screen.Settings => ShiftRunning ? SettingsDuringShiftText : SettingsText,
                 Screen.Shift => ShiftText(),
                 Screen.Moving => MovingTextFor(_moving != null && _moving.Keeper != null ? _moving.Keeper.DisplayName : "стойку")

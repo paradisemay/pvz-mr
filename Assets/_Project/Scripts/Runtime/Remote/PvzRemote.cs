@@ -249,6 +249,8 @@ namespace Pvz.Runtime.Remote
                 json.Add(placement.Rig.GetComponent<SupplyHatch>() != null ? "hatchAt" : placement.Rig.name == "Shelf Rack" ? "rackAt" : "counterAt",
                     placement.Current.Format());
             }
+            var room = FindFirstObjectByType<RoomMesh>(); // T041: did the room mesh come from the headset?
+            if (room != null) json.Add("roomMesh", room.Current.ToString()).Add("roomMeshes", room.MeshCount);
             var holder = FindFirstObjectByType<ScannerHolder>(); // T038
             if (holder != null) json.Add("scannerDocked", holder.IsDocked).Add("scannerReturns", holder.Returns);
             if (director == null) return json.Add("director", false).ToString();

@@ -36,6 +36,7 @@ namespace Pvz.Editor.Tests
         [TestCase(typeof(MrSessionSetup))]
         [TestCase(typeof(SupplyHatch))]
         [TestCase(typeof(ScannerHolder))]
+        [TestCase(typeof(RoomMesh))]
         [TestCase(typeof(BagDispenser))]
         [TestCase(typeof(DifficultyButton))]
         [TestCase(typeof(RecenterButton))]
@@ -184,6 +185,20 @@ namespace Pvz.Editor.Tests
         {
             Assert.IsFalse(Object.FindFirstObjectByType<UnityEngine.XR.ARFoundation.ARPlaneManager>(FindObjectsInactive.Include).enabled,
                 "Meta requires USE_SCENE before plane detection starts; ScenePermissionGate enables it");
+        }
+
+        [Test]
+        public void RoomMesh_IsAnInvisibleCollider_UnderTheXrOrigin_SavedDisabled()
+        {
+            var manager = Object.FindFirstObjectByType<UnityEngine.XR.ARFoundation.ARMeshManager>(FindObjectsInactive.Include);
+            Assert.IsNotNull(manager, "T041: the room mesh");
+            Assert.IsFalse(manager.enabled, "Meta gives the mesh only with USE_SCENE; ScenePermissionGate enables it");
+            Assert.IsNotNull(manager.GetComponentInParent<Unity.XR.CoreUtils.XROrigin>(), "meshes come in session space");
+            Assert.IsNull(manager.GetComponent<Unity.XR.CoreUtils.XROrigin>(), "a child of the XR Origin, not on it");
+            Assert.IsNotNull(manager.meshPrefab);
+            Assert.IsNotNull(manager.meshPrefab.GetComponent<MeshCollider>(), "boxes collide with the real furniture");
+            Assert.IsNull(manager.meshPrefab.GetComponent<MeshRenderer>(), "nothing is drawn over the passthrough");
+            Assert.AreEqual(manager, new SerializedObject(Object.FindFirstObjectByType<ScenePermissionGate>()).FindProperty("meshes").objectReferenceValue);
         }
 
         [Test]
