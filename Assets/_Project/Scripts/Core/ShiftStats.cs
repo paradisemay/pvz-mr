@@ -49,6 +49,15 @@ namespace Pvz.Core
         /// <summary>Urgent orders handed over in full.</summary>
         public int UrgentServed { get; private set; }
 
+        /// <summary>T044 (#84): customers who came while the line was full and did not stay.</summary>
+        public int CustomersTurnedAway { get; private set; }
+
+        internal void OnTurnedAway()
+        {
+            CustomersTurnedAway++;
+            Changed?.Invoke();
+        }
+
         /// <summary>Points every accepted return gives.</summary>
         public int PointsPerReturn => _rules.ReturnService;
 

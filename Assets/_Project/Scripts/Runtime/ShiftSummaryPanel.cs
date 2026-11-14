@@ -21,7 +21,9 @@ namespace Pvz.Runtime
         public void Show(ShiftStats stats, int ordersTotal, RecordResult? record = null, string difficulty = null, int maxQueue = 0,
             bool endedByTime = false, string careerLine = null)
         {
-            var grade = ShiftRating.Grade(stats.OrdersCompleted, ordersTotal, stats.WrongHandovers, stats.OrdersAbandoned);
+            // A customer who did not stay in a full line (T044) is a customer lost, like one who left the counter.
+            var grade = ShiftRating.Grade(stats.OrdersCompleted, ordersTotal, stats.WrongHandovers,
+                stats.OrdersAbandoned + stats.CustomersTurnedAway);
             if (body != null)
             {
                 body.text =
@@ -36,6 +38,7 @@ namespace Pvz.Runtime
                     (stats.ReturnsAccepted > 0 ? $"Принято возвратов: {stats.ReturnsAccepted}\n" : string.Empty) +
                     (stats.UrgentServed > 0 ? $"Срочных заказов выдано: {stats.UrgentServed}\n" : string.Empty) +
                     (stats.OrdersAbandoned > 0 ? $"Ушли без заказа: {stats.OrdersAbandoned}\n" : string.Empty) +
+                    (stats.CustomersTurnedAway > 0 ? $"Не дождались очереди: {stats.CustomersTurnedAway}\n" : string.Empty) +
                     $"Среднее время выдачи: {stats.AverageServiceSeconds:0.0} с\n" +
                     $"Очки: {stats.Score}\n" +
                     $"Рейтинг смены: <b>{GradeText(grade)}</b>" +

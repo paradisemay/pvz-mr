@@ -45,6 +45,11 @@ namespace Pvz.Editor
             var settings = LoadOrCreateSettings(SettingsPath, s => s.ConfigureDifficulty("Обычная", 90f, 1, 50, 1.2f, 2f, 2, tutorial: false, returnChance: 20, urgentChance: 15, shiftSeconds: 420f, careerPercent: 100));
             var easy = LoadOrCreateSettings(EasySettingsPath, s => { s.CopyLayoutFrom(settings); s.ConfigureDifficulty("Лёгкая", 0f, 0, 0, 1.0f, 3f, 1, tutorial: true, returnChance: 0, urgentChance: 0, shiftSeconds: 0f, careerPercent: 50); });
             var hard = LoadOrCreateSettings(HardSettingsPath, s => { s.CopyLayoutFrom(settings); s.ConfigureDifficulty("Сложная", 45f, 1, 80, 1.6f, 1f, 3, tutorial: false, returnChance: 35, urgentChance: 25, shiftSeconds: 300f, careerPercent: 150); });
+            // T044 (#84): longer shifts, customers by the clock, a longer line.
+            easy.ConfigurePace(orders: 6, interval: 30f, queue: 3);
+            settings.ConfigurePace(orders: 10, interval: 22f, queue: 4);
+            hard.ConfigurePace(orders: 14, interval: 15f, queue: 4);
+            foreach (var preset in new[] { easy, settings, hard }) EditorUtility.SetDirty(preset);
             var prefabs = new PvzPrefabBuilder(font);
 
             var scannerPath = prefabs.Scanner();

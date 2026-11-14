@@ -77,7 +77,9 @@ namespace Pvz.Runtime.Tests
             Assert.IsTrue(director.IsStarted);
             Assert.AreSame(hard.Settings, director.ActiveSettings);
             Assert.AreEqual(45, director.Shift.PatienceSeconds, 1e-6);
-            Assert.AreEqual(3, director.ActiveSettings.QueueLength);
+            Assert.AreEqual(4, director.ActiveSettings.QueueLength);
+            Assert.AreEqual(14, director.ActiveSettings.OrdersPerShift, "hard: about fourteen customers (T044)");
+            Assert.AreEqual(15f, director.ActiveSettings.ArrivalInterval, 1e-4f, "hard: a customer every 15 s");
             Assert.IsTrue(director.DifficultyButtons.All(b => !b.gameObject.activeInHierarchy));
             Assert.IsNull(GameObject.Find("How To Play"), "the card goes away with the menu");
 
@@ -172,7 +174,9 @@ namespace Pvz.Runtime.Tests
             Assert.IsFalse(director.Shift.HasScheduledDelivery);
             Assert.AreEqual(0, director.Shift.BagChancePercent);
             Assert.AreEqual(0, director.Shift.PatienceSeconds, 1e-6);
-            Assert.AreEqual(1, director.ActiveSettings.QueueLength, "easy: one customer at a time");
+            Assert.AreEqual(3, director.ActiveSettings.QueueLength, "easy: a short line (T044)");
+            Assert.AreEqual(6, director.ActiveSettings.OrdersPerShift, "easy: about six customers");
+            Assert.AreEqual(30f, director.ActiveSettings.ArrivalInterval, 1e-4f, "easy: a calm pace");
         }
     }
 }

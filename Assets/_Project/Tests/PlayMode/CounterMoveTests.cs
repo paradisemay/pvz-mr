@@ -12,6 +12,9 @@ namespace Pvz.Runtime.Tests
     /// <summary>T034 (#78): the counter is moved by its handle at any time, and its place in the room is kept.</summary>
     public class CounterMoveTests
     {
+        /// <summary>A pile of a long shift (T044: 15–17 boxes) spreads this far from the point under the hatch.</summary>
+        internal const float PileRadius = 2.2f;
+
         private MemoryTextStore _placementStore;
         private PvzComputer _computer;
         private PlacementMover _mover;
@@ -104,6 +107,7 @@ namespace Pvz.Runtime.Tests
         [UnityTest]
         public IEnumerator DuringTheShift_TheLineWalksToTheMovedCounter()
         {
+            _director.UseStockSeed(12345); // the same pile every run (T044)
             _director.Begin();
             var deadline = Time.realtimeSinceStartup + 30f;
             while (!_director.Desk.HasCustomer && Time.realtimeSinceStartup < deadline) yield return null;
@@ -153,6 +157,7 @@ namespace Pvz.Runtime.Tests
         public IEnumerator ABoxOnTheCounter_RidesAlong()
         {
             var rig = _placement.Rig;
+            _director.UseStockSeed(12345); // the same pile every run (T044)
             _director.Begin(); // boxes come out of the supply hatch with the shift (T036)
             var pileDeadline = Time.realtimeSinceStartup + 20f;
             while (_director.Hatch.IsDropping && Time.realtimeSinceStartup < pileDeadline) yield return null;
@@ -204,14 +209,15 @@ namespace Pvz.Runtime.Tests
             Assert.IsTrue(_placementStore.Load(PlacementStore.HatchKey) != null, "the hatch's place is saved under its own key");
             Assert.IsFalse(_placement.HasSaved, "the counter's place is untouched");
 
+            _director.UseStockSeed(12345); // the same pile every run (T044)
             _director.Begin();
             var deadline = Time.realtimeSinceStartup + 20f;
             while (_director.Hatch.IsDropping && Time.realtimeSinceStartup < deadline) yield return null;
             yield return new WaitForSeconds(1f);
             var under = _director.Hatch.DropPoint;
             foreach (var box in _director.RemainingBoxes)
-                Assert.Less(new Vector2(box.transform.position.x - under.x, box.transform.position.z - under.z).magnitude, 1.6f,
-                    $"{box.RawId} fell under the moved hatch");
+                Assert.Less(new Vector2(box.transform.position.x - under.x, box.transform.position.z - under.z).magnitude, PileRadius,
+                    $"{box.RawId} fell under the moved hatch ({new Vector2(box.transform.position.x - under.x, box.transform.position.z - under.z).magnitude:0.00} m)");
         }
 
         /// <summary>T037 review: «Стойку ко мне» while moving the counter is undone by «Отмена» and saves nothing.</summary>

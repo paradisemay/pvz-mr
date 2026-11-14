@@ -135,10 +135,10 @@ namespace Pvz.Editor
             Object.DestroyImmediate(demoCustomer.gameObject);
             customer.gameObject.SetActive(true);
 
-            // A line of customers (hard difficulty: three).
+            // A line of customers grown while the player was busy (T044: up to four).
             var lineDirection = (PvzSceneBuilder.CustomerSpawnPosition - PvzSceneBuilder.CustomerServicePosition).normalized;
             var queued = new System.Collections.Generic.List<Customer>();
-            for (var i = 1; i <= 2; i++)
+            for (var i = 1; i <= 3; i++)
             {
                 var waiting = Object.Instantiate(customerPrefab, PvzSceneBuilder.CustomerServicePosition + lineDirection * (0.65f * i),
                     Quaternion.Euler(0, 180, 0));
@@ -269,8 +269,8 @@ namespace Pvz.Editor
         private static void SetSummaryDemoText(ShiftSummaryPanel summary)
         {
             var text = summary.GetComponentInChildren<TMP_Text>(true);
-            text.text = "<b>СМЕНА ЗАВЕРШЕНА</b>\nОбслужено клиентов: 5/5\nОбработано товаров: 6\nМакс. очередь: 2\nОшибочных выдач: 1\nНеверных сканирований: 2\n" +
-                        "Среднее время выдачи: 24.6 с\nОчки: 525\nРейтинг смены: <b>Хорошо</b>\n<b>НОВЫЙ РЕКОРД!</b> Было: 450";
+            text.text = "<b>СМЕНА ЗАВЕРШЕНА</b>\nОбслужено клиентов: 9/10\nОбработано товаров: 13\nМакс. очередь: 4\nОшибочных выдач: 1\nНеверных сканирований: 2\n" +
+                        "Не дождались очереди: 2\nСреднее время выдачи: 31.2 с\nОчки: 1180\nРейтинг смены: <b>Хорошо</b>\n<b>НОВЫЙ РЕКОРД!</b> Было: 960";
         }
 
         private static void HideEditorOnlyClutter()

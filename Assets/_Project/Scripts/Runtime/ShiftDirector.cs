@@ -165,6 +165,17 @@ namespace Pvz.Runtime
                 catalog.Add(new BoxRecord(new BoxId(definition.boxId), definition.orderNumber));
                 pile.Add(definition.boxId);
             }
+            // T044 (#84): a longer shift — generated orders fill the stock up to the preset's number of orders.
+            var supply = settings.SupplyBoxes.Where(b => !string.IsNullOrEmpty(b.boxId))
+                .Select(b => new BoxRecord(new BoxId(b.boxId), b.orderNumber)).ToList();
+            var spares = new HashSet<string>(settings.SpareBoxes.Select(b => b.orderNumber));
+            var stockRandom = _stockSeed.HasValue ? new SystemRandomSource(_stockSeed.Value) : settings.CreateRandomSource();
+            foreach (var extra in StockPlan.Extra(catalog.Boxes, settings.HasSupply ? supply : null, spares, settings.OrdersPerShift,
+                         stockRandom))
+            {
+                catalog.Add(extra);
+                pile.Add(extra.Id.Value);
+            }
 
             Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules(), settings.CreateSupplyPlan(),
                 settings.BagChancePercent) {
@@ -261,6 +272,13 @@ namespace Pvz.Runtime
             _supplySeed = seed;
         }
 
+        private int? _stockSeed;
+
+        /// <summary>
+        /// Fixes the generated part of the stock (T044) — call before <see cref="Begin()"/> (tests: the same pile every run).
+        /// </summary>
+        internal void UseStockSeed(int seed) => _stockSeed = seed;
+
         /// <summary>Sets how often customers ask for a bag (tests).</summary>
         internal void UseBagChance(int percent) => Shift.BagChancePercent = percent;
 
@@ -289,7 +307,11 @@ namespace Pvz.Runtime
         private IEnumerator RunShift()
         {
             yield return new WaitUntil(() => hatch == null || !hatch.IsDropping); // the pile is down before anyone comes
-            yield return new WaitForSeconds(settings.FirstCustomerDelay);
+            // T044 (#84): customers come by the clock (ArriveByTheClock); this loop only serves the front of the line.
+            _arrivals = new ArrivalClock(Now, settings.FirstCustomerDelay, settings.ArrivalInterval, settings.DelayBetweenCustomers,
+                ArrivalJitter, new SystemRandomSource(_supplySeed ^ 0x5eed));
+            _idleSince = null; // the first customer keeps to the first delay, not the shorter idle pause
+            StartCoroutine(ArriveByTheClock());
             while (!Shift.IsOver)
             {
                 if (Shift.TryTakeDueDelivery(out var delivery))
@@ -299,14 +321,21 @@ namespace Pvz.Runtime
                     continue;
                 }
 
-                yield return FillQueue();
-                if (Shift.IsOver) break; // the time ran out while the line was filling
                 if (_line.Count > 0)
                 {
+                    _idleSince = null;
                     yield return ServeFrontCustomer();
                     if (Shift.IsOver) break;
-                    _presenter.ShowWaitingForCustomer();
-                    yield return new WaitForSeconds(settings.DelayBetweenCustomers);
+                    if (_line.Count == 0)
+                    {
+                        _idleSince = Now; // nobody waits: the next one comes soon, not a whole interval later
+                        _presenter.ShowWaitingForCustomer();
+                    }
+                }
+                else if (Shift.HasUnreservedOrders)
+                {
+                    _idleSince ??= Now;
+                    yield return new WaitUntil(() => _line.Count > 0 || Shift.IsDeliveryDue || Shift.IsOver);
                 }
                 else
                 {
@@ -318,6 +347,54 @@ namespace Pvz.Runtime
             EndShift();
         }
 
+        /// <summary>Arrivals are this share of the interval early or late, at random (not a metronome).</summary>
+        private const double ArrivalJitter = 0.2;
+
+        private ArrivalClock _arrivals;
+        private double? _idleSince;
+
+        /// <summary>
+        /// T044 (#84): a new customer comes every <see cref="ShiftSettings.ArrivalInterval"/> whether the line moves or
+        /// not — a slow player sees it grow; with the line full, the newcomer does not stay (counted in the summary).
+        /// With nobody at the counter or in line, the next one comes after a short pause instead of a whole interval.
+        /// Who comes and why (an order or a return) is decided by Core (<see cref="Shift.TryEnqueue"/>).
+        /// </summary>
+        private IEnumerator ArriveByTheClock()
+        {
+            while (!Shift.IsOver)
+            {
+                // A served customer still saying thanks has left Core's line but still stands at the counter: the line is
+                // not shorter yet, nobody squeezes in as a fifth (whoever is due comes once they leave).
+                var leaving = _line.Count > Shift.QueuedVisits.Count;
+                var idle = _line.Count == 0 && !Desk.HasCustomer ? _idleSince : null;
+                if (!leaving && _arrivals.IsDue(Now, idle))
+                {
+                    if (Shift.TryEnqueue(out var visit))
+                    {
+                        _arrivals.Arrived(Now);
+                        _idleSince = null;
+                        var customer = Instantiate(customerPrefab, SpawnPositionFor(_line.Count), customerSpawnPoint.rotation);
+                        customer.SetLook(_customersSpawned++);
+                        _line.Add(new QueuedCustomer(customer, visit, visit.IsReturn ? SpawnReturnBox(customer, visit.Return) : null));
+                        customer.GoTo(SlotPosition(_line.Count - 1), customerServicePoint.rotation, settings.CustomerWalkSpeed);
+                        // The next one does not walk inside this one, however short the interval.
+                        yield return new WaitForSeconds(QueueSpacing / settings.CustomerWalkSpeed + 0.2f);
+                        continue;
+                    }
+                    if (Shift.IsLineFull)
+                    {
+                        Shift.TurnAway();
+                        _arrivals.Arrived(Now);
+                    }
+                    // Otherwise nothing is left to promise right now (the supply is not in yet): whoever comes, comes later.
+                }
+                yield return null;
+            }
+        }
+
+        /// <summary>The arrival clock of the running shift (diagnostics, tests).</summary>
+        internal ArrivalClock Arrivals => _arrivals;
+
         private void SpawnDelivery(IReadOnlyList<BoxRecord> delivery)
         {
             if (hatch == null)
@@ -326,22 +403,6 @@ namespace Pvz.Runtime
                 return;
             }
             StartCoroutine(hatch.Drop(delivery.Select(b => b.Id.Value).ToArray(), _supplySeed + ++_deliveries, settings.DefaultCeilingHeight));
-        }
-
-        /// <summary>
-        /// Brings new customers one by one (so they do not walk inside each other) until the line is full.
-        /// Who comes and why (an order or a return) is decided by Core (<see cref="Shift.TryEnqueue"/>).
-        /// </summary>
-        private IEnumerator FillQueue()
-        {
-            while (Shift.TryEnqueue(out var visit))
-            {
-                var customer = Instantiate(customerPrefab, customerSpawnPoint.position, customerSpawnPoint.rotation);
-                customer.SetLook(_customersSpawned++);
-                _line.Add(new QueuedCustomer(customer, visit, visit.IsReturn ? SpawnReturnBox(customer, visit.Return) : null));
-                customer.GoTo(SlotPosition(_line.Count - 1), customerServicePoint.rotation, settings.CustomerWalkSpeed);
-                if (Shift.CanEnqueue) yield return new WaitForSeconds(QueueSpacing / settings.CustomerWalkSpeed + 0.2f);
-            }
         }
 
         /// <summary>The box a returning customer carries: a generic box given the returned id and its QR.</summary>
@@ -427,6 +488,18 @@ namespace Pvz.Runtime
 
         /// <summary>Place number <paramref name="index"/> in the line (0 = at the counter).</summary>
         private Vector3 SlotPosition(int index) => customerServicePoint.position + LineDirection * (QueueSpacing * index);
+
+        /// <summary>
+        /// Where a newcomer for slot <paramref name="index"/> appears: at the spawn point, or a place behind their slot when
+        /// a long line (T044) reaches past it — never inside the customer standing there.
+        /// </summary>
+        private Vector3 SpawnPositionFor(int index)
+        {
+            var spawn = customerSpawnPoint.position;
+            var behindSlot = SlotPosition(index + 1);
+            var spawnDistance = Vector3.Dot(spawn - customerServicePoint.position, LineDirection);
+            return spawnDistance >= QueueSpacing * (index + 1) ? spawn : behindSlot;
+        }
 
         private Vector3 ExitPosition => customerServicePoint.position + Vector3.Cross(Vector3.up, LineDirection) * 2.2f
                                         + LineDirection * 0.8f;
