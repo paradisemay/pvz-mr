@@ -638,6 +638,22 @@ namespace Pvz.Runtime.Remote
                     yield return pause;
                 }
 
+                // T045: returned and refused boxes go into the returns bin, and once there they are handed in.
+                if (director.ReturnsBin != null)
+                {
+                    var loose = director.ReturnBoxes.Where(b => !director.ReturnsBin.Contains(b) && !b.IsHeld).ToArray();
+                    foreach (var returned in loose)
+                    {
+                        Teleport(returned.transform, returned.GetComponent<Rigidbody>(), director.ReturnsBin.transform.position + Vector3.up * 0.3f);
+                        yield return pause;
+                    }
+                    if (loose.Length > 0 && director.Shift.Returns.InBin > 0)
+                    {
+                        director.HandInReturns();
+                        yield return pause;
+                    }
+                }
+
                 var desk = director.Desk;
                 if (desk.AwaitsCode && director.CurrentCustomer != null && !director.CurrentCustomer.IsWalking)
                 {

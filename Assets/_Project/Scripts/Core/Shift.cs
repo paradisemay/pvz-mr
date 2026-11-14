@@ -50,6 +50,50 @@ namespace Pvz.Core
             // The line is the book's open visits: serving the visit takes the customer out of the line.
             var visit = Book.OpenPickup(result.Order);
             if (visit != null) Book.Serve(visit);
+
+            // T045: sometimes the customer checks a box and refuses it — it stays at the counter, to the returns bin.
+            if (RefusalChancePercent > 0 && result.Order.Boxes.Count > 0 && _random.Range(0, 100) < RefusalChancePercent)
+            {
+                var refused = result.Order.Boxes[_random.Range(0, result.Order.Boxes.Count)];
+                _returnable.RemoveAll(b => b.Id == refused); // it is not with the customer: they cannot bring it back
+                Returns.Expect(refused, result.Order.Number, ReturnKind.Refusal);
+                _refusedOrders.Add(result.Order.Number);
+                Stats.OnRefusal();
+                BoxRefused?.Invoke(new BoxRecord(refused, result.Order.Number));
+            }
+        }
+
+        private readonly HashSet<string> _refusedOrders = new HashSet<string>();
+
+        /// <summary>T045 (#85): returns and refusals waiting for the returns bin and the hand-in.</summary>
+        public ReturnsShelf Returns { get; } = new ReturnsShelf();
+
+        /// <summary>T045: chance that a customer refuses one box of a handed-over order.</summary>
+        public int RefusalChancePercent { get; set; }
+
+        /// <summary>T045: a customer refused a box at the counter (raised after the order counts as completed).</summary>
+        public event Action<BoxRecord> BoxRefused;
+
+        public bool WasRefused(string orderNumber) => _refusedOrders.Contains(orderNumber);
+
+        /// <summary>T045: «Сдать возвраты» — the boxes in the returns bin are handed in (points); returns them.</summary>
+        public List<BoxId> HandInReturns()
+        {
+            var handed = Returns.TakeBin();
+            Stats.OnReturnsHandedIn(handed.Count);
+            return handed;
+        }
+
+        /// <summary>
+        /// T045: the end of the shift — what is in the returns bin is handed in, the rest is lost (a penalty).
+        /// Returns (handed in, lost).
+        /// </summary>
+        public (List<BoxId> handed, List<BoxId> lost) CloseReturns()
+        {
+            var handed = HandInReturns();
+            var lost = Returns.TakeLost();
+            Stats.OnReturnsLost(lost.Count);
+            return (handed, lost);
         }
 
         // An order opened at the desk without joining the line (tests, single-customer use) is not in the book.
@@ -75,6 +119,7 @@ namespace Pvz.Core
         {
             var visit = OpenReturn(request);
             if (visit != null) Book.Serve(visit);
+            Returns.Expect(request.Box, request.OrderNumber, ReturnKind.Return); // T045: to the returns bin, not written off
         }
 
         private Visit OpenReturn(ReturnRequest request)

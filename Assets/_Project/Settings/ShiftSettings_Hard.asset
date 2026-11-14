@@ -59,6 +59,7 @@ MonoBehaviour:
     startYaw: 0
   bagChancePercent: 80
   returnChancePercent: 35
+  refusalChancePercent: 25
   urgentChancePercent: 25
   urgentPatienceFactor: 0.6
   ordersPerShift: 14

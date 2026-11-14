@@ -32,6 +32,8 @@ namespace Pvz.Runtime
         [SerializeField] private GameObject startMenu;
         [Tooltip("Generic box prefab carried by customers who come to return something.")]
         [SerializeField] private QrBox returnBoxPrefab;
+        [Tooltip("T045: where returned and refused boxes are put; «Сдать возвраты» hands in what lies in it.")]
+        [SerializeField] private ReturnsBin returnsBin;
         [Tooltip("Optional: confetti over the handover zone when an order is done.")]
         [SerializeField] private FeedbackEffects effects;
         [Tooltip("Optional: the career between shifts (T022); a finished shift reports its score to it.")]
@@ -182,6 +184,7 @@ namespace Pvz.Runtime
                 PatienceSeconds = settings.PatienceSeconds,
                 QueueLength = settings.QueueLength,
                 ReturnChancePercent = settings.ReturnChancePercent,
+                RefusalChancePercent = settings.RefusalChancePercent, // T045
                 UrgentChancePercent = settings.UrgentChancePercent,
                 UrgentPatienceFactor = settings.UrgentPatienceFactor,
                 RequiresCustomerCode = true, // T035: the customer shows a barcode on the phone first
@@ -245,6 +248,9 @@ namespace Pvz.Runtime
             handoverZone.BagEntered += OnBagEnteredZone;
             Desk.BagRequested += OnBagRequested;
             Desk.ReturnOpened += OnReturnOpened;
+            Desk.ReturnAccepted += OnReturnAcceptedBox;
+            Shift.BoxRefused += OnBoxRefused;
+            if (returnsBin != null) { returnsBin.BoxEntered += OnBoxEnteredBin; returnsBin.BoxLeft += OnBoxLeftBin; }
             Shift.TimeUp += OnTimeUp;
         }
 
@@ -262,6 +268,9 @@ namespace Pvz.Runtime
             handoverZone.BagEntered -= OnBagEnteredZone;
             Desk.BagRequested -= OnBagRequested;
             Desk.ReturnOpened -= OnReturnOpened;
+            Desk.ReturnAccepted -= OnReturnAcceptedBox;
+            Shift.BoxRefused -= OnBoxRefused;
+            if (returnsBin != null) { returnsBin.BoxEntered -= OnBoxEnteredBin; returnsBin.BoxLeft -= OnBoxLeftBin; }
             Shift.TimeUp -= OnTimeUp;
         }
 
@@ -448,7 +457,8 @@ namespace Pvz.Runtime
             else if (Desk.HasActiveOrder) HandOverBoxesAlreadyInZone();
 
             yield return new WaitUntil(() => !Desk.HasCustomer);
-            if (front.ReturnBox != null) Destroy(front.ReturnBox.gameObject); // taken back and written off
+            // T045: an accepted return stays on the counter for the returns bin; one never accepted (the customer left) goes.
+            if (front.ReturnBox != null && !front.ReturnBox.IsReturn) Destroy(front.ReturnBox.gameObject);
             CurrentReturnBox = null;
             yield return new WaitForSeconds(settings.ThanksDuration);
 
@@ -523,6 +533,10 @@ namespace Pvz.Runtime
 
         private void EndShift()
         {
+            // T045: what is in the returns bin is handed in, the returns left elsewhere are lost (before the summary).
+            var (handed, lost) = Shift.CloseReturns();
+            RemoveReturnBoxes(handed);
+            RemoveReturnBoxes(lost);
             IsShiftOver = true;
             _presenter.ShowShiftOver();
             RecordResult? record = null;
@@ -624,6 +638,11 @@ namespace Pvz.Runtime
 
         private void GiveToCustomer(QrBox box)
         {
+            if (_refused.Contains(box.Id))
+            {
+                PutBackAsReturn(box); // T045: the customer refused it as it was handed over
+                return;
+            }
             handoverZone.Forget(box);
             _registry.Unregister(box.Id);
             if (CurrentCustomer != null) CurrentCustomer.Take(box);
@@ -649,6 +668,85 @@ namespace Pvz.Runtime
         internal void ConfigureStartMenu(GameObject menuRoot) => startMenu = menuRoot;
 
         internal void ConfigureReturns(QrBox boxPrefab) => returnBoxPrefab = boxPrefab;
+
+        internal void ConfigureReturnsBin(ReturnsBin bin) => returnsBin = bin;
+
+        /// <summary>T045: the returns bin by the counter.</summary>
+        public ReturnsBin ReturnsBin => returnsBin;
+
+        /// <summary>Sets how often a customer refuses a box (tests).</summary>
+        internal void UseRefusalChance(int percent) => Shift.RefusalChancePercent = percent;
+
+        private readonly Dictionary<BoxId, QrBox> _returnBoxes = new Dictionary<BoxId, QrBox>();
+        private readonly HashSet<BoxId> _refused = new HashSet<BoxId>();
+
+        /// <summary>T045: a box that came back, lying loose to be carried to the bin (tests, the remote).</summary>
+        public bool TryGetReturnBox(BoxId id, out QrBox box) => _returnBoxes.TryGetValue(id, out box) && box != null;
+
+        public IEnumerable<QrBox> ReturnBoxes => _returnBoxes.Values.Where(b => b != null);
+
+        /// <summary>
+        /// T045: the customer checked a box and refused it. It is taken back from them if they already hold it;
+        /// otherwise (the last box, still on its way into their hands) <see cref="GiveToCustomer(QrBox)"/> keeps it.
+        /// </summary>
+        private void OnBoxRefused(BoxRecord record)
+        {
+            _refused.Add(record.Id);
+            if (CurrentCustomer == null) return;
+            foreach (var box in CurrentCustomer.GetComponentsInChildren<QrBox>(true))
+                if (box.Id == record.Id) { PutBackAsReturn(box); break; }
+        }
+
+        private void PutBackAsReturn(QrBox box)
+        {
+            _refused.Remove(box.Id);
+            handoverZone.Forget(box);
+            _registry.Unregister(box.Id);
+            var spot = handoverZone.ReturnSpot;
+            box.BecomeReturn(spot.position + Vector3.up * 0.05f, spot.rotation);
+            _returnBoxes[box.Id] = box;
+        }
+
+        /// <summary>T045: the returned box stays on the counter, to the returns bin — no longer written off.</summary>
+        private void OnReturnAcceptedBox(ReturnRequest request)
+        {
+            var box = CurrentReturnBox;
+            if (box == null || box.Id != request.Box) return;
+            box.BecomeReturn(box.transform.position, box.transform.rotation);
+            _returnBoxes[box.Id] = box;
+        }
+
+        private void OnBoxEnteredBin(QrBox box)
+        {
+            if (box != null && box.IsReturn && !IsShiftOver) Shift.Returns.Stow(box.Id);
+        }
+
+        private void OnBoxLeftBin(QrBox box)
+        {
+            if (box != null && box.IsReturn && !IsShiftOver) Shift.Returns.Unstow(box.Id);
+        }
+
+        /// <summary>T045: «Сдать возвраты» — the boxes in the bin are taken away (points). Returns how many.</summary>
+        public int HandInReturns()
+        {
+            if (Shift == null || IsShiftOver) return 0;
+            var handed = Shift.HandInReturns();
+            RemoveReturnBoxes(handed);
+            _presenter.ShowReturnsHandedIn(handed.Count, Shift.Returns.Pending);
+            return handed.Count;
+        }
+
+        private void RemoveReturnBoxes(IEnumerable<BoxId> ids)
+        {
+            foreach (var id in ids)
+            {
+                if (!_returnBoxes.TryGetValue(id, out var box)) continue;
+                _returnBoxes.Remove(id);
+                if (box == null) continue;
+                if (returnsBin != null) returnsBin.Forget(box);
+                Destroy(box.gameObject);
+            }
+        }
 
         internal void ConfigureEffects(FeedbackEffects feedbackEffects) => effects = feedbackEffects;
 

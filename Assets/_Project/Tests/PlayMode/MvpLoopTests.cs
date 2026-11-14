@@ -33,6 +33,7 @@ namespace Pvz.Runtime.Tests
             director.UseRandomSeed(12345);   // same order sequence every run
             director.UsePatience(0);         // customers wait as long as the test needs
             director.UseReturnChance(0);     // only pickups unless a test asks for returns
+            director.UseRefusalChance(0);    // nobody refuses a box unless a test asks for it (T045)
             director.UseEventChances(0);     // no urgent customers unless a test asks for them
             director.UseAutoCustomerCode();  // the phone's code is read at once, unless a test is about it (T035)
             director.UseTimeLimit(0);        // the shift lasts as long as the test needs
@@ -257,7 +258,12 @@ namespace Pvz.Runtime.Tests
             StringAssert.Contains("ВОЗВРАТ ПРИНЯТ", director.Scanner.ScreenText);
             Assert.AreEqual(1, director.Stats.ReturnsAccepted);
             Assert.IsFalse(director.Desk.HasCustomer);
-            yield return WaitUntil(() => returned == null, 10f, "the returned box is taken back");
+            // T045: the box is no longer written off — it stays on the counter, loose, for the returns bin.
+            yield return new WaitForSeconds(3f); // the customer said thanks and left
+            Assert.IsTrue(returned != null, "the returned box stays");
+            Assert.IsTrue(returned.IsReturn);
+            Assert.IsTrue(director.Shift.Returns.Expects(returned.Id));
+            Assert.IsTrue(director.TryGetReturnBox(returned.Id, out _));
         }
 
         /// <summary>T035: a customer whose code nobody scans gives up, puts the phone away; their order was never known.</summary>

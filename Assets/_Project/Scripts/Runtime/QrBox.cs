@@ -32,6 +32,33 @@ namespace Pvz.Runtime
         /// <summary>True once the box was handed over and belongs to a customer.</summary>
         public bool IsHandedOver { get; private set; }
 
+        /// <summary>
+        /// T045 (#85): a box that came back (a return or a refusal): loose on the counter, to be put into the returns bin.
+        /// It is no longer stock, so the handover zone ignores it (<see cref="IsHandedOver"/> stays true).
+        /// </summary>
+        public bool IsReturn { get; private set; }
+
+        /// <summary>T045: the box came back to the counter — the player can grab it and carry it to the returns bin.</summary>
+        public void BecomeReturn(Vector3 position, Quaternion rotation)
+        {
+            IsHandedOver = true;
+            IsReturn = true;
+            transform.SetParent(_startParent, true);
+            transform.SetPositionAndRotation(position, rotation);
+            if (grabInteractable != null) grabInteractable.enabled = true;
+            if (body != null)
+            {
+                body.isKinematic = false;
+                body.detectCollisions = true;
+                body.interpolation = RigidbodyInterpolation.Interpolate;
+                body.position = position;
+                body.rotation = rotation;
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
+            Respawn = () => position; // a return dropped out of reach comes back to the counter, not out of the hatch
+        }
+
         /// <summary>The player holds the box right now.</summary>
         public bool IsHeld => grabInteractable != null && grabInteractable.isSelected;
 
@@ -49,7 +76,7 @@ namespace Pvz.Runtime
 
         private void Update()
         {
-            if (IsHandedOver) return;
+            if (IsHandedOver && !IsReturn) return;
             var origin = _startParent != null ? _startParent.position : Vector3.zero;
             var offset = transform.position - origin;
             offset.y = 0f;
