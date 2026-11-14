@@ -6,6 +6,10 @@
 
 ![Вид игрока](docs/screenshots/02_player_view.png)
 
+**На Quest 3** (экран шлема, автопилот через пульт отладки; [видео](docs/media/device/mr-shift-normal.mp4)):
+
+![Смена на шлеме](docs/media/device/mr-shift-normal.gif)
+
 - **Движок:** Unity 6000.2.2f1, URP, OpenXR, XR Interaction Toolkit 3.2, AR Foundation 6.5 + Unity OpenXR: Meta 2.5
 - **Целевое устройство:** Meta Quest 3 / 3S (Android)
 - **Сканирование QR в прототипе — имитация:** QR на коробке — это текстура, сканер узнаёт коробку лучом.
@@ -38,11 +42,12 @@
 3. В редакторе включена «мок-комната» (пол, стены, стол, кровать) — на шлеме вместо неё реальная комната.
 
 ## Готовый APK
-Последняя сборка лежит в [GitHub Releases](https://github.com/paradisemay/pvz-mr/releases): `adb install pvz-mr.apk` (режим разработчика на Quest). На шлеме не проверялась.
+Последняя сборка лежит в [GitHub Releases](https://github.com/paradisemay/pvz-mr/releases): `adb install pvz-mr.apk` (режим разработчика на Quest). Проверено на Quest 3: смена целиком, 90 Гц.
+`pvz-mr-dev.apk` — отладочная сборка с пультом (см. «Для разработчиков»).
 
 ## Как собрать на Quest
 `File → Build Profiles → Android → Build`. Настройки OpenXR/Player уже применены (`PVZ → Apply Project Setup`).
-На устройстве не проверялось — шлема у разработчика не было.
+Или `./tools/run-unity.ps1 -Method Pvz.Editor.PvzBuild.BuildQuestApk -Extra '-buildTarget','Android'`.
 
 ## Для разработчиков
 - Пересобрать сцену и ассеты: меню **PVZ → Build Scene And Assets** или
@@ -52,6 +57,10 @@
 - Скриншоты для PR: **PVZ → Capture Screenshots** (с целью сборки Standalone:
   `./tools/run-unity.ps1 -Method Pvz.Editor.PvzScreenshots.CaptureAll -Extra '-buildTarget','Win64'`)
 - APK для Quest: **PVZ → Build Quest APK** или `./tools/run-unity.ps1 -Method Pvz.Editor.PvzBuild.BuildQuestApk -NoQuit -Extra '-buildTarget','Android'`
+- **Пульт отладки на шлеме** (сборка `BuildQuestApkDev` → `Builds/Android/pvz-mr-dev.apk`, шлем по USB с adb):
+  `./tools/pvz-remote.ps1 state`, `./tools/pvz-remote.ps1 "begin normal" "autoplay on"` — смена автопилотом;
+  `./tools/pvz-record.ps1 -Seconds 60 -Name demo -Gif` — видео с экрана шлема (в нём видна настоящая комната —
+  просматривайте кадры перед публикацией); список команд — `./tools/pvz-remote.ps1 help`.
 
 ## Документация
 - [docs/REPORT.md](docs/REPORT.md) — **итоговый отчёт**: что сделано, как проверено, ограничения, бэклог
