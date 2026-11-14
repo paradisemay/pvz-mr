@@ -79,6 +79,19 @@ namespace Pvz.Runtime
 
         public event Action ShiftEnded;
 
+        /// <summary>Raised once the shift has started (after the difficulty was chosen).</summary>
+        public event Action ShiftStarted;
+
+        /// <summary>
+        /// «Завершить смену» (T033): the shift ends as if the time ran out — the line goes home, the customer at the
+        /// counter is served to the end. Ignored before the start and after the end.
+        /// </summary>
+        public void EndShiftNow()
+        {
+            if (Shift == null || IsShiftOver || Shift.IsTimeUp) return;
+            Shift.EndNow(Now);
+        }
+
         private static double Now => Time.timeAsDouble;
 
         private void Awake()
@@ -177,6 +190,7 @@ namespace Pvz.Runtime
             if (startMenu != null) startMenu.SetActive(false);
             _presenter.ShowShiftStarting(settings.DisplayName);
             StartCoroutine(RunShift());
+            ShiftStarted?.Invoke();
         }
 
         private void Subscribe()
@@ -407,7 +421,7 @@ namespace Pvz.Runtime
             catch (Exception e) { Debug.LogException(e, this); }
             try { record = _bestScores.Submit(settings.DifficultyId, Stats.Score); }
             catch (Exception e) { Debug.LogException(e, this); } // never leave the player without the summary and restart
-            summaryPanel.Show(Stats, OrdersTotal, record, settings.DisplayName, Shift.MaxQueueLength, Shift.IsTimeUp,
+            summaryPanel.Show(Stats, OrdersTotal, record, settings.DisplayName, Shift.MaxQueueLength, Shift.IsTimeUp && !Shift.Clock.EndedEarly,
                 careerLine);
             restartButton.SetActive(true);
             ShiftEnded?.Invoke();

@@ -114,21 +114,34 @@ namespace Pvz.Editor
             supplyDrop.transform.SetParent(playArea, false);
             supplyDrop.Configure(supplyBoxPrefab, camera.transform, counter.transform, spawn, Object.FindFirstObjectByType<ARPlaneManager>());
 
+            // Shown before the shift only: the «Как играть» card. The keys are on the counter computer (T033).
             var startMenu = new GameObject("Start Menu").transform;
             startMenu.SetParent(playArea, false);
+            var pc = CreateComputer(counter.transform, font);
 
             var director = new GameObject("Shift Director").AddComponent<ShiftDirector>();
+            var restart = CreateRestartKey(pc.Summary, font);
             director.Configure(settings, boxes.ToArray(), scanner,
                 counter.GetComponentInChildren<HandoverZone>(true),
                 customerPrefab, spawn, service,
                 counter.GetComponentInChildren<CounterBoard>(true),
                 counter.GetComponentInChildren<ShiftSummaryPanel>(true),
-                counter.GetComponentInChildren<RestartButton>(true).gameObject,
+                restart,
                 counter.GetComponentInChildren<FeedbackAudio>(true),
                 supplyDrop,
-                CreateDifficultyButtons(startMenu, new[] { easy, settings, hard }, font));
-            CreateRecenterButton(startMenu, mrSetup, font);
-            counter.GetComponentInChildren<CounterBoard>(true).ConfigureHowToPlay(CreateHowToPlayCard(startMenu, font));
+                CreateDifficultyButtons(pc.Menu, new[] { easy, settings, hard }, font));
+            CreateComputerKey(pc.Menu, 4, "НАСТРОЙКИ", ComputerKey.Action.OpenSettings, pc.Computer, font, KeyGrey);
+            CreateComputerKey(pc.Summary, 4, "НАСТРОЙКИ", ComputerKey.Action.OpenSettings, pc.Computer, font, KeyGrey);
+            CreateComputerKey(pc.Shift, 0, "НАСТРОЙКИ", ComputerKey.Action.OpenSettings, pc.Computer, font, KeyGrey);
+            var endShift = CreateComputerKey(pc.Shift, 4, PvzComputer.EndShiftCaption, ComputerKey.Action.EndShift, pc.Computer, font,
+                new Color(0.92f, 0.35f, 0.3f));
+            CreateComputerKey(pc.Settings, 4, "НАЗАД", ComputerKey.Action.Back, pc.Computer, font, KeyGrey);
+            pc.Computer.Configure(director, pc.Screen, pc.Title, pc.Menu.gameObject, pc.Settings.gameObject,
+                pc.SettingsBeforeShift.gameObject, pc.Shift.gameObject, pc.Summary.gameObject, endShift);
+            CreateRecenterButton(pc.SettingsBeforeShift, mrSetup, font);
+            var counterBoard = counter.GetComponentInChildren<CounterBoard>(true);
+            counterBoard.ConfigureHowToPlay(CreateHowToPlayCard(startMenu, font));
+            PrefabUtility.RecordPrefabInstancePropertyModifications(counterBoard); // an override on the counter prefab instance
             director.ConfigureStartMenu(startMenu.gameObject);
             director.ConfigureReturns(supplyBoxPrefab); // returned boxes use the generic box with a runtime QR
             director.ConfigureEffects(counter.GetComponentInChildren<FeedbackEffects>(true));
@@ -136,13 +149,15 @@ namespace Pvz.Editor
             // The player's arrangement of the stock boxes is kept between sessions (T017).
             var keeper = new GameObject("Warehouse Layout").AddComponent<WarehouseLayoutKeeper>();
             keeper.Configure(boxes.ToArray(), counter.GetComponentInChildren<HandoverZone>(true));
-            CreateResetWarehouseButton(startMenu, keeper, font);
+            CreateResetWarehouseButton(pc.SettingsBeforeShift, keeper, font);
             // The career between shifts and the counter themes it opens (T022).
             var careerKeeper = new GameObject("Career").AddComponent<CareerKeeper>();
             careerKeeper.Configure(LoadOrCreateThemeCatalog(), counter.GetComponentInChildren<CounterSkin>(true),
-                CreateThemeButton(startMenu, careerKeeper, font));
+                CreateThemeButton(pc.Settings, careerKeeper, font));
             director.ConfigureCareer(careerKeeper);
 
+            // Saved as the menu screen; done last, so every key label was laid out while its group was still active.
+            pc.Computer.Preview(PvzComputer.Screen.Menu, PvzComputer.MenuText, beforeShift: true);
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();
@@ -209,65 +224,139 @@ namespace Pvz.Editor
             return text; // the presenter writes the text at runtime (ShowDifficultyMenu)
         }
 
-        /// <summary>«Стойку ко мне»: moves the play area in front of the player before the shift starts.</summary>
-        private static void CreateRecenterButton(Transform parent, MrSessionSetup session, TMPro.TMP_FontAsset font)
+        // ---------- The counter computer (T033, #77) ----------
+
+        private static readonly Color KeyGrey = new Color(0.72f, 0.76f, 0.82f);
+        private static readonly Color KeyLabel = new Color(0.08f, 0.1f, 0.14f);
+
+        /// <summary>Where key <paramref name="slot"/> (0..4) of the computer sits: a row on the player side of the counter.</summary>
+        public static Vector3 KeySlot(int slot) =>
+            CounterPosition + new Vector3(-0.40f + slot * 0.095f, PvzPrefabBuilder.CounterHeight + 0.025f, -0.2f);
+
+        private readonly struct ComputerParts
         {
-            var go = new GameObject("Recenter Button");
-            go.transform.SetParent(parent, false);
-            go.transform.position = CounterPosition + new Vector3(-0.15f, PvzPrefabBuilder.CounterHeight + 0.03f, -0.04f);
-            Primitive(PrimitiveType.Cube, "Cap", go.transform, Vector3.zero, new Vector3(0.22f, 0.05f, 0.13f),
-                Lit("RecenterButton", new Color(0.35f, 0.6f, 0.95f)), true);
-            Text("Label", go.transform, new Vector3(0, 0.027f, 0), new Vector2(0.21f, 0.11f), "СТОЙКУ\nКО МНЕ", font,
-                new Color(0.08f, 0.1f, 0.14f), 0.6f, localRot: Quaternion.Euler(90, 0, 0));
+            public ComputerParts(PvzComputer computer, TMPro.TMP_Text screen, TMPro.TMP_Text title, Transform menu, Transform settings,
+                Transform settingsBeforeShift, Transform shift, Transform summary)
+            {
+                Computer = computer;
+                Screen = screen;
+                Title = title;
+                Menu = menu;
+                Settings = settings;
+                SettingsBeforeShift = settingsBeforeShift;
+                Shift = shift;
+                Summary = summary;
+            }
+
+            public PvzComputer Computer { get; }
+            public TMPro.TMP_Text Screen { get; }
+            public TMPro.TMP_Text Title { get; }
+            public Transform Menu { get; }
+            public Transform Settings { get; }
+            public Transform SettingsBeforeShift { get; }
+            public Transform Shift { get; }
+            public Transform Summary { get; }
+        }
+
+        /// <summary>
+        /// A chunky monitor on the counter (a box with a bulging back, like an old terminal), turned to the player, and the
+        /// groups of keys its screens switch between. It is part of the counter, so it moves with it.
+        /// </summary>
+        private static ComputerParts CreateComputer(Transform counter, TMPro.TMP_FontAsset font)
+        {
+            var root = new GameObject("Computer");
+            root.transform.SetParent(counter, false);
+            root.transform.position = CounterPosition + new Vector3(-0.14f, PvzPrefabBuilder.CounterHeight, 0.13f); // clear of the bag dispenser
+            var body = Lit("ComputerBody", new Color(0.86f, 0.87f, 0.84f));
+            Primitive(PrimitiveType.Cube, "Foot", root.transform, new Vector3(0f, 0.01f, 0f), new Vector3(0.2f, 0.02f, 0.14f), body, true);
+            Primitive(PrimitiveType.Cube, "Neck", root.transform, new Vector3(0f, 0.06f, 0.02f), new Vector3(0.05f, 0.09f, 0.05f), body);
+            var head = new GameObject("Monitor").transform;
+            head.SetParent(root.transform, false);
+            head.localPosition = new Vector3(0f, 0.25f, 0f);
+            head.localRotation = Quaternion.Euler(-8f, 0f, 0f); // tilted back a little, towards the eyes of the player
+            Primitive(PrimitiveType.Cube, "Case", head, Vector3.zero, new Vector3(0.46f, 0.32f, 0.06f), body, true);
+            Primitive(PrimitiveType.Cube, "Back", head, new Vector3(0f, 0.01f, 0.08f), new Vector3(0.36f, 0.24f, 0.12f), body, true);
+            Primitive(PrimitiveType.Sphere, "Bulge", head, new Vector3(0f, 0.01f, 0.13f), new Vector3(0.3f, 0.2f, 0.12f), body);
+            Primitive(PrimitiveType.Cube, "Screen", head, new Vector3(0f, 0.005f, -0.031f), new Vector3(0.41f, 0.27f, 0.004f),
+                Unlit("ComputerScreen", new Color(0.05f, 0.09f, 0.12f)));
+            var title = Text("Title", head, new Vector3(0f, 0.115f, -0.034f), new Vector2(0.39f, 0.04f), "ПВЗ", font,
+                new Color(0.45f, 0.95f, 0.6f), 0.35f, TMPro.TextAlignmentOptions.Left);
+            var screen = Text("Text", head, new Vector3(0f, -0.015f, -0.034f), new Vector2(0.39f, 0.21f), string.Empty, font,
+                new Color(0.82f, 0.95f, 0.86f), 0.3f, TMPro.TextAlignmentOptions.TopLeft);
+            var computer = root.AddComponent<PvzComputer>();
+
+            Transform Group(string name)
+            {
+                var group = new GameObject(name).transform;
+                group.SetParent(root.transform, false);
+                return group;
+            }
+            return new ComputerParts(computer, screen, title, Group("Menu Keys"), Group("Settings Keys"),
+                Group("Settings Before Shift Keys"), Group("Shift Keys"), Group("Summary Keys"));
+        }
+
+        /// <summary>A key cap in a slot of the computer row, with a label on top. Returns the key object.</summary>
+        private static GameObject CreateKey(Transform group, int slot, string name, string caption, Color color, TMPro.TMP_FontAsset font,
+            out TMPro.TMP_Text label, string material = null)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(group, false);
+            go.transform.position = KeySlot(slot);
+            Primitive(PrimitiveType.Cube, "Cap", go.transform, Vector3.zero, new Vector3(0.088f, 0.04f, 0.1f), Lit(material ?? name.Replace(" ", ""), color), true);
+            label = Text("Label", go.transform, new Vector3(0, 0.0215f, 0), new Vector2(0.084f, 0.094f), caption, font, KeyLabel, 0.36f,
+                localRot: Quaternion.Euler(90, 0, 0));
             go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
+            return go;
+        }
+
+        private static TMPro.TMP_Text CreateComputerKey(Transform group, int slot, string caption, ComputerKey.Action action,
+            PvzComputer computer, TMPro.TMP_FontAsset font, Color color)
+        {
+            var go = CreateKey(group, slot, $"Key {action}", caption, color, font, out var label);
+            go.AddComponent<ComputerKey>().Configure(computer, action);
+            return label;
+        }
+
+        /// <summary>«Новая смена» on the summary screen of the computer.</summary>
+        private static GameObject CreateRestartKey(Transform group, TMPro.TMP_FontAsset font)
+        {
+            var go = CreateKey(group, 0, "RestartButton", "НОВАЯ\nСМЕНА", new Color(0.35f, 0.8f, 0.45f), font, out _);
+            go.AddComponent<RestartButton>();
+            return go;
+        }
+
+        /// <summary>«Стойку ко мне» (settings, before the shift): moves the play area in front of the player.</summary>
+        private static void CreateRecenterButton(Transform group, MrSessionSetup session, TMPro.TMP_FontAsset font)
+        {
+            var go = CreateKey(group, 0, "Recenter Button", "СТОЙКУ\nКО МНЕ", new Color(0.35f, 0.6f, 0.95f), font, out _);
             go.AddComponent<RecenterButton>().Configure(session);
         }
 
-        /// <summary>«Сбросить склад» behind «Стойку ко мне»: boxes back to their first places, saved layout forgotten (T020).</summary>
-        private static void CreateResetWarehouseButton(Transform parent, WarehouseLayoutKeeper keeper, TMPro.TMP_FontAsset font)
+        /// <summary>«Сбросить склад» (settings, before the shift): boxes back to their first places, saved layout forgotten (T020).</summary>
+        private static void CreateResetWarehouseButton(Transform group, WarehouseLayoutKeeper keeper, TMPro.TMP_FontAsset font)
         {
-            var go = new GameObject("Reset Warehouse Button");
-            go.transform.SetParent(parent, false);
-            go.transform.position = CounterPosition + new Vector3(-0.21f, PvzPrefabBuilder.CounterHeight + 0.03f, 0.14f);
-            Primitive(PrimitiveType.Cube, "Cap", go.transform, Vector3.zero, new Vector3(0.11f, 0.05f, 0.13f),
-                Lit("ResetWarehouseButton", new Color(0.95f, 0.6f, 0.25f)), true);
-            Text("Label", go.transform, new Vector3(0, 0.027f, 0), new Vector2(0.105f, 0.11f), "СБРОСИТЬ\nСКЛАД", font,
-                new Color(0.08f, 0.1f, 0.14f), 0.45f, localRot: Quaternion.Euler(90, 0, 0));
-            go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
+            var go = CreateKey(group, 1, "Reset Warehouse Button", "СБРОСИТЬ\nСКЛАД", new Color(0.95f, 0.6f, 0.25f), font, out _);
             go.AddComponent<ResetWarehouseButton>().Configure(keeper);
         }
 
-        /// <summary>«ТЕМА» next to «Сбросить склад»: the counter theme opened by the career (T022).</summary>
-        private static ThemeButton CreateThemeButton(Transform parent, CareerKeeper keeper, TMPro.TMP_FontAsset font)
+        /// <summary>«Тема» (settings, also during the shift): the counter theme opened by the career (T022).</summary>
+        private static ThemeButton CreateThemeButton(Transform group, CareerKeeper keeper, TMPro.TMP_FontAsset font)
         {
-            var go = new GameObject("Theme Button");
-            go.transform.SetParent(parent, false);
-            go.transform.position = CounterPosition + new Vector3(-0.09f, PvzPrefabBuilder.CounterHeight + 0.03f, 0.14f);
-            Primitive(PrimitiveType.Cube, "Cap", go.transform, Vector3.zero, new Vector3(0.11f, 0.05f, 0.13f),
-                Lit("ThemeButton", new Color(0.62f, 0.5f, 0.95f)), true);
-            var label = Text("Label", go.transform, new Vector3(0, 0.027f, 0), new Vector2(0.105f, 0.11f), "ТЕМА:\nКЛАССИКА", font,
-                new Color(0.08f, 0.1f, 0.14f), 0.45f, localRot: Quaternion.Euler(90, 0, 0));
-            go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
+            var go = CreateKey(group, 2, "Theme Button", "ТЕМА:\nКЛАССИКА", new Color(0.62f, 0.5f, 0.95f), font, out var label);
             var button = go.AddComponent<ThemeButton>();
             button.Configure(keeper, label);
             return button;
         }
 
-        /// <summary>Three buttons on the player's side of the counter; hidden once the shift starts.</summary>
-        private static DifficultyButton[] CreateDifficultyButtons(Transform parent, ShiftSettings[] presets, TMPro.TMP_FontAsset font)
+        /// <summary>The menu screen of the computer: three difficulty keys in slots 0–2.</summary>
+        private static DifficultyButton[] CreateDifficultyButtons(Transform group, ShiftSettings[] presets, TMPro.TMP_FontAsset font)
         {
             var colors = new[] { new Color(0.35f, 0.8f, 0.45f), new Color(0.95f, 0.75f, 0.2f), new Color(0.92f, 0.35f, 0.3f) };
             var buttons = new DifficultyButton[presets.Length];
             for (var i = 0; i < presets.Length; i++)
             {
-                var go = new GameObject($"Difficulty {presets[i].DisplayName}");
-                go.transform.SetParent(parent, false);
-                go.transform.position = CounterPosition + new Vector3(-0.62f + i * 0.25f, PvzPrefabBuilder.CounterHeight + 0.03f, -0.22f);
-                Primitive(PrimitiveType.Cube, "Cap", go.transform, Vector3.zero, new Vector3(0.22f, 0.05f, 0.13f),
-                    Lit($"Difficulty{i}", colors[i % colors.Length]), true);
-                Text("Label", go.transform, new Vector3(0, 0.027f, 0), new Vector2(0.22f, 0.1f), presets[i].DisplayName.ToUpperInvariant(),
-                    font, new Color(0.1f, 0.1f, 0.12f), 0.6f, localRot: Quaternion.Euler(90, 0, 0));
-                go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
+                var go = CreateKey(group, i, $"Difficulty {presets[i].DisplayName}", presets[i].DisplayName.ToUpperInvariant(),
+                    colors[i % colors.Length], font, out _, material: $"Difficulty{i}");
                 buttons[i] = go.AddComponent<DifficultyButton>();
                 buttons[i].Configure(presets[i]);
             }
