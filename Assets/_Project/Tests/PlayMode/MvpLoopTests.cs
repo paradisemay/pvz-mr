@@ -524,7 +524,10 @@ namespace Pvz.Runtime.Tests
             var director = Object.FindFirstObjectByType<ShiftDirector>();
             var settings = director.ActiveSettings;
             yield return WaitUntil(() => !director.Hatch.IsDropping, 20f, "the pile is down");
-            yield return new WaitForSeconds(1.5f); // let it settle
+            // Let it settle (#102): a fixed 1.5 s sometimes caught a box still tumbling down the pile.
+            var bodies = director.RemainingBoxes.Where(b => b != null).Select(b => b.GetComponent<Rigidbody>()).ToArray();
+            yield return WaitUntil(() => bodies.All(b => b.isKinematic || b.IsSleeping() || b.linearVelocity.sqrMagnitude < 0.0025f), 8f,
+                "the pile has settled");
 
             var boxes = director.RemainingBoxes.Where(b => b != null).ToArray();
             CollectionAssert.AreEquivalent(settings.Boxes.Concat(settings.SpareBoxes).Select(b => b.boxId), boxes.Select(b => b.RawId),
@@ -534,7 +537,8 @@ namespace Pvz.Runtime.Tests
             {
                 var p = box.transform.position;
                 Assert.Less(new Vector2(p.x - under.x, p.z - under.z).magnitude, 1.6f, $"{box.RawId} lies in the pile under the hatch (boxes bounce off each other)");
-                Assert.Less(p.y, 1.0f, $"{box.RawId} fell down");
+                // Out of the hatch and lying in the pile: well below the hatch (a stack of four boxes is honestly ~1 m high).
+                Assert.Less(p.y, under.y - 0.8f, $"{box.RawId} came out of the hatch and lies in the pile (y = {p.y:0.00}, hatch at {under.y:0.00})");
                 Assert.Greater(p.y, -0.05f, $"{box.RawId} is not in the floor");
             }
             foreach (var spare in settings.SpareBoxes) Assert.IsFalse(director.Shift.IsForSale(spare.orderNumber));
