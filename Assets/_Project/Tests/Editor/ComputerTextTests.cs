@@ -12,6 +12,9 @@ namespace Pvz.Editor.Tests
             var text = PvzComputer.OrderScreen("1435", 3, 1, false, null, 2, 125.2, false);
             StringAssert.Contains("Заказ №1435", text);
             StringAssert.Contains("Товаров: 3 · выдано: 1", text);
+            StringAssert.Contains("Отсканировано: 1", text, "nothing scanned: what is handed over counts");
+            StringAssert.Contains("Отсканировано: 2",
+                PvzComputer.OrderScreen("1435", 3, 1, false, null, 2, 125.2, false, scanned: 2), "T043: «Товаров 8, отсканировано 7»");
             StringAssert.Contains("В очереди: 2", text);
             StringAssert.Contains("Время: 2:06", text);
         }

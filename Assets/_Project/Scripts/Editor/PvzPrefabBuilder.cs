@@ -139,6 +139,21 @@ namespace Pvz.Editor
             beam.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             beam.enabled = false;
 
+            // T043 (#83): the scanner speaks Russian (clips recorded by tools/make-voice.ps1), from the hand that holds it.
+            var voiceSource = root.AddComponent<AudioSource>();
+            voiceSource.playOnAwake = false;
+            voiceSource.spatialBlend = 1f;
+            voiceSource.minDistance = 0.4f;
+            voiceSource.maxDistance = 8f;
+            static AudioClip Voice(string key)
+            {
+                var clip = AssetDatabase.LoadAssetAtPath<AudioClip>($"{VoiceDir}/{key}.wav");
+                if (clip == null) throw new System.InvalidOperationException($"Voice clip {key}.wav is missing in {VoiceDir} (tools/make-voice.ps1)");
+                return clip;
+            }
+            root.AddComponent<ScannerVoice>().Configure(voiceSource, Voice("match"), Voice("other"), Voice("done"), Voice("items"),
+                Voice("scanned"), Enumerable.Range(0, 21).Select(n => Voice("n" + n)).ToArray());
+
             var grab = root.AddComponent<XRGrabInteractable>();
             grab.attachTransform = attach;
             grab.useDynamicAttach = false;

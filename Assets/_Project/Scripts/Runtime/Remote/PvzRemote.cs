@@ -253,6 +253,8 @@ namespace Pvz.Runtime.Remote
             if (room != null) json.Add("roomMesh", room.Current.ToString()).Add("roomMeshes", room.MeshCount);
             var holder = FindFirstObjectByType<ScannerHolder>(); // T038
             if (holder != null) json.Add("scannerDocked", holder.IsDocked).Add("scannerReturns", holder.Returns);
+            var voice = FindFirstObjectByType<ScannerVoice>(); // T043: what the scanner said aloud
+            if (voice != null) json.Add("voice", voice.Spoken);
             if (director == null) return json.Add("director", false).ToString();
 
             json.Add("started", director.IsStarted).Add("shiftOver", director.IsShiftOver)

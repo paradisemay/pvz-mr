@@ -136,9 +136,14 @@ namespace Pvz.Core
             else if (!HasActiveOrder)
                 outcome = new ScanOutcome(ScanStatus.NoActiveOrder, box, record.OrderNumber);
             else if (ActiveSession.Requires(box))
-                outcome = new ScanOutcome(ScanStatus.Matches, box, record.OrderNumber);
+            {
+                ActiveSession.MarkScanned(box);
+                outcome = new ScanOutcome(ScanStatus.Matches, box, record.OrderNumber, false,
+                    ActiveSession.Order.Boxes.Count, ActiveSession.ScannedCount);
+            }
             else
-                outcome = new ScanOutcome(ScanStatus.OtherOrder, box, record.OrderNumber, IsLookAlikeTrap(record.OrderNumber));
+                outcome = new ScanOutcome(ScanStatus.OtherOrder, box, record.OrderNumber, IsLookAlikeTrap(record.OrderNumber),
+                    ActiveSession.Order.Boxes.Count, ActiveSession.ScannedCount);
 
             BoxScanned?.Invoke(outcome);
             return outcome;

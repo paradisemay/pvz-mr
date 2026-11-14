@@ -16,6 +16,7 @@ namespace Pvz.Editor
         public const string TexturesDir = Root + "/Art/Textures";
         public const string FontsDir = Root + "/Art/Fonts";
         public const string PrefabsDir = Root + "/Prefabs";
+        public const string VoiceDir = Root + "/Audio/Voice"; // T043: recorded by tools/make-voice.ps1
         public const string SettingsDir = Root + "/Settings";
         public const string ScenesDir = Root + "/Scenes";
 
