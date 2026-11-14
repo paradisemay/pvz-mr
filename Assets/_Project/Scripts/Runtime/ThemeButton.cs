@@ -6,22 +6,19 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 namespace Pvz.Runtime
 {
     /// <summary>Start-menu button «ТЕМА»: switches the counter to the next theme the career has opened (T022).</summary>
-    [RequireComponent(typeof(XRSimpleInteractable))]
+    [RequireComponent(typeof(PressableButton))]
     public sealed class ThemeButton : MonoBehaviour
     {
         [SerializeField] private CareerKeeper keeper;
         [SerializeField] private TMP_Text label;
 
-        private XRSimpleInteractable _interactable;
+        private PressableButton _button;
 
-        private void Awake() => _interactable = GetComponent<XRSimpleInteractable>();
-        private void OnEnable() => _interactable.selectExited.AddListener(OnReleased);
-        private void OnDisable() => _interactable.selectExited.RemoveListener(OnReleased);
+        private void Awake() => _button = GetComponent<PressableButton>();
+        private void OnEnable() => _button.Pressed += OnPressed;
+        private void OnDisable() => _button.Pressed -= OnPressed;
 
-        private void OnReleased(SelectExitEventArgs args)
-        {
-            if (!args.isCanceled) Press();
-        }
+        private void OnPressed() => Press();
 
         public void Press()
         {

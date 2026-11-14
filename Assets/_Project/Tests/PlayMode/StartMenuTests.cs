@@ -55,6 +55,29 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest]
+        public IEnumerator EveryCounterButton_IsPressedThroughPressableButton()
+        {
+            var buttons = new MonoBehaviour[]
+            {
+                Object.FindFirstObjectByType<RecenterButton>(FindObjectsInactive.Include),
+                Object.FindFirstObjectByType<ResetWarehouseButton>(FindObjectsInactive.Include),
+                Object.FindFirstObjectByType<ThemeButton>(FindObjectsInactive.Include),
+                Object.FindFirstObjectByType<RestartButton>(FindObjectsInactive.Include),
+            }.Concat(Object.FindObjectsByType<DifficultyButton>(FindObjectsInactive.Include, FindObjectsSortMode.None));
+            foreach (var button in buttons)
+            {
+                Assert.IsNotNull(button);
+                Assert.IsNotNull(button.GetComponent<PressableButton>(), $"{button.name} is pressed by trigger/poke");
+            }
+
+            // A trigger press on the «Обычная» button starts the shift.
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.DifficultyButtons.First(b => b.Settings.DisplayName == "Обычная").GetComponent<PressableButton>().Press();
+            yield return null;
+            Assert.IsTrue(director.IsStarted);
+        }
+
+        [UnityTest]
         public IEnumerator StartMenu_IsHidden_OnceTheShiftBegins()
         {
             var recenter = Object.FindFirstObjectByType<RecenterButton>();

@@ -8,21 +8,18 @@ namespace Pvz.Runtime
     /// Start-menu button «Поставить стойку перед собой»: moves the whole play area (counter, boxes, customer path)
     /// so it stands in front of where the player is now. Useful when the headset placed it into furniture.
     /// </summary>
-    [RequireComponent(typeof(XRSimpleInteractable))]
+    [RequireComponent(typeof(PressableButton))]
     public sealed class RecenterButton : MonoBehaviour
     {
         [SerializeField] private MrSessionSetup session;
 
-        private XRSimpleInteractable _interactable;
+        private PressableButton _button;
 
-        private void Awake() => _interactable = GetComponent<XRSimpleInteractable>();
-        private void OnEnable() => _interactable.selectExited.AddListener(OnReleased);
-        private void OnDisable() => _interactable.selectExited.RemoveListener(OnReleased);
+        private void Awake() => _button = GetComponent<PressableButton>();
+        private void OnEnable() => _button.Pressed += OnPressed;
+        private void OnDisable() => _button.Pressed -= OnPressed;
 
-        private void OnReleased(SelectExitEventArgs args)
-        {
-            if (!args.isCanceled) Press();
-        }
+        private void OnPressed() => Press();
 
         public void Press()
         {
