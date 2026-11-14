@@ -183,12 +183,11 @@ namespace Pvz.Runtime.Remote
                 switch (name)
                 {
                     case "ping": return RemoteProtocol.Ok("pong", true);
-                    case "help": return RemoteProtocol.Ok("commands", "ping state begin recenter reset-layout theme restart code scan give bag " +
+                    case "help": return RemoteProtocol.Ok("commands", "ping state begin recenter theme restart code scan give bag " +
                                                                       "return move timescale area autoplay shot record view hand pc");
                     case "state": return State();
                     case "begin": return Begin(args.Length > 0 ? args[0] : "normal");
                     case "recenter": return Press<RecenterButton>(b => b.Press());
-                    case "reset-layout": return Press<ResetWarehouseButton>(b => b.Press());
                     case "theme": return Press<ThemeButton>(b => b.Press());
                     case "restart":
                         StopAutoplay();
@@ -244,8 +243,11 @@ namespace Pvz.Runtime.Remote
             }
             var pc = FindFirstObjectByType<PvzComputer>();
             if (pc != null) json.Add("computer", pc.Current.ToString()).Add("screen", pc.ScreenText);
-            var placement = FindFirstObjectByType<CounterPlacementKeeper>();
-            if (placement != null && placement.Rig != null) json.Add("counterAt", placement.Current.Format());
+            foreach (var placement in FindObjectsByType<PlacementKeeper>(FindObjectsSortMode.None))
+            {
+                if (placement.Rig == null) continue;
+                json.Add(placement.Rig.GetComponent<SupplyHatch>() != null ? "hatchAt" : "counterAt", placement.Current.Format());
+            }
             if (director == null) return json.Add("director", false).ToString();
 
             json.Add("started", director.IsStarted).Add("shiftOver", director.IsShiftOver)
@@ -303,7 +305,7 @@ namespace Pvz.Runtime.Remote
             if (button == null) return RemoteProtocol.Error($"no {typeof(T).Name} in the scene");
             var director = Director;
             var running = director != null && director.IsStarted && !director.IsShiftOver;
-            if (running && (button is RecenterButton || button is ResetWarehouseButton))
+            if (running && button is RecenterButton)
                 return RemoteProtocol.Error($"{typeof(T).Name} is a before-the-shift setting (the computer hides it during a shift)");
             press(button);
             return RemoteProtocol.Ok("pressed", typeof(T).Name);
@@ -398,10 +400,11 @@ namespace Pvz.Runtime.Remote
                 case "back": pc.Back(); break;
                 case "end": pc.EndShift(); break;
                 case "move": pc.StartMovingCounter(); break;
+                case "hatch": pc.StartMovingHatch(); break;
                 case "apply": pc.ApplyMove(); break;
                 case "cancel": pc.CancelMove(); break;
                 case "": break;
-                default: return RemoteProtocol.Error("pc settings|back|end|move|apply|cancel");
+                default: return RemoteProtocol.Error("pc settings|back|end|move|hatch|apply|cancel");
             }
             return new Json().Add("ok", true).Add("computer", pc.Current.ToString()).Add("screen", pc.ScreenText).ToString();
         }
@@ -476,8 +479,9 @@ namespace Pvz.Runtime.Remote
             }
             if (string.Equals(what, "handle", StringComparison.OrdinalIgnoreCase))
             {
-                var mover = FindFirstObjectByType<CounterMover>();
-                if (mover == null || mover.Handle == null || !mover.Handle.gameObject.activeInHierarchy) { error = "no counter handle (pc settings, pc move first)"; return false; }
+                var mover = FindObjectsByType<PlacementMover>(FindObjectsSortMode.None)
+                    .FirstOrDefault(m => m.Handle != null && m.Handle.gameObject.activeInHierarchy); // the counter's or the hatch's
+                if (mover == null) { error = "no handle shown (pc settings, then pc move or pc hatch)"; return false; }
                 target = mover.Handle.transform.position;
                 targetObject = mover.Handle.transform;
                 return true;

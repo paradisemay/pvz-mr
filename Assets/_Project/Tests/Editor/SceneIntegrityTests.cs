@@ -26,9 +26,7 @@ namespace Pvz.Editor.Tests
         }
 
         [TestCase(typeof(ShiftDirector))]
-        [TestCase(typeof(WarehouseLayoutKeeper))]
         [TestCase(typeof(FeedbackEffects))]
-        [TestCase(typeof(ResetWarehouseButton))]
         [TestCase(typeof(ThemeButton))]
         [TestCase(typeof(CounterSkin))]
         [TestCase(typeof(CareerKeeper))]
@@ -36,7 +34,7 @@ namespace Pvz.Editor.Tests
         [TestCase(typeof(CounterBoard))]
         [TestCase(typeof(ShiftSummaryPanel))]
         [TestCase(typeof(MrSessionSetup))]
-        [TestCase(typeof(SupplyDrop))]
+        [TestCase(typeof(SupplyHatch))]
         [TestCase(typeof(BagDispenser))]
         [TestCase(typeof(DifficultyButton))]
         [TestCase(typeof(RecenterButton))]
@@ -74,17 +72,21 @@ namespace Pvz.Editor.Tests
             }
         }
 
+        /// <summary>T036: no box stands in the room before the shift; the stock drops out of the supply hatch.</summary>
         [Test]
-        public void SceneBoxesMatchShiftSettings()
+        public void NoBoxesBeforeTheShift_TheHatchIsThere()
         {
-            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(PvzSceneBuilder.SettingsPath);
-            var expected = settings.Boxes.Select(b => new Core.BoxId(b.boxId)).OrderBy(b => b.Value).ToArray();
-            var inScene = Object.FindObjectsByType<QrBox>(FindObjectsSortMode.None).Select(b => b.Id).OrderBy(b => b.Value).ToArray();
-            CollectionAssert.AreEqual(expected, inScene);
-
+            Assert.IsEmpty(Object.FindObjectsByType<QrBox>(FindObjectsSortMode.None));
+            var hatch = Object.FindFirstObjectByType<SupplyHatch>();
+            Assert.IsNotNull(hatch);
             var director = Object.FindFirstObjectByType<ShiftDirector>();
-            var listed = new SerializedObject(director).FindProperty("boxes");
-            Assert.AreEqual(expected.Length, listed.arraySize, "ShiftDirector must list every box in the scene");
+            Assert.AreSame(hatch, new SerializedObject(director).FindProperty("hatch").objectReferenceValue);
+            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(PvzSceneBuilder.SettingsPath);
+            Assert.IsNotEmpty(settings.SpareBoxes, "a few spare boxes fall out with the stock");
+            Assert.IsEmpty(settings.SpareBoxes.Select(b => b.orderNumber).Intersect(settings.Boxes.Concat(settings.SupplyBoxes).Select(b => b.orderNumber)),
+                "spare boxes are other days' orders");
+            Assert.IsEmpty(settings.SpareBoxes.Select(b => b.boxId).Intersect(settings.Boxes.Concat(settings.SupplyBoxes).Select(b => b.boxId)),
+                "a spare box id must not repeat a box of the shift or the delivery");
         }
 
         [Test]

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Pvz.Core;
 using UnityEngine;
 
@@ -60,6 +61,14 @@ namespace Pvz.Runtime
             new BoxDefinition("BOX-103", "2718", Vector3.zero, 0f), // «похожий заказ»: same digits as 2781
         };
 
+        [Header("Spare boxes (T036)")]
+        [Tooltip("Other days' orders that fall out of the hatch with the stock: nobody comes for them this shift.")]
+        [SerializeField] private BoxDefinition[] spareBoxes =
+        {
+            new BoxDefinition("BOX-201", "8804", Vector3.zero, 0f),
+            new BoxDefinition("BOX-202", "9163", Vector3.zero, 0f),
+        };
+
         [Header("Extra requests")]
         [Tooltip("Chance (0..100) that a customer also asks for a carrier bag.")]
         [SerializeField, Range(0, 100)] private int bagChancePercent = 50;
@@ -116,6 +125,7 @@ namespace Pvz.Runtime
         {
             boxes = (BoxDefinition[])other.boxes.Clone();
             supplyBoxes = (BoxDefinition[])other.supplyBoxes.Clone();
+            spareBoxes = (BoxDefinition[])other.spareBoxes.Clone();
         }
 
         /// <summary>Used by the editor builder to create the difficulty presets.</summary>
@@ -138,6 +148,7 @@ namespace Pvz.Runtime
         }
         public int SupplyAfterOrders => supplyAfterOrders;
         public BoxDefinition[] SupplyBoxes => supplyBoxes;
+        public BoxDefinition[] SpareBoxes => spareBoxes ?? System.Array.Empty<BoxDefinition>();
         public bool HasSupply => supplyAfterOrders > 0 && supplyBoxes != null && supplyBoxes.Length > 0;
         public float DefaultCeilingHeight => defaultCeilingHeight;
         public int BagChancePercent => bagChancePercent;
@@ -176,7 +187,7 @@ namespace Pvz.Runtime
 
         public bool TryGetOrderNumber(BoxId id, out string orderNumber)
         {
-            foreach (var box in boxes)
+            foreach (var box in boxes.Concat(SpareBoxes))
             {
                 if (BoxId.TryParse(box.boxId, out var candidate) && candidate == id)
                 {

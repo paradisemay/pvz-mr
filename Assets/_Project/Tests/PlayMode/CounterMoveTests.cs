@@ -13,8 +13,8 @@ namespace Pvz.Runtime.Tests
     {
         private MemoryTextStore _placementStore;
         private PvzComputer _computer;
-        private CounterMover _mover;
-        private CounterPlacementKeeper _placement;
+        private PlacementMover _mover;
+        private PlacementKeeper _placement;
         private ShiftDirector _director;
 
         [UnitySetUp]
@@ -23,14 +23,14 @@ namespace Pvz.Runtime.Tests
         private IEnumerator Load(MemoryTextStore placementStore)
         {
             _placementStore = placementStore;
-            WarehouseLayoutKeeper.StoreOverride = new MemoryTextStore();
-            CounterPlacementKeeper.StoreOverride = _placementStore;
+            PlacementKeeper.StoreOverride = _placementStore;
             CareerKeeper.StoreOverride = (new MemoryScoreStore(), new MemoryTextStore());
             yield return SceneManager.LoadSceneAsync("Game", LoadSceneMode.Single);
             yield return null;
             _computer = Object.FindFirstObjectByType<PvzComputer>();
-            _mover = Object.FindFirstObjectByType<CounterMover>();
-            _placement = Object.FindFirstObjectByType<CounterPlacementKeeper>();
+            // The counter's (the supply hatch is moved the same way, T036).
+            _placement = Object.FindObjectsByType<PlacementKeeper>(FindObjectsSortMode.None).First(k => k.Rig != null && k.Rig.name == "Counter Rig");
+            _mover = Object.FindObjectsByType<PlacementMover>(FindObjectsSortMode.None).First(m => m.Keeper == _placement);
             _director = Object.FindFirstObjectByType<ShiftDirector>();
             _director.UseScoreStore(new MemoryScoreStore());
         }
@@ -38,8 +38,7 @@ namespace Pvz.Runtime.Tests
         [UnityTearDown]
         public IEnumerator Forget()
         {
-            WarehouseLayoutKeeper.StoreOverride = null;
-            CounterPlacementKeeper.StoreOverride = null;
+            PlacementKeeper.StoreOverride = null;
             CareerKeeper.StoreOverride = null;
             yield return null;
         }
@@ -62,7 +61,7 @@ namespace Pvz.Runtime.Tests
             var height = rig.position.y;
             var counterToZone = rig.InverseTransformPoint(_director.Zone.transform.position);
             yield return StartMoving();
-            Assert.AreEqual(PvzComputer.Screen.MovingCounter, _computer.Current);
+            Assert.AreEqual(PvzComputer.Screen.Moving, _computer.Current);
             Assert.IsTrue(_mover.Handle.gameObject.activeInHierarchy, "the handle appears");
 
             // The player carries the handle 1.5 m to the right and turns it to face right (tilting it a little).
@@ -129,7 +128,7 @@ namespace Pvz.Runtime.Tests
         public IEnumerator SavedPlace_IsRestored_WhenTheGameStartsAgain()
         {
             var store = new MemoryTextStore();
-            new CounterPlacementStore(store).Save(new CounterPlacement(0.8f, 2.1f, 200f));
+            new PlacementStore(store).Save(new Placement(0.8f, 2.1f, 200f));
             yield return Load(store);
             yield return null;
 
@@ -143,7 +142,7 @@ namespace Pvz.Runtime.Tests
         public IEnumerator APlaceFarAway_IsNotRestored_TheRoomChanged()
         {
             var store = new MemoryTextStore();
-            new CounterPlacementStore(store).Save(new CounterPlacement(20f, -14f, 0f));
+            new PlacementStore(store).Save(new Placement(20f, -14f, 0f));
             yield return Load(store);
             yield return null;
             Assert.Less(_placement.Rig.position.magnitude, 0.01f, "the counter stays in front of the player, within reach");
@@ -153,7 +152,10 @@ namespace Pvz.Runtime.Tests
         public IEnumerator ABoxOnTheCounter_RidesAlong()
         {
             var rig = _placement.Rig;
-            var box = Object.FindObjectsByType<QrBox>(FindObjectsSortMode.None).First();
+            _director.Begin(); // boxes come out of the supply hatch with the shift (T036)
+            var pileDeadline = Time.realtimeSinceStartup + 20f;
+            while (_director.Hatch.IsDropping && Time.realtimeSinceStartup < pileDeadline) yield return null;
+            var box = _director.RemainingBoxes.First();
             var body = box.GetComponent<Rigidbody>();
             // Put a box down on the counter top and let it settle, as a player would.
             body.linearVelocity = Vector3.zero;
@@ -171,6 +173,44 @@ namespace Pvz.Runtime.Tests
             Key(ComputerKey.Action.ApplyMove).Press();
             yield return new WaitForSeconds(1f);
             Assert.Greater(rig.InverseTransformPoint(box.transform.position).y, 1.0f, "and still lies on it");
+        }
+
+        /// <summary>T036 (#80): «Место люка» moves the supply hatch the same way; the pile falls where it is now.</summary>
+        [UnityTest, Timeout(60000)]
+        public IEnumerator Hatch_IsMovedByItsHandle_AndThePileFallsThere()
+        {
+            var hatchKeeper = Object.FindObjectsByType<PlacementKeeper>(FindObjectsSortMode.None).First(k => k.Rig != null && k.Rig.GetComponent<SupplyHatch>() != null);
+            var hatchMover = Object.FindObjectsByType<PlacementMover>(FindObjectsSortMode.None).First(m => m.Keeper == hatchKeeper);
+            var height = hatchKeeper.Rig.position.y;
+
+            Key(ComputerKey.Action.OpenSettings).Press();
+            yield return null;
+            Key(ComputerKey.Action.MoveHatch).Press();
+            yield return null;
+            Assert.AreEqual(PvzComputer.Screen.Moving, _computer.Current);
+            StringAssert.Contains("люк", _computer.ScreenText);
+            Assert.IsTrue(hatchMover.Handle.gameObject.activeInHierarchy);
+            hatchMover.Follow(hatchMover.Handle.transform.position + new Vector3(0.6f, 0f, -0.4f), hatchKeeper.Rig.forward);
+            // Carried far away: it stops where its boxes still land within reach.
+            var centre = hatchKeeper.Rig.parent.position;
+            hatchMover.Follow(hatchMover.Handle.transform.position + new Vector3(-30f, 0f, 0f), hatchKeeper.Rig.forward);
+            Assert.LessOrEqual(new Vector2(hatchKeeper.Rig.position.x - centre.x, hatchKeeper.Rig.position.z - centre.z).magnitude,
+                Pvz.Core.WarehouseBounds.MaxReach - 1f + 1e-3f);
+            hatchMover.Follow(hatchMover.Handle.transform.position + new Vector3(0.6f, 0f, -0.4f), hatchKeeper.Rig.forward); // back to the chosen place
+            Key(ComputerKey.Action.ApplyMove).Press();
+            yield return null;
+            Assert.AreEqual(height, hatchKeeper.Rig.position.y, 1e-4, "the hatch stays at its height");
+            Assert.IsTrue(_placementStore.Load(PlacementStore.HatchKey) != null, "the hatch's place is saved under its own key");
+            Assert.IsFalse(_placement.HasSaved, "the counter's place is untouched");
+
+            _director.Begin();
+            var deadline = Time.realtimeSinceStartup + 20f;
+            while (_director.Hatch.IsDropping && Time.realtimeSinceStartup < deadline) yield return null;
+            yield return new WaitForSeconds(1f);
+            var under = _director.Hatch.DropPoint;
+            foreach (var box in _director.RemainingBoxes)
+                Assert.Less(new Vector2(box.transform.position.x - under.x, box.transform.position.z - under.z).magnitude, 1.6f,
+                    $"{box.RawId} fell under the moved hatch");
         }
 
         [UnityTest]

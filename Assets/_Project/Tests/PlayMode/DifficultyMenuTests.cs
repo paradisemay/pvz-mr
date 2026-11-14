@@ -13,8 +13,7 @@ namespace Pvz.Runtime.Tests
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
-            WarehouseLayoutKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // never the real saved layout
-            CounterPlacementKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // nor the saved place of the counter
+            PlacementKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // nor the saved place of the counter
             CareerKeeper.StoreOverride = (new Pvz.Core.MemoryScoreStore(), new Pvz.Core.MemoryTextStore()); // nor the career
             yield return SceneManager.LoadSceneAsync("Game", LoadSceneMode.Single);
             yield return null;
@@ -23,8 +22,7 @@ namespace Pvz.Runtime.Tests
         [UnityTearDown]
         public IEnumerator ForgetTestStore()
         {
-            WarehouseLayoutKeeper.StoreOverride = null;
-            CounterPlacementKeeper.StoreOverride = null;
+            PlacementKeeper.StoreOverride = null;
             CareerKeeper.StoreOverride = null;
             yield return null;
         }
