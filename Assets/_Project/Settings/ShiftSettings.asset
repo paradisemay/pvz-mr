@@ -60,6 +60,7 @@ MonoBehaviour:
   bagChancePercent: 50
   returnChancePercent: 20
   refusalChancePercent: 15
+  lostChancePercent: 10
   urgentChancePercent: 15
   urgentPatienceFactor: 0.6
   ordersPerShift: 10

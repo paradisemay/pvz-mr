@@ -178,6 +178,10 @@ namespace Pvz.Runtime
                 catalog.Add(extra);
                 pile.Add(extra.Id.Value);
             }
+            // T047 (#86): «потеряшки» — some orders miss a box: it stays in the order but never drops out of the hatch.
+            var missing = StockPlan.PickMissing(catalog.Boxes, spares, _lostChance ?? settings.LostChancePercent,
+                _stockSeed.HasValue ? new SystemRandomSource(_stockSeed.Value ^ 0x1057) : settings.CreateRandomSource());
+            foreach (var box in missing) pile.Remove(box.Value);
 
             Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules(), settings.CreateSupplyPlan(),
                 settings.BagChancePercent) {
@@ -191,6 +195,7 @@ namespace Pvz.Runtime
                 TimeLimitSeconds = settings.ShiftDurationSeconds,
             };
             Shift.MarkNotForSale(settings.SpareBoxes.Select(b => b.orderNumber)); // nobody comes for the spare boxes
+            Shift.MarkMissing(missing);
             Shift.Start(Now);
             if (Shift.ReturnChancePercent > 0 && returnBoxPrefab == null)
             {
@@ -287,6 +292,21 @@ namespace Pvz.Runtime
         /// Fixes the generated part of the stock (T044) — call before <see cref="Begin()"/> (tests: the same pile every run).
         /// </summary>
         internal void UseStockSeed(int seed) => _stockSeed = seed;
+
+        private int? _lostChance;
+
+        /// <summary>Sets how often an order misses a box (T047) — call before <see cref="Begin()"/> (tests).</summary>
+        internal void UseLostChance(int percent) => _lostChance = percent;
+
+        /// <summary>
+        /// T047 (#86): «Не найден» on the computer — the order at the counter misses a box. True: closed as lost (the
+        /// customer leaves calmly); false: the box is in the warehouse (a penalty, the customer keeps waiting).
+        /// </summary>
+        public bool DeclareNotFound()
+        {
+            if (Shift == null || IsShiftOver || !Desk.HasActiveOrder || Desk.AwaitsCode) return false;
+            return Shift.DeclareNotFound();
+        }
 
         /// <summary>Sets how often customers ask for a bag (tests).</summary>
         internal void UseBagChance(int percent) => Shift.BagChancePercent = percent;

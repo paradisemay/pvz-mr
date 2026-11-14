@@ -176,6 +176,14 @@ namespace Pvz.Editor
             Capture("29_returns_bin", bin.position + new Vector3(-0.35f, 1.0f, -0.9f), bin.position + new Vector3(0f, 0.2f, 0f), 50f);
             Object.DestroyImmediate(stowed.gameObject);
             Object.DestroyImmediate(returnBox.gameObject);
+
+            // T047 (#86): the order's box is nowhere — «Не найден» on the computer, the customer leaves calmly.
+            customer.Say(ShiftPresenter.LostOrderLine);
+            board.ShowHeadline("Потеряшка: заказ №7316", CounterBoard.Accent);
+            board.ShowStatus("+30 очков за честность", CounterBoard.Good);
+            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen("7316", 1, 0, false, null, 1, 154, false), beforeShift: false);
+            Capture("30_lost_order", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.1f, 1.55f, 1.3f), 70f);
+            Capture("31_not_found_key", ComputerCameraFrom, ComputerCameraAt, 48f);
             customer.ShowPatience(0.55);
 
             // An urgent customer holds out the phone with the order's barcode (T035: the order opens when it is scanned).

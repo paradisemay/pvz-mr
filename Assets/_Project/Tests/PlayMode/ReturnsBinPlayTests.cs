@@ -23,6 +23,7 @@ namespace Pvz.Runtime.Tests
             _director = Object.FindFirstObjectByType<ShiftDirector>();
             _director.UseScoreStore(new MemoryScoreStore());
             _director.UseStockSeed(12345);
+            _director.UseLostChance(0); // every box of the stock is in the room (T047)
             _director.Begin();
             _director.UseRandomSeed(12345);
             _director.UsePatience(0);

@@ -49,6 +49,29 @@ namespace Pvz.Core
         /// <summary>Urgent orders handed over in full.</summary>
         public int UrgentServed { get; private set; }
 
+        /// <summary>T047 (#86): orders whose box was missing, reported with «Не найден».</summary>
+        public int LostOrders { get; private set; }
+
+        /// <summary>T047: «Не найден» pressed while every box of the order was in the warehouse.</summary>
+        public int FalseNotFound { get; private set; }
+
+        internal void OnLostOrder()
+        {
+            LostOrders++;
+            Score += _rules.LostOrderReported;
+            Changed?.Invoke();
+        }
+
+        internal void OnFalseNotFound()
+        {
+            FalseNotFound++;
+            Score -= _rules.FalseNotFoundPenalty;
+            Changed?.Invoke();
+        }
+
+        public int PointsPerLostOrder => _rules.LostOrderReported;
+        public int FalseNotFoundPenaltyPoints => _rules.FalseNotFoundPenalty;
+
         /// <summary>T045: points for every return handed in from the bin.</summary>
         public int PointsPerReturnHandedIn => _rules.ReturnHandedIn;
 

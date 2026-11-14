@@ -30,6 +30,19 @@ namespace Pvz.Core
         /// <summary>The customer ran out of patience and left without the order.</summary>
         public event Action<Order> OrderAbandoned;
 
+        /// <summary>T047 (#86): the order at the counter was closed as lost — a box of it is not in the warehouse.</summary>
+        public event Action<Order> OrderLost;
+
+        /// <summary>T047: closes the order at the counter as lost (the caller checked a box of it is missing).</summary>
+        internal Order CloseAsLost()
+        {
+            if (!HasActiveOrder) return null;
+            var order = ActiveSession.Order;
+            ActiveSession = null;
+            OrderLost?.Invoke(order);
+            return order;
+        }
+
         /// <summary>The current customer leaves without the order; its boxes stay in the warehouse.</summary>
         public Order Abandon()
         {
