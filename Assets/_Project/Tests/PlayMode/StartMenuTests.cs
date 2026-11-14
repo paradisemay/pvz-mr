@@ -30,28 +30,29 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest]
-        public IEnumerator RecenterButton_MovesTheWholePlayAreaInFrontOfThePlayer()
+        public IEnumerator RecenterButton_PutsTheCounterInFrontOfThePlayer_TheRoomThingsStay()
         {
             var origin = Object.FindFirstObjectByType<XROrigin>();
             var camera = origin.Camera.transform;
-            var playArea = Object.FindFirstObjectByType<MrSessionSetup>().PlayArea;
-            var box = Object.FindFirstObjectByType<SupplyHatch>(); // the room things move with the play area (no boxes before the shift)
-            var boxLocal = playArea.InverseTransformPoint(box.transform.position);
+            var rig = GameObject.Find("Counter Rig").transform;
+            var hatch = Object.FindFirstObjectByType<SupplyHatch>().transform;
+            var rack = GameObject.Find("Shelf Rack").transform;
+            var hatchBefore = hatch.position;
+            var rackBefore = rack.position;
 
             // The player stepped back-left into free space and turned to the right.
             origin.transform.SetPositionAndRotation(new Vector3(-0.8f, 0f, -1.0f), Quaternion.Euler(0f, 90f, 0f));
             yield return null;
 
-            Object.FindFirstObjectByType<RecenterButton>(FindObjectsInactive.Include).Press(); // a key of the settings screen
+            Object.FindFirstObjectByType<RecenterButton>(FindObjectsInactive.Include).Press(); // a key of the counter-moving screen
             yield return null;
 
-            Assert.AreEqual(camera.position.x, playArea.position.x, 0.01f);
-            Assert.AreEqual(camera.position.z, playArea.position.z, 0.01f);
+            Assert.AreEqual(camera.position.x, rig.position.x, 0.01f);
+            Assert.AreEqual(camera.position.z, rig.position.z, 0.01f);
             var lookingAt = Vector3.ProjectOnPlane(camera.forward, Vector3.up).normalized;
-            Assert.Greater(Vector3.Dot(playArea.forward, lookingAt), 0.99f, "the counter is in front of the player");
-
-            var boxNow = playArea.InverseTransformPoint(box.transform.position);
-            Assert.Less(Vector3.Distance(boxLocal, boxNow), 0.15f, "the hatch moves together with the play area");
+            Assert.Greater(Vector3.Dot(rig.forward, lookingAt), 0.99f, "the counter is in front of the player");
+            Assert.Less(Vector3.Distance(hatchBefore, hatch.position), 1e-3f, "T037: the hatch keeps its place in the room");
+            Assert.Less(Vector3.Distance(rackBefore, rack.position), 1e-3f, "and so does the rack");
         }
 
         [UnityTest]

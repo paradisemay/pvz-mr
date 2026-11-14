@@ -60,6 +60,10 @@ namespace Pvz.Editor
             rb.interpolation = RigidbodyInterpolation.Interpolate;
             var collider = root.AddComponent<BoxCollider>();
             collider.size = BoxSize;
+            // T037: carried fast by the hand a box must still hit the others (no passing through them), and cardboard grips
+            // the shelves and the other boxes.
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            collider.sharedMaterial = PhysicMaterialAsset("Cardboard", 0.6f, 0.8f, 0.05f);
 
             Primitive(PrimitiveType.Cube, "Body", root.transform, Vector3.zero, BoxSize, _cardboard);
             Primitive(PrimitiveType.Cube, "Tape", root.transform, new Vector3(0, BoxSize.y / 2f, 0),

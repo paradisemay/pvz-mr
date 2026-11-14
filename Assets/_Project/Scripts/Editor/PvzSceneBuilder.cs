@@ -144,7 +144,7 @@ namespace Pvz.Editor
             CreateComputerKey(movingKeys, 4, "ПРИМЕНИТЬ", ComputerKey.Action.ApplyMove, pc.Computer, font, new Color(0.35f, 0.8f, 0.45f));
             pc.Computer.ConfigureMover(mover, movingKeys.gameObject);
             director.ConfigureCounterPlacement(placement);
-            CreateRecenterButton(pc.SettingsBeforeShift, mrSetup, placement, font);
+            CreateRecenterButton(pc.SettingsBeforeShift, mrSetup, placement, font); // on the counter-moving screen, before the shift
             var counterBoard = counter.GetComponentInChildren<CounterBoard>(true);
             counterBoard.ConfigureHowToPlay(CreateHowToPlayCard(startMenu, font));
             PrefabUtility.RecordPrefabInstancePropertyModifications(counterBoard); // an override on the counter prefab instance
@@ -161,6 +161,17 @@ namespace Pvz.Editor
                 HatchHandleOffset);
             pc.Computer.ConfigureHatchMover(hatchMover);
             CreateComputerKey(pc.Settings, 3, "МЕСТО\nЛЮКА", ComputerKey.Action.MoveHatch, pc.Computer, font, new Color(0.98f, 0.55f, 0.15f));
+
+            // The shelf rack (T037): placed and moved like the counter; boxes lying on its shelves ride along.
+            var rack = CreateShelfRack(playArea);
+            var rackPlacement = rack.gameObject.AddComponent<PlacementKeeper>();
+            rackPlacement.Configure(rack, mrSetup, Pvz.Core.PlacementStore.RackKey, "стеллаж", Pvz.Core.WarehouseBounds.MaxReach - 1f);
+            var rackMover = rack.gameObject.AddComponent<PlacementMover>();
+            var rackTop = ShelfHeights[ShelfHeights.Length - 1] + 0.3f;
+            rackMover.Configure(rackPlacement, CreatePlacementHandle(playArea, "Rack Handle", rack.TransformPoint(RackHandleOffset)), RackHandleOffset,
+                new Vector3(0f, rackTop / 2f, 0f), new Vector3(RackWidth, rackTop, RackDepth));
+            pc.Computer.ConfigureRackMover(rackMover);
+            CreateComputerKey(pc.Settings, 1, "ПЕРЕНЕСТИ\nСТЕЛЛАЖ", ComputerKey.Action.MoveRack, pc.Computer, font, new Color(0.98f, 0.55f, 0.15f));
             // The career between shifts and the counter themes it opens (T022).
             var careerKeeper = new GameObject("Career").AddComponent<CareerKeeper>();
             careerKeeper.Configure(LoadOrCreateThemeCatalog(), counter.GetComponentInChildren<CounterSkin>(true),
@@ -424,6 +435,47 @@ namespace Pvz.Editor
             hatch.Configure(boxPrefab, planes, boxesRoot, panel, left, right, cord, HatchHandleOffset.y);
             hatch.FitToCeiling(settings.DefaultCeilingHeight); // the editor has no AR ceiling: the default height
             return hatch;
+        }
+
+        /// <summary>Where the shelf rack stands at first (play area): to the right of the player, its shelves facing them.</summary>
+        public static readonly Vector3 RackPosition = new Vector3(1.45f, 0f, 0.35f);
+        public const float RackYaw = 90f;
+
+        /// <summary>The rack's handle: above the middle of its top shelf, in reach (rack space).</summary>
+        public static readonly Vector3 RackHandleOffset = new Vector3(0f, 1.75f, -0.1f);
+
+        /// <summary>Heights of the shelf boards (their tops), metres.</summary>
+        public static readonly float[] ShelfHeights = { 0.05f, 0.5f, 0.95f, 1.4f };
+        public const float RackWidth = 1.0f, RackDepth = 0.45f;
+
+        /// <summary>
+        /// The shelf rack (T037, #81): four shelves on four posts, a low lip at the front and back of each shelf so a box does
+        /// not slide off, a grippy surface. The player arranges boxes on it; it is moved like the counter.
+        /// </summary>
+        private static Transform CreateShelfRack(Transform playArea)
+        {
+            var root = new GameObject("Shelf Rack").transform;
+            root.SetParent(playArea, false);
+            root.localPosition = RackPosition;
+            root.localRotation = Quaternion.Euler(0f, RackYaw, 0f);
+            var metal = Lit("RackMetal", new Color(0.36f, 0.38f, 0.42f), 0.5f);
+            var board = Lit("RackShelf", new Color(0.84f, 0.73f, 0.55f));
+            var grip = PhysicMaterialAsset("ShelfBoard", 0.8f, 0.95f, 0f);
+            var top = ShelfHeights[ShelfHeights.Length - 1] + 0.25f;
+            foreach (var (x, z) in new[] { (-1f, -1f), (1f, -1f), (-1f, 1f), (1f, 1f) })
+                Primitive(PrimitiveType.Cube, "Post", root, new Vector3(x * (RackWidth / 2f - 0.02f), top / 2f, z * (RackDepth / 2f - 0.02f)),
+                    new Vector3(0.04f, top, 0.04f), metal, true);
+            for (var i = 0; i < ShelfHeights.Length; i++)
+            {
+                var y = ShelfHeights[i];
+                var shelf = Primitive(PrimitiveType.Cube, $"Shelf {i + 1}", root, new Vector3(0f, y - 0.015f, 0f),
+                    new Vector3(RackWidth, 0.03f, RackDepth), board, true);
+                shelf.GetComponent<Collider>().sharedMaterial = grip;
+                foreach (var side in new[] { -1f, 1f })
+                    Primitive(PrimitiveType.Cube, "Lip", root, new Vector3(0f, y + 0.015f, side * (RackDepth / 2f - 0.01f)),
+                        new Vector3(RackWidth, 0.03f, 0.02f), metal, true);
+            }
+            return root;
         }
 
         /// <summary>The menu screen of the computer: three difficulty keys in slots 0–2.</summary>

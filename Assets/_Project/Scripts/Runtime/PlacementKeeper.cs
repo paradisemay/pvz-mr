@@ -104,6 +104,20 @@ namespace Pvz.Runtime
             SaveCurrent();
         }
 
+        /// <summary>
+        /// «Стойку ко мне» (T037): the rig stands where the player stands, turned the way they look, so the counter (1 m ahead
+        /// in the rig) is right in front of them; saved. Only this rig moves — the hatch and the rack stay where they are.
+        /// </summary>
+        public void PutInFrontOf(Transform head)
+        {
+            if (rig == null || head == null) return;
+            var forward = Vector3.ProjectOnPlane(head.forward, Vector3.up);
+            if (forward.sqrMagnitude < 1e-4f) forward = Vector3.forward;
+            rig.SetPositionAndRotation(new Vector3(head.position.x, rig.position.y, head.position.z), Quaternion.LookRotation(forward.normalized, Vector3.up));
+            AfterMove();
+            SaveCurrent();
+        }
+
         /// <summary>Moves the rig to a place in the room (keeps its height).</summary>
         public void Place(Placement placement)
         {

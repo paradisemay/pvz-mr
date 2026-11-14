@@ -246,7 +246,8 @@ namespace Pvz.Runtime.Remote
             foreach (var placement in FindObjectsByType<PlacementKeeper>(FindObjectsSortMode.None))
             {
                 if (placement.Rig == null) continue;
-                json.Add(placement.Rig.GetComponent<SupplyHatch>() != null ? "hatchAt" : "counterAt", placement.Current.Format());
+                json.Add(placement.Rig.GetComponent<SupplyHatch>() != null ? "hatchAt" : placement.Rig.name == "Shelf Rack" ? "rackAt" : "counterAt",
+                    placement.Current.Format());
             }
             if (director == null) return json.Add("director", false).ToString();
 
@@ -401,10 +402,11 @@ namespace Pvz.Runtime.Remote
                 case "end": pc.EndShift(); break;
                 case "move": pc.StartMovingCounter(); break;
                 case "hatch": pc.StartMovingHatch(); break;
+                case "rack": pc.StartMovingRack(); break;
                 case "apply": pc.ApplyMove(); break;
                 case "cancel": pc.CancelMove(); break;
                 case "": break;
-                default: return RemoteProtocol.Error("pc settings|back|end|move|hatch|apply|cancel");
+                default: return RemoteProtocol.Error("pc settings|back|end|move|hatch|rack|apply|cancel");
             }
             return new Json().Add("ok", true).Add("computer", pc.Current.ToString()).Add("screen", pc.ScreenText).ToString();
         }

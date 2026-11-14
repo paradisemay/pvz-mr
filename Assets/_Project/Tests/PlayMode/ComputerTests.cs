@@ -48,12 +48,21 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest]
-        public IEnumerator Settings_OpenAndGoBack_AndOfferTheStandAndWarehouseOnlyBeforeTheShift()
+        public IEnumerator Settings_OpenAndGoBack_AndOfferRecenterOnlyWhileMovingTheCounterBeforeTheShift()
         {
             Key(ComputerKey.Action.OpenSettings).Press();
             yield return null;
             Assert.AreEqual(PvzComputer.Screen.Settings, _computer.Current);
-            Assert.IsTrue(Object.FindFirstObjectByType<RecenterButton>(FindObjectsInactive.Include).gameObject.activeInHierarchy);
+            Assert.IsNotNull(Key(ComputerKey.Action.MoveCounter));
+            Assert.IsNotNull(Key(ComputerKey.Action.MoveRack));
+            Assert.IsNotNull(Key(ComputerKey.Action.MoveHatch));
+            Assert.IsFalse(Object.FindFirstObjectByType<RecenterButton>(FindObjectsInactive.Include).gameObject.activeInHierarchy, "not on the settings screen");
+            Key(ComputerKey.Action.MoveCounter).Press();
+            yield return null;
+            Assert.IsTrue(Object.FindFirstObjectByType<RecenterButton>(FindObjectsInactive.Include).gameObject.activeInHierarchy,
+                "«Стойку ко мне» while moving the counter before the shift (T037)");
+            Key(ComputerKey.Action.CancelMove).Press();
+            yield return null;
             Assert.IsTrue(Object.FindFirstObjectByType<ThemeButton>(FindObjectsInactive.Include).gameObject.activeInHierarchy);
             Assert.IsFalse(_director.DifficultyButtons.First().gameObject.activeInHierarchy, "one screen at a time");
 
@@ -66,8 +75,12 @@ namespace Pvz.Runtime.Tests
             Key(ComputerKey.Action.OpenSettings).Press();
             yield return null;
             Assert.AreEqual(PvzComputer.Screen.Settings, _computer.Current);
+            Key(ComputerKey.Action.MoveCounter).Press();
+            yield return null;
             Assert.IsFalse(Object.FindFirstObjectByType<RecenterButton>(FindObjectsInactive.Include).gameObject.activeInHierarchy,
-                "moving the play area mid-shift is a separate task (#78)");
+                "during the shift the counter is moved by its handle only");
+            Key(ComputerKey.Action.CancelMove).Press();
+            yield return null;
             Assert.IsTrue(Object.FindFirstObjectByType<ThemeButton>(FindObjectsInactive.Include).gameObject.activeInHierarchy);
             Key(ComputerKey.Action.Back).Press();
             yield return null;

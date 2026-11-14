@@ -19,6 +19,7 @@ namespace Pvz.Runtime
 
         [SerializeField] private PlacementMover counterMover;
         [SerializeField] private PlacementMover hatchMover;
+        [SerializeField] private PlacementMover rackMover;
         [SerializeField] private GameObject movingKeys;
 
         /// <summary>What is being moved on the moving screen (null otherwise).</summary>
@@ -31,6 +32,10 @@ namespace Pvz.Runtime
         }
 
         internal void ConfigureHatchMover(PlacementMover mover) => hatchMover = mover;
+        internal void ConfigureRackMover(PlacementMover mover) => rackMover = mover;
+
+        /// <summary>«Перенести стеллаж» (T037).</summary>
+        public void StartMovingRack() => StartMoving(rackMover);
 
         /// <summary>«Перенести стойку» (T034): the handle appears; «Применить» / «Отмена» end it.</summary>
         public void StartMovingCounter() => StartMoving(counterMover);
@@ -73,7 +78,7 @@ namespace Pvz.Runtime
         [SerializeField] private TMP_Text titleText;
         [SerializeField] private GameObject menuKeys;
         [SerializeField] private GameObject settingsKeys;
-        [Tooltip("Settings that only make sense before the shift (moving the play area, resetting the warehouse).")]
+        [Tooltip("Extra keys while moving the counter before the shift («Стойку ко мне», T037).")]
         [SerializeField] private GameObject settingsBeforeShiftKeys;
         [SerializeField] private GameObject shiftKeys;
         [SerializeField] private GameObject summaryKeys;
@@ -165,7 +170,8 @@ namespace Pvz.Runtime
             var shiftRunning = ShiftRunning;
             if (menuKeys != null) menuKeys.SetActive(screen == Screen.Menu);
             if (settingsKeys != null) settingsKeys.SetActive(screen == Screen.Settings);
-            if (settingsBeforeShiftKeys != null) settingsBeforeShiftKeys.SetActive(screen == Screen.Settings && !shiftRunning);
+            if (settingsBeforeShiftKeys != null)
+                settingsBeforeShiftKeys.SetActive(screen == Screen.Moving && _moving != null && _moving == counterMover && !shiftRunning);
             if (shiftKeys != null) shiftKeys.SetActive(screen == Screen.Shift);
             if (summaryKeys != null) summaryKeys.SetActive(screen == Screen.Summary);
             if (movingKeys != null) movingKeys.SetActive(screen == Screen.Moving);
@@ -184,7 +190,8 @@ namespace Pvz.Runtime
                 Screen.Menu => MenuText,
                 Screen.Settings => ShiftRunning ? SettingsDuringShiftText : SettingsText,
                 Screen.Shift => ShiftText(),
-                Screen.Moving => MovingTextFor(_moving != null && _moving.Keeper != null ? _moving.Keeper.DisplayName : "стойку"),
+                Screen.Moving => MovingTextFor(_moving != null && _moving.Keeper != null ? _moving.Keeper.DisplayName : "стойку")
+                                 + (_moving == counterMover && !ShiftRunning ? "\n«Стойку ко мне» — поставить перед собой." : string.Empty),
                 _ => SummaryText(),
             };
         }
@@ -199,8 +206,8 @@ namespace Pvz.Runtime
         };
 
         public const string MenuText = "Выберите сложность смены\nкнопками ниже.\n\n«Настройки» — стойка, склад, тема.";
-        public const string SettingsText = "«Перенести стойку» — взять за ручку и поставить.\n«Стойку ко мне» — поставить перед собой.\n«Тема» — оформление стойки.\n«Место люка» — откуда падают коробки.";
-        public const string SettingsDuringShiftText = "«Перенести стойку» — взять за ручку и поставить:\nочередь перейдёт следом.\n«Тема» — оформление стойки.\n«Место люка» — откуда падают коробки.";
+        public const string SettingsText = "Стойку, стеллаж и люк переносят за\nоранжевую ручку («Применить» — сохранить).\n«Место люка» — откуда падают коробки.\n«Тема» — оформление стойки.";
+        public const string SettingsDuringShiftText = SettingsText + "\nОчередь перейдёт за стойкой следом.";
 
         private string ShiftText()
         {
@@ -250,7 +257,7 @@ namespace Pvz.Runtime
         {
             if (menuKeys != null) menuKeys.SetActive(screen == Screen.Menu);
             if (settingsKeys != null) settingsKeys.SetActive(screen == Screen.Settings);
-            if (settingsBeforeShiftKeys != null) settingsBeforeShiftKeys.SetActive(screen == Screen.Settings && beforeShift);
+            if (settingsBeforeShiftKeys != null) settingsBeforeShiftKeys.SetActive(screen == Screen.Moving && beforeShift);
             if (shiftKeys != null) shiftKeys.SetActive(screen == Screen.Shift);
             if (summaryKeys != null) summaryKeys.SetActive(screen == Screen.Summary);
             if (movingKeys != null) movingKeys.SetActive(screen == Screen.Moving);
