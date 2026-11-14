@@ -85,12 +85,14 @@ namespace Pvz.Editor
             demoCustomer.SetLook(2);
             customer.gameObject.SetActive(false);
             var originalPoses = new (Transform t, Transform parent, Vector3 pos, Quaternion rot)[2];
+            var stacks = new float[CarryStacks.ColumnX.Length];
             for (var i = 0; i < 2 && i < heldBoxes.Length; i++)
             {
                 var t = heldBoxes[i].transform;
                 originalPoses[i] = (t, t.parent, t.position, t.rotation);
                 t.SetParent(demoCustomer.CarryAnchor, false);
-                t.localPosition = Vector3.up * (0.27f * i);
+                // Laid out as Customer.Take does, without handing the box over.
+                t.localPosition = CarryStacks.Place(stacks, PvzPrefabBuilder.BoxSize.y);
                 t.localRotation = Quaternion.identity;
             }
             demoCustomer.Say("Спасибо! Мне ещё\nнужен пакет");
