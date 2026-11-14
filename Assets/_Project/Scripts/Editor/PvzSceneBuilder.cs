@@ -164,7 +164,9 @@ namespace Pvz.Editor
             director.ConfigureStartMenu(startMenu.gameObject);
             director.ConfigureReturns(supplyBoxPrefab); // returned boxes use the generic box with a runtime QR
             // T045 (#85): returned and refused boxes go into the bin by the counter; the computer hands them in.
-            director.ConfigureReturnsBin(CreateReturnsBin(rig, font));
+            var returnsBin = CreateReturnsBin(rig, font);
+            returnsBin.Configure(mover); // the boxes in it ride along when the counter is carried
+            director.ConfigureReturnsBin(returnsBin);
             CreateComputerKey(pc.Shift, 2, PvzComputer.HandInReturnsCaption, ComputerKey.Action.HandInReturns, pc.Computer, font,
                 new Color(0.55f, 0.7f, 0.95f));
             director.ConfigureEffects(counter.GetComponentInChildren<FeedbackEffects>(true));
@@ -500,7 +502,7 @@ namespace Pvz.Editor
             var root = new GameObject("Returns Bin").transform;
             root.SetParent(rig, false);
             root.localPosition = ReturnsBinPosition;
-            const float w = 0.5f, h = 0.35f, d = 0.45f, t = 0.02f;
+            const float w = 0.7f, h = 0.4f, d = 0.55f, t = 0.02f; // four boxes lie on its bottom
             var body = Lit("ReturnsBin", new Color(0.24f, 0.33f, 0.52f), 0.3f);
             var rim = Lit("ReturnsBinRim", new Color(0.98f, 0.55f, 0.15f), 0.3f);
             Primitive(PrimitiveType.Cube, "Bottom", root, new Vector3(0f, t / 2f, 0f), new Vector3(w, t, d), body, true);

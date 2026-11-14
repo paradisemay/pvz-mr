@@ -12,7 +12,53 @@ namespace Pvz.Runtime
     [RequireComponent(typeof(Collider))]
     public sealed class ReturnsBin : MonoBehaviour
     {
+        [Tooltip("Moves the counter rig the bin belongs to: the boxes inside ride along (they lie on the floor, not on the counter top).")]
+        [SerializeField] private PlacementMover counterMover;
+
         private readonly Dictionary<QrBox, int> _inside = new Dictionary<QrBox, int>();
+        private readonly List<(QrBox box, Transform parent)> _riding = new List<(QrBox, Transform)>();
+
+        internal void Configure(PlacementMover mover) => counterMover = mover;
+
+        private void OnEnable()
+        {
+            if (counterMover != null) counterMover.MovingChanged += OnCounterMoving;
+        }
+
+        private void OnDisable()
+        {
+            if (counterMover != null) counterMover.MovingChanged -= OnCounterMoving;
+        }
+
+        /// <summary>The counter is carried: the boxes in the bin go with it (held still in the bin), and drop in again after.</summary>
+        private void OnCounterMoving(bool moving)
+        {
+            if (moving)
+            {
+                foreach (var box in BoxesInside)
+                {
+                    if (box.IsHeld) continue;
+                    _riding.Add((box, box.transform.parent));
+                    var body = box.GetComponent<Rigidbody>();
+                    if (body != null) body.isKinematic = true;
+                    box.transform.SetParent(transform, true);
+                }
+                return;
+            }
+            foreach (var (box, parent) in _riding)
+            {
+                if (box == null) continue;
+                box.transform.SetParent(parent, true);
+                var body = box.GetComponent<Rigidbody>();
+                if (body != null && !box.IsHeld)
+                {
+                    body.isKinematic = false;
+                    body.position = box.transform.position;
+                    body.rotation = box.transform.rotation;
+                }
+            }
+            _riding.Clear();
+        }
 
         public event Action<QrBox> BoxEntered;
         public event Action<QrBox> BoxLeft;

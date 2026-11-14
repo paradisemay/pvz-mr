@@ -23,7 +23,7 @@ namespace Pvz.Runtime
         {
             // A customer who did not stay in a full line (T044) is a customer lost, like one who left the counter.
             var grade = ShiftRating.Grade(stats.OrdersCompleted, ordersTotal, stats.WrongHandovers,
-                stats.OrdersAbandoned + stats.CustomersTurnedAway);
+                stats.OrdersAbandoned + stats.CustomersTurnedAway + stats.ReturnsLost); // T045: a lost return too
             if (body != null)
             {
                 body.text =

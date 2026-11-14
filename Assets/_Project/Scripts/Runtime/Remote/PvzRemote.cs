@@ -642,12 +642,15 @@ namespace Pvz.Runtime.Remote
                 if (director.ReturnsBin != null)
                 {
                     var loose = director.ReturnBoxes.Where(b => !director.ReturnsBin.Contains(b) && !b.IsHeld).ToArray();
-                    foreach (var returned in loose)
+                    for (var i = 0; i < loose.Length; i++)
                     {
-                        Teleport(returned.transform, returned.GetComponent<Rigidbody>(), director.ReturnsBin.transform.position + Vector3.up * 0.3f);
+                        var returned = loose[i];
+                        // Spread over the bin, a little higher each: two boxes never drop in at the same point.
+                        var drop = director.ReturnsBin.transform.TransformPoint(new Vector3((i % 2 - 0.5f) * 0.1f, 0.3f + 0.25f * (i / 2), 0f));
+                        Teleport(returned.transform, returned.GetComponent<Rigidbody>(), drop);
                         yield return pause;
                     }
-                    if (loose.Length > 0 && director.Shift.Returns.InBin > 0)
+                    if (director.Shift.Returns.InBin > 0)
                     {
                         director.HandInReturns();
                         yield return pause;

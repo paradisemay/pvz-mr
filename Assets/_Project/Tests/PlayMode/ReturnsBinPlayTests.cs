@@ -79,7 +79,8 @@ namespace Pvz.Runtime.Tests
         {
             yield return ServeTheFirstCustomer();
             Assert.AreEqual(1, _director.Stats.Refusals);
-            StringAssert.Contains("не подходит", _director.CurrentCustomer.LastLine.ToLowerInvariant());
+            // The board keeps saying so until the next customer comes (the customer's line lasts only their thanks).
+            StringAssert.Contains("отказом", Object.FindFirstObjectByType<CounterBoard>().Headline);
             var refused = _director.ReturnBoxes.Single();
             Assert.IsTrue(refused.IsReturn);
             Assert.IsFalse(refused.transform.IsChildOf(_director.CurrentCustomer.transform), "the customer did not take it");
@@ -104,6 +105,48 @@ namespace Pvz.Runtime.Tests
             Assert.IsTrue(refused == null, "the handed-in box is gone");
             Assert.AreEqual(1, _director.Stats.ReturnsHandedIn);
             Assert.Greater(_director.Stats.Score, before);
+        }
+
+        /// <summary>
+        /// Everything sold, but the refused boxes still lie on the counter: the shift waits for them instead of losing
+        /// the last ones at once; once they are in the bin it ends and hands them in.
+        /// </summary>
+        [UnityTest, Timeout(180000)]
+        public IEnumerator ASoldOutShift_WaitsForTheReturns_ThenHandsInTheBin()
+        {
+            var deadline = Time.realtimeSinceStartup + 150f;
+            while (!_director.WaitingForReturns && !_director.IsShiftOver && Time.realtimeSinceStartup < deadline)
+            {
+                // The supply delivery: its orders are for sale once its boxes are received.
+                foreach (var supply in _director.RemainingBoxes.Where(b => b != null && _director.Shift.IsPendingIntake(b.Id)).ToArray())
+                    _director.Scanner.ScanDirect(supply);
+                if (_director.Desk.HasActiveOrder && _director.CurrentCustomer != null && !_director.CurrentCustomer.IsWalking)
+                {
+                    foreach (var id in _director.Desk.ActiveOrder.Boxes.ToArray())
+                        if (!_director.Desk.ActiveSession.IsDelivered(id) && _director.TryGetBox(id, out var box))
+                            Put(box, _director.Zone.transform.position + Vector3.up * 0.05f);
+                }
+                yield return null;
+            }
+            Assert.IsTrue(_director.WaitingForReturns, "every order sold; the shift waits for the returns");
+            Assert.IsFalse(_director.IsShiftOver);
+            var returns = _director.ReturnBoxes.ToArray();
+            Assert.AreEqual(_director.OrdersTotal, returns.Length, "everyone refused one box");
+            StringAssert.Contains("ящик", Object.FindFirstObjectByType<CounterBoard>().Headline);
+
+            // As a player would: a couple of boxes into the bin, «Сдать возвраты», the next couple — the last ones are
+            // handed in by the end of the shift itself.
+            for (var i = 0; i < returns.Length; i++)
+            {
+                Put(returns[i], _director.ReturnsBin.transform.TransformPoint(new Vector3((i % 2 - 0.5f) * 0.3f, 0.35f, 0f)));
+                yield return new WaitForSeconds(0.6f);
+                if (i % 2 == 1 && i < returns.Length - 2) Assert.AreEqual(2, _director.HandInReturns(), "two boxes handed in");
+            }
+            deadline = Time.realtimeSinceStartup + 20f;
+            while (!_director.IsShiftOver && Time.realtimeSinceStartup < deadline) yield return null;
+            Assert.IsTrue(_director.IsShiftOver, "all returns in the bin: the shift ends");
+            Assert.AreEqual(0, _director.Stats.ReturnsLost);
+            Assert.AreEqual(returns.Length, _director.Stats.ReturnsHandedIn);
         }
 
         [UnityTest, Timeout(60000)]

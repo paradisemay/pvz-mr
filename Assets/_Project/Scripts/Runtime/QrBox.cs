@@ -38,11 +38,20 @@ namespace Pvz.Runtime
         /// </summary>
         public bool IsReturn { get; private set; }
 
-        /// <summary>T045: the box came back to the counter — the player can grab it and carry it to the returns bin.</summary>
-        public void BecomeReturn(Vector3 position, Quaternion rotation)
+        /// <summary>
+        /// T045: the box came back to the counter — the player can grab it and carry it to the returns bin.
+        /// <paramref name="room"/> is where boxes of the room live (the lost-box check measures reach from it);
+        /// <paramref name="home"/> says where a return lost out of reach comes back (the counter, wherever it is then).
+        /// </summary>
+        public void BecomeReturn(Vector3 position, Quaternion rotation, Transform room, System.Func<Vector3> home)
         {
+            // A refused box still in the player's hand is let go first: velocity tracking would yank it back.
+            if (grabInteractable != null && grabInteractable.isSelected && grabInteractable.interactionManager != null)
+                grabInteractable.interactionManager.CancelInteractableSelection(
+                    (UnityEngine.XR.Interaction.Toolkit.Interactables.IXRSelectInteractable)grabInteractable);
             IsHandedOver = true;
             IsReturn = true;
+            if (room != null) _startParent = room;
             transform.SetParent(_startParent, true);
             transform.SetPositionAndRotation(position, rotation);
             if (grabInteractable != null) grabInteractable.enabled = true;
@@ -56,7 +65,8 @@ namespace Pvz.Runtime
                 body.linearVelocity = Vector3.zero;
                 body.angularVelocity = Vector3.zero;
             }
-            Respawn = () => position; // a return dropped out of reach comes back to the counter, not out of the hatch
+            // A return dropped out of reach comes back to the counter (where it is then), not out of the hatch.
+            Respawn = home ?? (() => position);
         }
 
         /// <summary>The player holds the box right now.</summary>

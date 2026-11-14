@@ -148,6 +148,13 @@ namespace Pvz.Runtime
             else _board.ShowStatus(stillOut > 0 ? "Ящик возвратов пуст — положите коробки в него" : "Возвратов нет", CounterBoard.Neutral);
         }
 
+        /// <summary>T045: everything is sold, but returns still lie outside the bin.</summary>
+        public void ShowReturnsToStow(int outside)
+        {
+            _board.ShowHeadline("Положите возвраты в ящик", CounterBoard.Accent);
+            _board.ShowStatus($"Вне ящика: {outside} · «Завершить смену» — закончить сразу", CounterBoard.Neutral);
+        }
+
         public void ShowWaitingForCustomer()
         {
             _board.ShowHeadline("Ожидание клиента", CounterBoard.Neutral);
