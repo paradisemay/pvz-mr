@@ -475,12 +475,20 @@ namespace Pvz.Runtime.Tests
 
             var scanner = director.Scanner;
             scanner.GetComponent<Rigidbody>().isKinematic = true;
+            // The box is taken out of the pile under the hatch into the open (#99): a random pile put a neighbour on the
+            // line now and then, and this test is about reading a code by the ray, not about the pile.
+            var boxBody = box.GetComponent<Rigidbody>();
+            boxBody.isKinematic = true;
+            var target = new Vector3(0f, 1.8f, -0.9f);
+            box.transform.SetPositionAndRotation(target, Quaternion.identity);
+            boxBody.position = target;
             // Hold the scanner 0.8 m in front of the box, nose pointing at it.
-            var target = box.transform.position;
             var from = target + new Vector3(0f, 0.3f, -0.8f);
             scanner.transform.SetPositionAndRotation(from, Quaternion.LookRotation(target - from));
             Physics.SyncTransforms();
             yield return new WaitForFixedUpdate();
+            Assert.IsTrue(Physics.Raycast(scanner.Muzzle.position, scanner.Muzzle.forward, out var first, 3f, ~0, QueryTriggerInteraction.Ignore) &&
+                          first.collider.transform.IsChildOf(box.transform), "the line from the muzzle to the box is clear");
 
             scanner.Fire();
             StringAssert.Contains(record.OrderNumber, scanner.ScreenText);
