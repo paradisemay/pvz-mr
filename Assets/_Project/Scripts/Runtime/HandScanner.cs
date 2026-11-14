@@ -50,6 +50,9 @@ namespace Pvz.Runtime
 
         public string ScreenText => screen != null ? screen.text : string.Empty;
 
+        /// <summary>Where the scan ray starts and points.</summary>
+        public Transform Muzzle => muzzle != null ? muzzle : transform;
+
         private void Awake()
         {
             _grab = GetComponent<XRGrabInteractable>();
