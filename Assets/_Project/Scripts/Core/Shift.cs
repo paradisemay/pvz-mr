@@ -338,6 +338,15 @@ namespace Pvz.Core
 
         public bool CanEnqueue => !IsTimeUp && Book.Line.Count < Math.Max(1, QueueLength) && HasUnreservedOrders;
 
+        /// <summary>T044 (#84): somebody would come now, but the line is full.</summary>
+        public bool IsLineFull => !IsTimeUp && Book.Line.Count >= Math.Max(1, QueueLength) && HasUnreservedOrders;
+
+        /// <summary>
+        /// T044 (#84): a customer came while the line was full and left at once. Their order stays in the warehouse
+        /// for a later customer; the summary says how many did not stay.
+        /// </summary>
+        public void TurnAway() => Stats.OnTurnedAway();
+
         /// <summary>
         /// A new customer joins the line. Usually they come for an order nobody in line has yet (it is reserved,
         /// so two customers never share an order); with <see cref="ReturnChancePercent"/> they bring back a box from

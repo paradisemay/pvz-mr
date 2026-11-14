@@ -81,6 +81,12 @@ namespace Pvz.Runtime
         [Tooltip("Share of the usual patience an urgent customer has.")]
         [SerializeField, Range(0.1f, 1f)] private float urgentPatienceFactor = 0.6f;
 
+        [Header("Length of the shift (T044)")]
+        [Tooltip("Orders sold this shift; the stock is filled up with generated orders to reach it.")]
+        [SerializeField, Min(1)] private int ordersPerShift = 10;
+        [Tooltip("A new customer comes every this many seconds (± a fifth), whether the line moves or not.")]
+        [SerializeField, Min(1f)] private float arrivalInterval = 22f;
+
         [Header("Pacing (seconds, m/s)")]
         [SerializeField, Min(0)] private float firstCustomerDelay = 2f;
         [SerializeField, Min(0)] private float delayBetweenCustomers = 2f;
@@ -146,6 +152,20 @@ namespace Pvz.Runtime
             customerWalkSpeed = walkSpeed;
             delayBetweenCustomers = betweenCustomers;
         }
+        /// <summary>
+        /// T044 (#84): the length and the pace of the shift — applied to existing presets too (the builder keeps the
+        /// rest of a preset as designers tuned it).
+        /// </summary>
+        internal void ConfigurePace(int orders, float interval, int queue)
+        {
+            ordersPerShift = Mathf.Max(1, orders);
+            arrivalInterval = Mathf.Max(1f, interval);
+            queueLength = Mathf.Clamp(queue, 1, 4);
+        }
+
+        public int OrdersPerShift => ordersPerShift;
+        public float ArrivalInterval => arrivalInterval;
+
         public int SupplyAfterOrders => supplyAfterOrders;
         public BoxDefinition[] SupplyBoxes => supplyBoxes;
         public BoxDefinition[] SpareBoxes => spareBoxes ?? System.Array.Empty<BoxDefinition>();

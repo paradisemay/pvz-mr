@@ -36,6 +36,7 @@ namespace Pvz.Runtime
                     (stats.ReturnsAccepted > 0 ? $"Принято возвратов: {stats.ReturnsAccepted}\n" : string.Empty) +
                     (stats.UrgentServed > 0 ? $"Срочных заказов выдано: {stats.UrgentServed}\n" : string.Empty) +
                     (stats.OrdersAbandoned > 0 ? $"Ушли без заказа: {stats.OrdersAbandoned}\n" : string.Empty) +
+                    (stats.CustomersTurnedAway > 0 ? $"Не дождались очереди: {stats.CustomersTurnedAway}\n" : string.Empty) +
                     $"Среднее время выдачи: {stats.AverageServiceSeconds:0.0} с\n" +
                     $"Очки: {stats.Score}\n" +
                     $"Рейтинг смены: <b>{GradeText(grade)}</b>" +
