@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Linq;
 using NUnit.Framework;
 using Pvz.Core;
 using UnityEngine;
@@ -95,14 +96,64 @@ namespace Pvz.Runtime.Tests
         }
 
         [UnityTest, Timeout(30000)]
-        public IEnumerator AScannerLeftOnTheCounter_StaysThere()
+        public IEnumerator AScannerLeftAtTheFarEndOfTheCounter_StaysThere()
         {
-            var spot = _cradle.position + new Vector3(0.6f, 0.02f, -0.05f); // further along the counter top
+            var spot = _cradle.position + _holder.transform.parent.right * 1.1f + Vector3.up * 0.02f; // the other end of the top, > 1 m away
             Drop(spot);
             yield return new WaitForSeconds(6f);
             Assert.IsFalse(_holder.IsDocked);
             Assert.AreEqual(0, _holder.Returns);
-            Assert.Greater(Vector3.Distance(_scanner.transform.position, _cradle.position), 0.4f);
+            Assert.Greater(Vector3.Distance(_scanner.transform.position, _cradle.position), 0.9f);
+        }
+
+        [UnityTest, Timeout(20000)]
+        public IEnumerator MovingTheCounter_DocksAScannerLyingOnTheFloor()
+        {
+            Drop(_holder.transform.parent.TransformPoint(new Vector3(0f, 0.3f, -1.2f)));
+            yield return new WaitForSeconds(1f);
+            Assert.IsFalse(_holder.IsDocked);
+            var computer = Object.FindFirstObjectByType<PvzComputer>();
+            computer.OpenSettings();
+            computer.StartMovingCounter();
+            yield return null;
+            Assert.IsTrue(_holder.IsDocked, "not dragged through the room with the counter");
+            computer.CancelMove();
+        }
+
+        [UnityTest, Timeout(20000)]
+        public IEnumerator AReturn_WaitsWhileSomethingLiesInTheTray()
+        {
+            var box = GameObject.CreatePrimitive(PrimitiveType.Cube); // something left in the tray (no boxes before the shift)
+            box.transform.localScale = Vector3.one * 0.1f;
+            box.transform.position = _cradle.position;
+            Physics.SyncTransforms();
+            Drop(_holder.transform.parent.position + Vector3.down * 2f);
+            _body.isKinematic = true;
+            yield return null;
+            yield return null;
+            Assert.IsFalse(_holder.IsDocked, "not teleported into the box");
+            Assert.IsTrue(_holder.CradleBlocked);
+            box.transform.position = _cradle.position + Vector3.right * 2f;
+            Physics.SyncTransforms();
+            yield return null;
+            yield return null;
+            Assert.IsTrue(_holder.IsDocked, "back once the tray is clear");
+        }
+
+        [UnityTest, Timeout(20000)]
+        public IEnumerator ARealGrabAndRelease_LeavesTheScannerFreeToFall()
+        {
+            var interactor = Object.FindObjectsByType<UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInteractor>(FindObjectsSortMode.None)
+                .First(i => i is UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor && i.isActiveAndEnabled);
+            var grab = _scanner.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
+            var manager = grab.interactionManager;
+            manager.SelectEnter((UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor)interactor, grab);
+            Assert.IsTrue(grab.isSelected); // same frame: the manager drops a select whose grip is not pressed on its next update
+            _scanner.transform.position = _body.position = _cradle.position + Vector3.right * 0.6f + Vector3.up * 0.5f;
+            manager.SelectExit((UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor)interactor, grab);
+            yield return null;
+            Assert.IsFalse(_body.isKinematic, "XRI restored the docked (kinematic) state, the holder must undo it");
+            Assert.IsFalse(_holder.IsDocked);
         }
     }
 }

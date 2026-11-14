@@ -87,7 +87,7 @@ namespace Pvz.Editor
             counter.transform.localPosition = CounterPosition;
 
             var scanner = ((GameObject)PrefabUtility.InstantiatePrefab(scannerPrefab.gameObject, rig)).GetComponent<HandScanner>();
-            CreateScannerHolder(rig, scanner, font); // T038: the scanner lies in a holder and comes back to it when dropped
+            var scannerHolder = CreateScannerHolder(rig, scanner, font); // T038: the scanner lies in a holder and comes back to it when dropped
 
             // T036: no boxes stand in the room before the shift — the stock of every shift drops out of the supply hatch.
             var boxesRoot = new GameObject("Boxes").transform;
@@ -134,8 +134,10 @@ namespace Pvz.Editor
             var placement = new GameObject("Counter Placement").AddComponent<PlacementKeeper>();
             placement.Configure(rig, mrSetup);
             var mover = placement.gameObject.AddComponent<PlacementMover>();
+            var counterTop = new Bounds(CounterPosition + new Vector3(0f, PvzPrefabBuilder.CounterHeight + 0.26f, 0f), new Vector3(1.5f, 0.5f, 0.65f));
             mover.Configure(placement, CreatePlacementHandle(playArea, "Counter Handle", CounterHandleOffset), CounterHandleOffset,
-                CounterPosition + new Vector3(0f, PvzPrefabBuilder.CounterHeight + 0.26f, 0f), new Vector3(1.5f, 0.5f, 0.65f)); // what lies on the top rides along
+                counterTop.center, counterTop.size); // what lies on the top rides along
+            scannerHolder.Configure(scanner, scannerHolder.transform.Find("Cradle"), mover, counterTop); // a scanner on the top stays there
             var movingKeys = new GameObject("Moving Keys").transform;
             movingKeys.SetParent(pc.Computer.transform, false);
             CreateComputerKey(pc.Settings, 0, "ПЕРЕНЕСТИ\nСТОЙКУ", ComputerKey.Action.MoveCounter, pc.Computer, font, new Color(0.98f, 0.55f, 0.15f));
@@ -478,9 +480,7 @@ namespace Pvz.Editor
             cradle.localRotation = Quaternion.Euler(0f, -90f, 90f);
             scanner.transform.SetPositionAndRotation(cradle.position, cradle.rotation);
 
-            var holder = root.gameObject.AddComponent<ScannerHolder>();
-            holder.Configure(scanner, cradle);
-            return holder;
+            return root.gameObject.AddComponent<ScannerHolder>(); // configured once the counter mover exists
         }
 
         private static Transform CreateShelfRack(Transform playArea)
