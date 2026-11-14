@@ -135,6 +135,26 @@ namespace Pvz.Runtime
 
         public void ShowCustomerApproaching() => _board.ShowHeadline("Клиент подходит…", CounterBoard.Neutral);
 
+        public const string RefusalLine = "Это не подходит —\nоформите возврат";
+
+        /// <summary>T045: «Сдать возвраты» was pressed.</summary>
+        public void ShowReturnsHandedIn(int handed, int stillOut)
+        {
+            if (handed > 0)
+            {
+                PlaySound(FeedbackAudio.Sound.Success);
+                _board.ShowStatus($"Сдано возвратов: {handed} · +{handed * _shift.Stats.PointsPerReturnHandedIn} очков", CounterBoard.Good);
+            }
+            else _board.ShowStatus(stillOut > 0 ? "Ящик возвратов пуст — положите коробки в него" : "Возвратов нет", CounterBoard.Neutral);
+        }
+
+        /// <summary>T045: everything is sold, but returns still lie outside the bin.</summary>
+        public void ShowReturnsToStow(int outside)
+        {
+            _board.ShowHeadline("Положите возвраты в ящик", CounterBoard.Accent);
+            _board.ShowStatus($"Вне ящика: {outside} · «Завершить смену» — закончить сразу", CounterBoard.Neutral);
+        }
+
         public void ShowWaitingForCustomer()
         {
             _board.ShowHeadline("Ожидание клиента", CounterBoard.Neutral);
@@ -508,7 +528,8 @@ namespace Pvz.Runtime
             Say("Спасибо!\nВсего доброго!");
             Celebrate();
             _board.ShowHeadline("Возврат принят", CounterBoard.Good);
-            _board.ShowStatus($"+{_shift.Stats.PointsPerReturn} очков", CounterBoard.Good);
+            // T045: the box stays on the counter — to the returns bin.
+            _board.ShowStatus($"+{_shift.Stats.PointsPerReturn} очков · коробку — в ящик возвратов", CounterBoard.Good);
         }
 
         private void OnCustomerHurried(Order order)
@@ -532,8 +553,10 @@ namespace Pvz.Runtime
             if (_voice != null) _voice.SayOrderDone();
             _step = TutorialStep.Off; // the player has done it once
 
-            Say("Спасибо!\nХорошего дня!");
-            _board.ShowHeadline("Заказ выдан", CounterBoard.Good);
+            // T045: the customer checked a box and refused it — it is back on the counter, for the returns bin.
+            var refused = _shift.WasRefused(result.Order.Number);
+            Say(refused ? RefusalLine : "Спасибо!\nХорошего дня!");
+            _board.ShowHeadline(refused ? "Выдан с отказом" : "Заказ выдан", refused ? CounterBoard.Accent : CounterBoard.Good);
             Celebrate();
             // ShiftStats subscribed to the desk before the presenter, so LastOrderPoints is already updated.
             _board.ShowStatus($"+{_shift.Stats.LastOrderPoints} очков", CounterBoard.Good);

@@ -23,7 +23,7 @@ namespace Pvz.Runtime
         {
             // A customer who did not stay in a full line (T044) is a customer lost, like one who left the counter.
             var grade = ShiftRating.Grade(stats.OrdersCompleted, ordersTotal, stats.WrongHandovers,
-                stats.OrdersAbandoned + stats.CustomersTurnedAway);
+                stats.OrdersAbandoned + stats.CustomersTurnedAway + stats.ReturnsLost); // T045: a lost return too
             if (body != null)
             {
                 body.text =
@@ -36,6 +36,9 @@ namespace Pvz.Runtime
                     (stats.BoxesReceived > 0 ? $"Принято из поставки: {stats.BoxesReceived}\n" : string.Empty) +
                     (stats.BagsGiven > 0 ? $"Выдано пакетов: {stats.BagsGiven}\n" : string.Empty) +
                     (stats.ReturnsAccepted > 0 ? $"Принято возвратов: {stats.ReturnsAccepted}\n" : string.Empty) +
+                    (stats.Refusals > 0 ? $"Отказов от товара: {stats.Refusals}\n" : string.Empty) +
+                    (stats.ReturnsHandedIn > 0 ? $"Сдано возвратов: {stats.ReturnsHandedIn}\n" : string.Empty) +
+                    (stats.ReturnsLost > 0 ? $"<color=#FF8A70>Не сдано возвратов: {stats.ReturnsLost}</color>\n" : string.Empty) +
                     (stats.UrgentServed > 0 ? $"Срочных заказов выдано: {stats.UrgentServed}\n" : string.Empty) +
                     (stats.OrdersAbandoned > 0 ? $"Ушли без заказа: {stats.OrdersAbandoned}\n" : string.Empty) +
                     (stats.CustomersTurnedAway > 0 ? $"Не дождались очереди: {stats.CustomersTurnedAway}\n" : string.Empty) +

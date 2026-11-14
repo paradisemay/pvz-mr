@@ -147,6 +147,20 @@ namespace Pvz.Runtime
         /// <summary>Between the start and the end of a shift (settings are limited then).</summary>
         private bool ShiftRunning => director != null && director.IsStarted && !director.IsShiftOver;
 
+        public const string HandInReturnsCaption = "СДАТЬ\nВОЗВРАТЫ";
+
+        /// <summary>T045: the returns waiting for the hand-in, on the shift screen (nothing when there are none).</summary>
+        public static string ReturnsLine(int inBin, int pending) =>
+            pending > 0 ? $"\nВозвраты: в ящике {inBin} из {pending}" : string.Empty;
+
+        /// <summary>T045: «Сдать возвраты» — what lies in the returns bin is handed in.</summary>
+        public void HandInReturns()
+        {
+            if (director == null || !ShiftRunning) return;
+            director.HandInReturns();
+            RefreshText();
+        }
+
         /// <summary>«Завершить смену»: the first press asks to confirm, the second (within a few seconds) ends the shift.</summary>
         public void EndShift()
         {
@@ -226,7 +240,8 @@ namespace Pvz.Runtime
                 session?.Order.Number, session?.Order.Boxes.Count ?? 0, session?.DeliveredCount ?? 0, session?.AwaitingBag ?? false,
                 desk.HasActiveReturn ? desk.ActiveReturn.OrderNumber : null,
                 Math.Max(0, director.QueuedVisits.Count - (desk.HasCustomer ? 1 : 0)),
-                director.Shift.TimeLeft(Time.timeAsDouble), IsConfirmingEnd, desk.AwaitsCode, session?.ScannedCount ?? 0);
+                director.Shift.TimeLeft(Time.timeAsDouble), IsConfirmingEnd, desk.AwaitsCode, session?.ScannedCount ?? 0)
+                + ReturnsLine(director.Shift.Returns.InBin, director.Shift.Returns.Pending);
         }
 
         /// <summary>The shift screen: the order at the counter, how many of its items are scanned and handed over, the line, the time.</summary>

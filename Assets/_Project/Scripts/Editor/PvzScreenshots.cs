@@ -162,6 +162,19 @@ namespace Pvz.Editor
             board.ShowStatus("Отсканируйте коробку клиента на стойке", CounterBoard.Neutral);
             scanner.ShowResult("Заказ №1435\nВОЗВРАТ ПРИНЯТ", CounterBoard.Good);
             Capture("10_return", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.25f, 1.25f, 1.3f), 70f);
+
+            // T045 (#85): the customer checked a box and refused it — it is back on the counter, for the returns bin.
+            customer.Say(ShiftPresenter.RefusalLine);
+            board.ShowHeadline("Выдан с отказом", CounterBoard.Accent);
+            board.ShowStatus("Коробку — в ящик возвратов", CounterBoard.Neutral);
+            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen(null, 0, 0, false, null, 2, 198, false)
+                + PvzComputer.ReturnsLine(1, 2), beforeShift: false);
+            var bin = Object.FindFirstObjectByType<ReturnsBin>().transform;
+            var stowed = Object.Instantiate(returnPrefab, bin.position + new Vector3(0f, 0.14f, 0f), bin.rotation * Quaternion.Euler(0f, 20f, 0f));
+            stowed.AssignId("BOX-002", QrTextures.Create("BOX-002"));
+            Capture("28_refusal", new Vector3(0.1f, 1.7f, -0.75f), new Vector3(0.5f, 0.7f, 0.85f), 76f);
+            Capture("29_returns_bin", bin.position + new Vector3(-0.35f, 1.0f, -0.9f), bin.position + new Vector3(0f, 0.2f, 0f), 50f);
+            Object.DestroyImmediate(stowed.gameObject);
             Object.DestroyImmediate(returnBox.gameObject);
             customer.ShowPatience(0.55);
 

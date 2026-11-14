@@ -638,6 +638,25 @@ namespace Pvz.Runtime.Remote
                     yield return pause;
                 }
 
+                // T045: returned and refused boxes go into the returns bin, and once there they are handed in.
+                if (director.ReturnsBin != null)
+                {
+                    var loose = director.ReturnBoxes.Where(b => !director.ReturnsBin.Contains(b) && !b.IsHeld).ToArray();
+                    for (var i = 0; i < loose.Length; i++)
+                    {
+                        var returned = loose[i];
+                        // Spread over the bin, a little higher each: two boxes never drop in at the same point.
+                        var drop = director.ReturnsBin.transform.TransformPoint(new Vector3((i % 2 - 0.5f) * 0.1f, 0.3f + 0.25f * (i / 2), 0f));
+                        Teleport(returned.transform, returned.GetComponent<Rigidbody>(), drop);
+                        yield return pause;
+                    }
+                    if (director.Shift.Returns.InBin > 0)
+                    {
+                        director.HandInReturns();
+                        yield return pause;
+                    }
+                }
+
                 var desk = director.Desk;
                 if (desk.AwaitsCode && director.CurrentCustomer != null && !director.CurrentCustomer.IsWalking)
                 {

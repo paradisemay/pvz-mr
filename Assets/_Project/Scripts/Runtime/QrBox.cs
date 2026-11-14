@@ -32,6 +32,43 @@ namespace Pvz.Runtime
         /// <summary>True once the box was handed over and belongs to a customer.</summary>
         public bool IsHandedOver { get; private set; }
 
+        /// <summary>
+        /// T045 (#85): a box that came back (a return or a refusal): loose on the counter, to be put into the returns bin.
+        /// It is no longer stock, so the handover zone ignores it (<see cref="IsHandedOver"/> stays true).
+        /// </summary>
+        public bool IsReturn { get; private set; }
+
+        /// <summary>
+        /// T045: the box came back to the counter — the player can grab it and carry it to the returns bin.
+        /// <paramref name="room"/> is where boxes of the room live (the lost-box check measures reach from it);
+        /// <paramref name="home"/> says where a return lost out of reach comes back (the counter, wherever it is then).
+        /// </summary>
+        public void BecomeReturn(Vector3 position, Quaternion rotation, Transform room, System.Func<Vector3> home)
+        {
+            // A refused box still in the player's hand is let go first: velocity tracking would yank it back.
+            if (grabInteractable != null && grabInteractable.isSelected && grabInteractable.interactionManager != null)
+                grabInteractable.interactionManager.CancelInteractableSelection(
+                    (UnityEngine.XR.Interaction.Toolkit.Interactables.IXRSelectInteractable)grabInteractable);
+            IsHandedOver = true;
+            IsReturn = true;
+            if (room != null) _startParent = room;
+            transform.SetParent(_startParent, true);
+            transform.SetPositionAndRotation(position, rotation);
+            if (grabInteractable != null) grabInteractable.enabled = true;
+            if (body != null)
+            {
+                body.isKinematic = false;
+                body.detectCollisions = true;
+                body.interpolation = RigidbodyInterpolation.Interpolate;
+                body.position = position;
+                body.rotation = rotation;
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
+            // A return dropped out of reach comes back to the counter (where it is then), not out of the hatch.
+            Respawn = home ?? (() => position);
+        }
+
         /// <summary>The player holds the box right now.</summary>
         public bool IsHeld => grabInteractable != null && grabInteractable.isSelected;
 
@@ -49,7 +86,7 @@ namespace Pvz.Runtime
 
         private void Update()
         {
-            if (IsHandedOver) return;
+            if (IsHandedOver && !IsReturn) return;
             var origin = _startParent != null ? _startParent.position : Vector3.zero;
             var offset = transform.position - origin;
             offset.y = 0f;

@@ -19,6 +19,9 @@ namespace Pvz.Runtime
         [SerializeField] private ARPlaneManager planes;
         [Tooltip("Where the dropped boxes live (the boxes root of the play area), so they stay put if the hatch moves.")]
         [SerializeField] private Transform boxesRoot;
+
+        /// <summary>Where the boxes of the room live (the play area's boxes root).</summary>
+        public Transform BoxesRoot => boxesRoot != null ? boxesRoot : transform.parent;
         [Tooltip("The hatch panel and its doors: put at the ceiling height.")]
         [SerializeField] private Transform panel;
         [SerializeField] private Transform doorLeft;

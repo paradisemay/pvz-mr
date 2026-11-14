@@ -49,6 +49,10 @@ namespace Pvz.Editor
             easy.ConfigurePace(orders: 6, interval: 30f, queue: 3);
             settings.ConfigurePace(orders: 10, interval: 22f, queue: 4);
             hard.ConfigurePace(orders: 14, interval: 15f, queue: 4);
+            // T045 (#85): customers who check a box and refuse it.
+            easy.ConfigureRefusals(0);
+            settings.ConfigureRefusals(15);
+            hard.ConfigureRefusals(25);
             foreach (var preset in new[] { easy, settings, hard }) EditorUtility.SetDirty(preset);
             var prefabs = new PvzPrefabBuilder(font);
 
@@ -159,6 +163,12 @@ namespace Pvz.Editor
             PrefabUtility.RecordPrefabInstancePropertyModifications(counterBoard); // an override on the counter prefab instance
             director.ConfigureStartMenu(startMenu.gameObject);
             director.ConfigureReturns(supplyBoxPrefab); // returned boxes use the generic box with a runtime QR
+            // T045 (#85): returned and refused boxes go into the bin by the counter; the computer hands them in.
+            var returnsBin = CreateReturnsBin(rig, font);
+            returnsBin.Configure(mover); // the boxes in it ride along when the counter is carried
+            director.ConfigureReturnsBin(returnsBin);
+            CreateComputerKey(pc.Shift, 2, PvzComputer.HandInReturnsCaption, ComputerKey.Action.HandInReturns, pc.Computer, font,
+                new Color(0.55f, 0.7f, 0.95f));
             director.ConfigureEffects(counter.GetComponentInChildren<FeedbackEffects>(true));
 
             // The supply hatch is moved like the counter (T036): settings → «Место люка», a handle hanging from it.
@@ -478,6 +488,37 @@ namespace Pvz.Editor
             var room = go.AddComponent<RoomMesh>();
             room.Configure(manager);
             return room;
+        }
+
+        /// <summary>T045: the returns bin on the floor in front of the counter's right corner (under the handover zone, clear of the rack), in counter rig space.</summary>
+        public static readonly Vector3 ReturnsBinPosition = CounterPosition + new Vector3(0.75f, 0f, -0.88f);
+
+        /// <summary>
+        /// T045 (#85): an open crate on the floor marked «ВОЗВРАТЫ», with a trigger inside: returned and refused boxes are
+        /// put here, the computer's «Сдать возвраты» hands them in. Part of the counter rig: it moves with the counter.
+        /// </summary>
+        private static ReturnsBin CreateReturnsBin(Transform rig, TMPro.TMP_FontAsset font)
+        {
+            var root = new GameObject("Returns Bin").transform;
+            root.SetParent(rig, false);
+            root.localPosition = ReturnsBinPosition;
+            const float w = 0.7f, h = 0.4f, d = 0.55f, t = 0.02f; // four boxes lie on its bottom
+            var body = Lit("ReturnsBin", new Color(0.24f, 0.33f, 0.52f), 0.3f);
+            var rim = Lit("ReturnsBinRim", new Color(0.98f, 0.55f, 0.15f), 0.3f);
+            Primitive(PrimitiveType.Cube, "Bottom", root, new Vector3(0f, t / 2f, 0f), new Vector3(w, t, d), body, true);
+            foreach (var side in new[] { -1f, 1f })
+            {
+                Primitive(PrimitiveType.Cube, "Wall", root, new Vector3(side * (w - t) / 2f, h / 2f, 0f), new Vector3(t, h, d), body, true);
+                Primitive(PrimitiveType.Cube, "Wall", root, new Vector3(0f, h / 2f, side * (d - t) / 2f), new Vector3(w, h, t), body, true);
+            }
+            Primitive(PrimitiveType.Cube, "Rim", root, new Vector3(0f, h, -(d - t) / 2f), new Vector3(w + 0.01f, 0.03f, t + 0.01f), rim);
+            Text("Label", root, new Vector3(0f, h * 0.55f, -d / 2f - 0.002f), new Vector2(w - 0.06f, 0.1f), "ВОЗВРАТЫ", font,
+                Color.white, 0.6f);
+            var trigger = root.gameObject.AddComponent<BoxCollider>();
+            trigger.isTrigger = true;
+            trigger.center = new Vector3(0f, h / 2f + t, 0f);
+            trigger.size = new Vector3(w - 2f * t - 0.02f, h - t, d - 2f * t - 0.02f);
+            return root.gameObject.AddComponent<ReturnsBin>();
         }
 
         /// <summary>Where the scanner lies on the counter (counter rig space): on its side, the nose to the left.</summary>

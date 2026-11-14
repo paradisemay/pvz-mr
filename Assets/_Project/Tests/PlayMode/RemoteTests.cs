@@ -67,7 +67,7 @@ namespace Pvz.Runtime.Tests
         }
 
         /// <summary>
-        /// #106: a hard shift by the autopilot — a long stock (T044), a delivery and returns: no order is sold twice, and
+        /// #106: a hard shift by the autopilot — a long stock (T044), a delivery, returns and refusals (T045): no order is sold twice, and
         /// the summary never says more customers were served than the shift had.
         /// </summary>
         [UnityTest, Timeout(300000)]
