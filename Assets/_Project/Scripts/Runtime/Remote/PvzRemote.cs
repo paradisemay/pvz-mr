@@ -229,6 +229,7 @@ namespace Pvz.Runtime.Remote
                 .Add("ok", true)
                 .Add("time", Time.realtimeSinceStartup)
                 .Add("fps", _fps)
+                .Add("hz", DisplayRate.Current)
                 .Add("timeScale", Time.timeScale)
                 .Add("scene", SceneManager.GetActiveScene().name)
                 .Add("autoplay", IsAutoplaying)
