@@ -587,7 +587,9 @@ namespace Pvz.Runtime
             _board.ShowStatus($"+{_shift.Stats.LastOrderPoints} очков", CounterBoard.Good);
         }
 
-        private void RefreshScore() => _board.ShowScore(_shift.Stats.Score, _shift.Stats.OrdersCompleted, _shift.OrdersTotal, _clock);
+        // T047: a «потеряшка» cannot be handed over — it is not counted in what is left to hand over.
+        private void RefreshScore() => _board.ShowScore(_shift.Stats.Score, _shift.Stats.OrdersCompleted,
+            _shift.OrdersTotal - _shift.Stats.LostOrders, _clock);
 
         private void Celebrate()
         {

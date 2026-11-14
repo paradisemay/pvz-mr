@@ -65,7 +65,7 @@ namespace Pvz.Core
         internal void OnFalseNotFound()
         {
             FalseNotFound++;
-            Score -= _rules.FalseNotFoundPenalty;
+            Score = Math.Max(0, Score - _rules.FalseNotFoundPenalty); // never below zero, like the other penalties
             Changed?.Invoke();
         }
 
@@ -102,7 +102,7 @@ namespace Pvz.Core
         {
             if (count <= 0) return;
             ReturnsLost += count;
-            Score -= count * _rules.ReturnLostPenalty;
+            Score = Math.Max(0, Score - count * _rules.ReturnLostPenalty);
             Changed?.Invoke();
         }
 

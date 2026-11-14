@@ -82,7 +82,7 @@ namespace Pvz.Runtime.Tests
             yield return null;
             Assert.IsTrue(_director.Desk.HasActiveOrder && _director.Desk.ActiveOrder == order, "the customer keeps waiting");
             Assert.AreEqual(1, _director.Stats.FalseNotFound);
-            Assert.Less(_director.Stats.Score, before);
+            Assert.AreEqual(System.Math.Max(0, before - _director.Stats.FalseNotFoundPenaltyPoints), _director.Stats.Score, "a penalty (never below zero)");
             StringAssert.Contains("есть на складе", Object.FindFirstObjectByType<CounterBoard>().Headline);
         }
     }

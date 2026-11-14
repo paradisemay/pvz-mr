@@ -46,16 +46,53 @@ namespace Pvz.Core.Tests
             Assert.IsFalse(shift.DeclareNotFound());
             Assert.IsTrue(shift.Desk.HasActiveOrder, "the box is there: the customer keeps waiting");
             Assert.AreEqual(1, shift.Stats.FalseNotFound);
-            Assert.AreEqual(before - ScoringRules.Default.FalseNotFoundPenalty, shift.Stats.Score);
+            Assert.AreEqual(System.Math.Max(0, before - ScoringRules.Default.FalseNotFoundPenalty), shift.Stats.Score);
         }
 
         [Test]
-        public void AMissingBoxAlreadyHandedOver_IsNotMissing_ANotFoundIsWrong()
+        public void OnlyTheBoxesStillToHandOver_Count_ForNotFound()
         {
-            var shift = ShiftWith(); // nothing is missing at all
+            var shift = ShiftWith(A1); // A1 is marked missing…
+            shift.Desk.OpenOrder(new Order("4401", new[] { A1, A2 }), 0);
+            shift.Desk.Handover(A1, 1); // …but it was handed over all the same
+            Assert.IsFalse(shift.DeclareNotFound(), "what is left (A2) is in the warehouse");
+            Assert.AreEqual(1, shift.Stats.FalseNotFound);
+        }
+
+        [Test]
+        public void APenalty_NeverTakesTheScoreBelowZero()
+        {
+            var shift = ShiftWith();
+            shift.Desk.OpenOrder(new Order("5502", new[] { B }), 0);
+            shift.DeclareNotFound();
+            Assert.AreEqual(0, shift.Stats.Score);
+        }
+
+        [Test]
+        public void TheShiftOver_ACustomerWaitingOnlyForAMissingBox_GivesUp()
+        {
+            var shift = ShiftWith(A2);
+            shift.TimeLimitSeconds = 60;
+            shift.Start(0);
+            shift.Desk.OpenOrder(new Order("4401", new[] { A1, A2 }), 0);
+            shift.Desk.Handover(A1, 1); // partly handed over: patience no longer ticks for a normal order
+            shift.Tick(30);
+            Assert.IsTrue(shift.Desk.HasActiveOrder);
+            shift.Tick(61);
+            Assert.IsFalse(shift.Desk.HasCustomer, "nothing can complete the order: the customer leaves, the shift can end");
+            Assert.IsTrue(shift.IsOver);
+        }
+
+        [Test]
+        public void PatienceRunsOut_ForWhatCannotArrive_EvenAfterPartOfTheOrder()
+        {
+            var shift = ShiftWith(A2);
+            shift.PatienceSeconds = 20;
             shift.Desk.OpenOrder(new Order("4401", new[] { A1, A2 }), 0);
             shift.Desk.Handover(A1, 1);
-            Assert.IsFalse(shift.DeclareNotFound(), "A2 is in the warehouse");
+            shift.Tick(25);
+            Assert.IsFalse(shift.Desk.HasCustomer, "the customer does not wait forever for a missing box");
+            Assert.IsFalse(shift.IsForSale("4401"), "and nobody else is sent for it");
         }
 
         [Test]
