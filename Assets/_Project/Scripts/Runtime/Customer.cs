@@ -80,15 +80,17 @@ namespace Pvz.Runtime
             if (speech != null) speech.Hide();
         }
 
-        /// <summary>Boxes the customer carries are stacked on top of each other.</summary>
+        /// <summary>
+        /// Boxes the customer carries are stacked in front of the chest; once the next one would hide the face, it goes
+        /// to a stack at the side instead (seen on the headset: two boxes on the chest covered the customer's face).
+        /// </summary>
         public void Take(QrBox box)
         {
             if (box == null) return;
             box.HandTo(carryAnchor != null ? carryAnchor : transform);
             var collider = box.GetComponent<BoxCollider>();
             var height = collider != null ? collider.size.y * box.transform.localScale.y : 0.27f;
-            box.transform.localPosition = Vector3.up * (_stackHeight + height / 2f);
-            _stackHeight += height + 0.005f;
+            box.transform.localPosition = CarryStacks.Place(_stacks, height);
         }
 
         public void Take(ParcelBag bag)
@@ -96,7 +98,7 @@ namespace Pvz.Runtime
             if (bag != null) bag.HandTo(carryAnchor != null ? carryAnchor : transform);
         }
 
-        private float _stackHeight;
+        private readonly float[] _stacks = new float[CarryStacks.ColumnX.Length];
 
         private Coroutine _walk;
 
