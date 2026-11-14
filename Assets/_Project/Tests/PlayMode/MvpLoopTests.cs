@@ -22,8 +22,7 @@ namespace Pvz.Runtime.Tests
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
-            WarehouseLayoutKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // never the real saved layout
-            CounterPlacementKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // nor the saved place of the counter
+            PlacementKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // nor the saved place of the counter
             CareerKeeper.StoreOverride = (new Pvz.Core.MemoryScoreStore(), new Pvz.Core.MemoryTextStore()); // nor the career
             yield return SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Single);
             yield return null;
@@ -37,14 +36,15 @@ namespace Pvz.Runtime.Tests
             director.UseAutoCustomerCode();  // the phone's code is read at once, unless a test is about it (T035)
             director.UseTimeLimit(0);        // the shift lasts as long as the test needs
             Time.timeScale = TimeScale;
+            var pileDeadline = Time.realtimeSinceStartup + 20f;
+            while (director.Hatch.IsDropping && Time.realtimeSinceStartup < pileDeadline) yield return null; // the stock is down (T036)
         }
 
         [UnityTearDown]
         public IEnumerator Restore()
         {
             Time.timeScale = 1f;
-            WarehouseLayoutKeeper.StoreOverride = null;
-            CounterPlacementKeeper.StoreOverride = null;
+            PlacementKeeper.StoreOverride = null;
             CareerKeeper.StoreOverride = null;
             yield return null;
         }
@@ -131,7 +131,7 @@ namespace Pvz.Runtime.Tests
             Assert.AreEqual(5, director.Stats.BagsGiven);
             Assert.AreEqual(4, director.Stats.BoxesReceived);
             Assert.Greater(director.Stats.Score, 0);
-            Assert.AreEqual(0, director.Desk.Catalog.Count);
+            Assert.AreEqual(director.ActiveSettings.SpareBoxes.Length, director.Desk.Catalog.Count, "only the spare boxes stay (other days' orders, T036)");
 
             var summary = Object.FindFirstObjectByType<ShiftSummaryPanel>(FindObjectsInactive.Include);
             Assert.IsTrue(summary.IsVisible, "shift summary should be visible");
@@ -498,38 +498,38 @@ namespace Pvz.Runtime.Tests
         {
             var director = Object.FindFirstObjectByType<ShiftDirector>();
             var box = director.RemainingBoxes.First();
-            var start = box.transform.position;
+            var hatch = director.Hatch.DropPoint;
 
             yield return MoveTo(box, new Vector3(0f, -5f, 0f)); // fell through the floor
             yield return null;
 
-            Assert.Less(Vector3.Distance(start, box.transform.position), 0.3f);
+            // T036: a lost box drops out of the hatch again (where it first came from).
+            var p = box.transform.position;
+            Assert.Less(new Vector2(p.x - hatch.x, p.z - hatch.z).magnitude, 0.4f);
+            Assert.Greater(p.y, 1.0f, "back up at the hatch");
         }
 
+        /// <summary>T036 (#80): the stock of the shift and a few spare boxes drop out of the hatch into one pile.</summary>
         [UnityTest, Timeout(30000)]
-        public IEnumerator SupplyDrop_PlacesBoxesWhereThePlayerCanReachThem()
+        public IEnumerator Hatch_DropsTheStockAndSpares_IntoOnePile()
         {
-            var drop = Object.FindFirstObjectByType<SupplyDrop>();
-            var counter = Object.FindFirstObjectByType<HandoverZone>().transform.parent;
-            yield return null;
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            var settings = director.ActiveSettings;
+            yield return WaitUntil(() => !director.Hatch.IsDropping, 20f, "the pile is down");
+            yield return new WaitForSeconds(1.5f); // let it settle
 
-            for (var seed = 1; seed <= 5; seed++)
+            var boxes = director.RemainingBoxes.Where(b => b != null).ToArray();
+            CollectionAssert.AreEquivalent(settings.Boxes.Concat(settings.SpareBoxes).Select(b => b.boxId), boxes.Select(b => b.RawId),
+                "every box of the shift and the spares, nothing else");
+            var under = director.Hatch.DropPoint;
+            foreach (var box in boxes)
             {
-                var ids = Enumerable.Range(0, 5).Select(i => $"BOX-T{seed}{i}").ToArray();
-                var boxes = drop.Drop(ids, seed, 2.4f);
-                foreach (var box in boxes)
-                {
-                    var p = box.transform.position;
-                    Assert.Less(Mathf.Abs(p.x), 3.3f, $"{box.RawId} outside the mock room");
-                    Assert.Less(Mathf.Abs(p.z), 3.3f, $"{box.RawId} outside the mock room");
-                    var toCounter = new Vector2(p.x - counter.position.x, p.z - counter.position.z).magnitude;
-                    Assert.Greater(toCounter, 1.0f, $"{box.RawId} dropped onto the counter");
-                    Assert.IsFalse(Mathf.Abs(p.x) < 0.6f && p.z > 1.0f, $"{box.RawId} dropped onto the customers' walkway");
-                    Assert.Greater(p.y, 1.5f, "boxes start under the ceiling");
-                }
-                foreach (var box in boxes) Object.Destroy(box.gameObject);
-                yield return null;
+                var p = box.transform.position;
+                Assert.Less(new Vector2(p.x - under.x, p.z - under.z).magnitude, 1.2f, $"{box.RawId} lies in the pile under the hatch");
+                Assert.Less(p.y, 1.0f, $"{box.RawId} fell down");
+                Assert.Greater(p.y, -0.05f, $"{box.RawId} is not in the floor");
             }
+            foreach (var spare in settings.SpareBoxes) Assert.IsFalse(director.Shift.IsForSale(spare.orderNumber));
         }
 
         private static IEnumerator PlaceInZone(ShiftDirector director, QrBox box)

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using Pvz.Runtime;
 using TMPro;
 using UnityEditor;
@@ -48,9 +49,9 @@ namespace Pvz.Editor
             computer.Preview(PvzComputer.Screen.Settings, PvzComputer.SettingsText, beforeShift: true);
             Capture("18_computer_settings", ComputerCameraFrom, ComputerCameraAt, 48f);
             // Moving the counter (T034): the orange handle above its front edge and the moving screen.
-            var handle = Object.FindFirstObjectByType<CounterMover>().Handle.gameObject;
+            var handle = Object.FindFirstObjectByType<PlacementMover>().Handle.gameObject;
             handle.SetActive(true);
-            computer.Preview(PvzComputer.Screen.MovingCounter, PvzComputer.MovingText, beforeShift: true);
+            computer.Preview(PvzComputer.Screen.Moving, PvzComputer.MovingText, beforeShift: true);
             Capture("21_counter_move", new Vector3(-0.95f, 1.85f, -0.55f), new Vector3(0.05f, 1.25f, 0.75f), 60f);
             handle.SetActive(false);
             computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen("2781", 2, 1, false, null, 2, 263, false), beforeShift: false);
@@ -71,9 +72,11 @@ namespace Pvz.Editor
 
             HideEditorOnlyClutter();
             Object.FindFirstObjectByType<BagDispenser>().Refill(); // a bag lies on the counter as in play mode
+            var pile = StagePile(); // T036: the stock of the shift lies in a pile under the supply hatch
 
             Capture("01_overview", new Vector3(-2.6f, 2.5f, -2.9f), new Vector3(0.1f, 0.8f, 0.6f), 55f);
             Capture("02_player_view", new Vector3(0f, 1.6f, -0.2f), new Vector3(0.1f, 1.62f, 1.6f), 72f);
+            Capture("23_hatch_pile", new Vector3(0.35f, 1.6f, -0.7f), new Vector3(-1.35f, 1.05f, 0.45f), 72f);
             Capture("19_computer_shift", ComputerCameraFrom, ComputerCameraAt, 48f);
             Capture("03_counter_closeup", new Vector3(0.35f, 1.55f, 0.15f), new Vector3(0.15f, 1.2f, 1.1f), 60f);
 
@@ -190,13 +193,24 @@ namespace Pvz.Editor
             Capture("12_time_up", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.1f, 1.55f, 1.3f), 70f);
             board.ShowScore(150, 1, 3);
 
-            // Supply delivery: boxes just appeared under the ceiling.
-            var supply = Object.FindFirstObjectByType<SupplyDrop>();
-            var dropped = supply.Drop(new[] { "BOX-101", "BOX-102", "BOX-103" }, 7, 2.4f);
+            // Supply delivery (T036): the hatch is open, the boxes fall out of it in a stream onto the pile.
+            var hatch = Object.FindFirstObjectByType<SupplyHatch>();
+            var doors = hatch.GetComponentsInChildren<Transform>(true).Where(t => t.name.StartsWith("Door")).ToArray();
+            foreach (var door in doors) door.localRotation = Quaternion.Euler(0f, 0f, door.name.EndsWith("Left") ? -80f : 80f);
+            var boxPrefab = AssetDatabase.LoadAssetAtPath<QrBox>(PvzAssetFactory.PrefabsDir + "/Box_Supply.prefab");
+            var dropped = new System.Collections.Generic.List<QrBox>();
+            var deliveryIds = new[] { "BOX-101", "BOX-102", "BOX-103" };
+            for (var i = 0; i < deliveryIds.Length; i++)
+            {
+                var falling = Object.Instantiate(boxPrefab, hatch.DropPoint - Vector3.up * (0.45f * i), Quaternion.Euler(10f * i, 40f * i, 5f));
+                falling.AssignId(deliveryIds[i], QrTextures.Create(deliveryIds[i]));
+                dropped.Add(falling);
+            }
             board.ShowHeadline("ПОСТАВКА!", CounterBoard.Accent);
             board.ShowStatus("Отсканируйте новые коробки: 0/3", CounterBoard.Neutral);
-            Capture("07_supply", new Vector3(-2.9f, 1.9f, -3.1f), new Vector3(0f, 1.3f, 0f), 62f);
+            Capture("07_supply", new Vector3(0.6f, 1.55f, -0.9f), new Vector3(-1.35f, 1.3f, 0.45f), 75f);
             foreach (var droppedBox in dropped) Object.DestroyImmediate(droppedBox.gameObject);
+            foreach (var door in doors) door.localRotation = Quaternion.identity;
 
             customer.Say("Спасибо!\nХорошего дня!");
             var summary = Object.FindFirstObjectByType<ShiftSummaryPanel>();
@@ -255,6 +269,33 @@ namespace Pvz.Editor
         /// <summary>Where the player stands looking down at the computer and its keys.</summary>
         private static readonly Vector3 ComputerCameraFrom = new Vector3(-0.12f, 1.62f, 0.38f);
         private static readonly Vector3 ComputerCameraAt = new Vector3(-0.14f, 1.16f, 1.0f);
+
+        /// <summary>
+        /// The pile under the supply hatch as play mode leaves it (no physics in the editor: stacked by hand) — the stock and
+        /// the spare boxes of the default settings.
+        /// </summary>
+        private static System.Collections.Generic.List<QrBox> StagePile()
+        {
+            var hatch = Object.FindFirstObjectByType<SupplyHatch>();
+            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(PvzSceneBuilder.SettingsPath);
+            var prefab = AssetDatabase.LoadAssetAtPath<QrBox>(PvzAssetFactory.PrefabsDir + "/Box_Supply.prefab");
+            var ids = settings.Boxes.Concat(settings.SpareBoxes).Select(b => b.boxId).ToArray();
+            var floor = hatch.transform.position;
+            var spots = new[]
+            {
+                new Vector3(-0.2f, 0.13f, -0.05f), new Vector3(0.18f, 0.13f, 0.08f), new Vector3(0.02f, 0.13f, -0.38f),
+                new Vector3(-0.05f, 0.4f, -0.1f), new Vector3(0.1f, 0.13f, 0.42f),
+            };
+            var boxes = new System.Collections.Generic.List<QrBox>();
+            for (var i = 0; i < ids.Length; i++)
+            {
+                var spot = floor + spots[i % spots.Length] + Vector3.up * (0.27f * (i / spots.Length));
+                var box = Object.Instantiate(prefab, spot, Quaternion.Euler(0f, 25f * i - 30f, i == 3 ? 8f : 0f));
+                box.AssignId(ids[i], QrTextures.Create(ids[i]));
+                boxes.Add(box);
+            }
+            return boxes;
+        }
 
         private static void Capture(string name, Vector3 from, Vector3 lookAt, float fov, Vector3? up = null)
         {

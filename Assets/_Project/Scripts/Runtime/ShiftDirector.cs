@@ -15,7 +15,6 @@ namespace Pvz.Runtime
     public sealed class ShiftDirector : MonoBehaviour
     {
         [SerializeField] private ShiftSettings settings;
-        [SerializeField] private QrBox[] boxes = Array.Empty<QrBox>();
         [SerializeField] private HandScanner scanner;
         [SerializeField] private HandoverZone handoverZone;
         [SerializeField] private Customer customerPrefab;
@@ -25,7 +24,8 @@ namespace Pvz.Runtime
         [SerializeField] private ShiftSummaryPanel summaryPanel;
         [SerializeField] private GameObject restartButton;
         [SerializeField] private FeedbackAudio feedback;
-        [SerializeField] private SupplyDrop supplyDrop;
+        [Tooltip("The supply hatch: the stock of every shift (and deliveries) drop out of it into a pile (T036).")]
+        [SerializeField] private SupplyHatch hatch;
         [Tooltip("Optional: buttons to pick the difficulty. Without them the shift starts at once with the default settings.")]
         [SerializeField] private DifficultyButton[] difficultyButtons = Array.Empty<DifficultyButton>();
         [Tooltip("Optional: everything shown before the shift (difficulty buttons, recenter button); hidden on start.")]
@@ -155,21 +155,14 @@ namespace Pvz.Runtime
             restartButton.SetActive(false);
             if (chosen != null) settings = chosen;
 
+            // T036: the warehouse is what drops out of the hatch — the shift's orders and a few spare boxes (other days' orders).
             var catalog = new BoxCatalog();
-            foreach (var box in boxes)
+            var pile = new List<string>();
+            foreach (var definition in settings.Boxes.Concat(settings.SpareBoxes))
             {
-                if (box == null) continue;
-                if (!settings.TryGetOrderNumber(box.Id, out var orderNumber))
-                {
-                    Debug.LogWarning($"[ShiftDirector] Box {box.RawId} has no order in {settings.name}; it is ignored.", box);
-                    continue;
-                }
-                if (!_registry.Register(box))
-                {
-                    Debug.LogWarning($"[ShiftDirector] Duplicate box {box.RawId}; it is ignored.", box);
-                    continue;
-                }
-                catalog.Add(new BoxRecord(box.Id, orderNumber));
+                if (string.IsNullOrEmpty(definition.boxId) || pile.Contains(definition.boxId)) continue;
+                catalog.Add(new BoxRecord(new BoxId(definition.boxId), definition.orderNumber));
+                pile.Add(definition.boxId);
             }
 
             Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules(), settings.CreateSupplyPlan(),
@@ -182,6 +175,7 @@ namespace Pvz.Runtime
                 RequiresCustomerCode = true, // T035: the customer shows a barcode on the phone first
                 TimeLimitSeconds = settings.ShiftDurationSeconds,
             };
+            Shift.MarkNotForSale(settings.SpareBoxes.Select(b => b.orderNumber)); // nobody comes for the spare boxes
             Shift.Start(Now);
             if (Shift.ReturnChancePercent > 0 && returnBoxPrefab == null)
             {
@@ -191,6 +185,7 @@ namespace Pvz.Runtime
             _presenter = new ShiftPresenter(Shift, board, scanner, feedback, effects, settings.ShowTutorial);
             _supplySeed = settings.CreateRandomSource().Range(1, int.MaxValue);
             Subscribe();
+            DropPile(pile);
 
             foreach (var button in difficultyButtons) if (button != null) button.gameObject.SetActive(false);
             if (startMenu != null) startMenu.SetActive(false);
@@ -199,12 +194,38 @@ namespace Pvz.Runtime
             ShiftStarted?.Invoke();
         }
 
+        /// <summary>The stock of the shift falls out of the hatch in a mixed order (spares among the orders).</summary>
+        private void DropPile(List<string> ids)
+        {
+            if (hatch == null)
+            {
+                Debug.LogError("[ShiftDirector] No supply hatch: the shift has no boxes. Rebuild the scene.", this);
+                return;
+            }
+            var random = new System.Random(_supplySeed);
+            for (var i = ids.Count - 1; i > 0; i--)
+            {
+                var j = random.Next(i + 1);
+                (ids[i], ids[j]) = (ids[j], ids[i]);
+            }
+            StartCoroutine(hatch.Drop(ids, _supplySeed, settings.DefaultCeilingHeight));
+        }
+
+        private void OnBoxDropped(QrBox box)
+        {
+            if (box != null) _registry.Register(box);
+        }
+
+        /// <summary>The hatch the stock falls out of (T036).</summary>
+        public SupplyHatch Hatch => hatch;
+
         private void Subscribe()
         {
             if (_subscribed) return;
             _subscribed = true;
             scanner.BoxScanned += OnBoxScanned;
             scanner.Missed += OnScanMissed;
+            if (hatch != null) hatch.BoxDropped += OnBoxDropped;
             scanner.PhoneScanned += OnPhoneScanned;
             Desk.CodeScanned += OnCodeScanned;
             Shift.OrderAbandoned += OnOrderAbandoned;
@@ -221,6 +242,7 @@ namespace Pvz.Runtime
             _subscribed = false;
             scanner.BoxScanned -= OnBoxScanned;
             scanner.Missed -= OnScanMissed;
+            if (hatch != null) hatch.BoxDropped -= OnBoxDropped;
             scanner.PhoneScanned -= OnPhoneScanned;
             Desk.CodeScanned -= OnCodeScanned;
             Shift.OrderAbandoned -= OnOrderAbandoned;
@@ -265,6 +287,7 @@ namespace Pvz.Runtime
 
         private IEnumerator RunShift()
         {
+            yield return new WaitUntil(() => hatch == null || !hatch.IsDropping); // the pile is down before anyone comes
             yield return new WaitForSeconds(settings.FirstCustomerDelay);
             while (!Shift.IsOver)
             {
@@ -296,13 +319,12 @@ namespace Pvz.Runtime
 
         private void SpawnDelivery(IReadOnlyList<BoxRecord> delivery)
         {
-            if (supplyDrop == null)
+            if (hatch == null)
             {
-                Debug.LogError("[ShiftDirector] A delivery arrived but there is no SupplyDrop in the scene.", this);
+                Debug.LogError("[ShiftDirector] A delivery arrived but there is no supply hatch in the scene.", this);
                 return;
             }
-            var ids = delivery.Select(b => b.Id.Value).ToArray();
-            foreach (var box in supplyDrop.Drop(ids, _supplySeed, settings.DefaultCeilingHeight)) _registry.Register(box);
+            StartCoroutine(hatch.Drop(delivery.Select(b => b.Id.Value).ToArray(), _supplySeed, settings.DefaultCeilingHeight));
         }
 
         /// <summary>
@@ -559,9 +581,9 @@ namespace Pvz.Runtime
         internal void ConfigureCareer(CareerKeeper careerKeeper) => career = careerKeeper;
 
         [Tooltip("Optional: the counter can be moved (T034); the line then walks to its new place.")]
-        [SerializeField] private CounterPlacementKeeper counterPlacement;
+        [SerializeField] private PlacementKeeper counterPlacement;
 
-        internal void ConfigureCounterPlacement(CounterPlacementKeeper keeper) => counterPlacement = keeper;
+        internal void ConfigureCounterPlacement(PlacementKeeper keeper) => counterPlacement = keeper;
 
         /// <summary>The counter moved: everyone in line walks to their place at it again.</summary>
         public void RepositionLine()
@@ -575,14 +597,13 @@ namespace Pvz.Runtime
 
         public FeedbackEffects Effects => effects;
 
-        internal void Configure(ShiftSettings shiftSettings, QrBox[] sceneBoxes, HandScanner handScanner, HandoverZone zone,
+        internal void Configure(ShiftSettings shiftSettings, HandScanner handScanner, HandoverZone zone,
             Customer prefab, Transform spawn, Transform service, CounterBoard counterBoard, ShiftSummaryPanel summary,
-            GameObject restart, FeedbackAudio audio, SupplyDrop supply, DifficultyButton[] difficulty)
+            GameObject restart, FeedbackAudio audio, SupplyHatch supplyHatch, DifficultyButton[] difficulty)
         {
-            supplyDrop = supply;
+            hatch = supplyHatch;
             difficultyButtons = difficulty ?? Array.Empty<DifficultyButton>();
             settings = shiftSettings;
-            boxes = sceneBoxes;
             scanner = handScanner;
             handoverZone = zone;
             customerPrefab = prefab;

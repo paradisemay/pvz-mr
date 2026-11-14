@@ -5,13 +5,13 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 namespace Pvz.Runtime
 {
     /// <summary>
-    /// «Переместить стойку» (T034, #78): a handle appears by the counter; the player takes it with grip and carries the
-    /// counter — it slides on the floor and turns around the vertical only. «Применить» keeps the new place (saved),
+    /// Moving something the player arranges in the room (the counter T034, the supply hatch T036, the rack T037): a handle
+    /// appears; the player takes it with grip and carries the thing — it slides at its height and turns around the vertical only. «Применить» keeps the new place (saved),
     /// «Отмена» puts the counter back. Works before and during a shift: the line walks to the new place.
     /// </summary>
-    public sealed class CounterMover : MonoBehaviour
+    public sealed class PlacementMover : MonoBehaviour
     {
-        [SerializeField] private CounterPlacementKeeper keeper;
+        [SerializeField] private PlacementKeeper keeper;
         [SerializeField] private XRGrabInteractable handle;
         [Tooltip("Where the handle sits relative to the counter rig when nobody holds it.")]
         [SerializeField] private Vector3 handleOffset = new Vector3(0f, 1.45f, -0.55f);
@@ -134,8 +134,8 @@ namespace Pvz.Runtime
         // ---------- what lies on the counter rides along ----------
 
         [Tooltip("The counter top (rig space): boxes and bags lying there when the move starts ride along with the counter.")]
-        [SerializeField] private Vector3 riderZoneCenter = new Vector3(0f, 1.3f, 1f);
-        [SerializeField] private Vector3 riderZoneSize = new Vector3(1.5f, 0.5f, 0.65f);
+        [SerializeField] private Vector3 riderZoneCenter;
+        [SerializeField] private Vector3 riderZoneSize; // zero: nothing rides along (the hatch)
 
         private readonly System.Collections.Generic.List<(Rigidbody body, Vector3 position, Quaternion rotation)> _riders =
             new System.Collections.Generic.List<(Rigidbody, Vector3, Quaternion)>();
@@ -143,6 +143,7 @@ namespace Pvz.Runtime
         private void CollectRiders()
         {
             _riders.Clear();
+            if (riderZoneSize.sqrMagnitude < 1e-6f) return;
             var rig = keeper.Rig;
             var hits = Physics.OverlapBox(rig.TransformPoint(riderZoneCenter), riderZoneSize / 2f, rig.rotation, ~0, QueryTriggerInteraction.Ignore);
             foreach (var hit in hits)
@@ -186,11 +187,16 @@ namespace Pvz.Runtime
             }
         }
 
-        internal void Configure(CounterPlacementKeeper placementKeeper, XRGrabInteractable grabHandle, Vector3 offset)
+        internal void Configure(PlacementKeeper placementKeeper, XRGrabInteractable grabHandle, Vector3 offset,
+            Vector3 ridersCenter = default, Vector3 ridersSize = default)
         {
             keeper = placementKeeper;
             handle = grabHandle;
             handleOffset = offset;
+            riderZoneCenter = ridersCenter;
+            riderZoneSize = ridersSize;
         }
+
+        public PlacementKeeper Keeper => keeper;
     }
 }

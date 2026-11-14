@@ -15,40 +15,58 @@ namespace Pvz.Runtime
     /// </summary>
     public sealed class PvzComputer : MonoBehaviour
     {
-        public enum Screen { Menu, Settings, Shift, Summary, MovingCounter }
+        public enum Screen { Menu, Settings, Shift, Summary, Moving }
 
-        [SerializeField] private CounterMover counterMover;
+        [SerializeField] private PlacementMover counterMover;
+        [SerializeField] private PlacementMover hatchMover;
         [SerializeField] private GameObject movingKeys;
 
-        internal void ConfigureMover(CounterMover mover, GameObject keys)
+        /// <summary>What is being moved on the moving screen (null otherwise).</summary>
+        private PlacementMover _moving;
+
+        internal void ConfigureMover(PlacementMover mover, GameObject keys)
         {
             counterMover = mover;
             movingKeys = keys;
         }
 
-        /// <summary>«Переместить стойку» (T034): the handle appears; «Применить» / «Отмена» end it.</summary>
-        public void StartMovingCounter()
+        internal void ConfigureHatchMover(PlacementMover mover) => hatchMover = mover;
+
+        /// <summary>«Перенести стойку» (T034): the handle appears; «Применить» / «Отмена» end it.</summary>
+        public void StartMovingCounter() => StartMoving(counterMover);
+
+        /// <summary>«Место люка» (T036): the hatch is moved along the ceiling by a handle hanging from it.</summary>
+        public void StartMovingHatch() => StartMoving(hatchMover);
+
+        public void StartMoving(PlacementMover mover)
         {
-            if (counterMover == null || Current != Screen.Settings) return;
-            counterMover.Begin();
-            Show(Screen.MovingCounter);
+            if (mover == null || Current != Screen.Settings) return;
+            _moving = mover;
+            mover.Begin();
+            Show(Screen.Moving);
         }
 
         public void ApplyMove()
         {
-            if (counterMover == null || Current != Screen.MovingCounter) return;
-            counterMover.Apply();
+            if (_moving == null || Current != Screen.Moving) return;
+            _moving.Apply();
+            _moving = null;
             Show(Screen.Settings);
         }
 
         public void CancelMove()
         {
-            if (counterMover == null || Current != Screen.MovingCounter) return;
-            counterMover.Cancel();
+            if (_moving == null || Current != Screen.Moving) return;
+            _moving.Cancel();
+            _moving = null;
             Show(Screen.Settings);
         }
 
-        public const string MovingText = "Возьмите оранжевую ручку у стойки хватом\nи перенесите стойку, поверните её.\n\n«Применить» — оставить здесь,\n«Отмена» — вернуть на место.";
+        /// <summary>The moving screen for <paramref name="what"/> («стойку», «люк»).</summary>
+        public static string MovingTextFor(string what) =>
+            $"Возьмите оранжевую ручку хватом\nи перенесите {what}.\n\n«Применить» — оставить здесь,\n«Отмена» — вернуть на место.";
+
+        public static string MovingText => MovingTextFor("стойку");
 
         [SerializeField] private ShiftDirector director;
         [SerializeField] private TMP_Text screenText;
@@ -138,7 +156,11 @@ namespace Pvz.Runtime
         public void Show(Screen screen)
         {
             // Leaving the moving screen another way (the shift ended meanwhile): keep the counter where it is now.
-            if (screen != Screen.MovingCounter && counterMover != null && counterMover.IsMoving) counterMover.Apply();
+            if (screen != Screen.Moving && _moving != null && _moving.IsMoving)
+            {
+                _moving.Apply();
+                _moving = null;
+            }
             Current = screen;
             var shiftRunning = ShiftRunning;
             if (menuKeys != null) menuKeys.SetActive(screen == Screen.Menu);
@@ -146,7 +168,7 @@ namespace Pvz.Runtime
             if (settingsBeforeShiftKeys != null) settingsBeforeShiftKeys.SetActive(screen == Screen.Settings && !shiftRunning);
             if (shiftKeys != null) shiftKeys.SetActive(screen == Screen.Shift);
             if (summaryKeys != null) summaryKeys.SetActive(screen == Screen.Summary);
-            if (movingKeys != null) movingKeys.SetActive(screen == Screen.MovingCounter);
+            if (movingKeys != null) movingKeys.SetActive(screen == Screen.Moving);
             if (screen == Screen.Settings && shiftRunning) _beforeSettings = Screen.Shift;
             if (endShiftLabel != null && !IsConfirmingEnd) endShiftLabel.text = EndShiftCaption;
             RefreshText();
@@ -162,7 +184,7 @@ namespace Pvz.Runtime
                 Screen.Menu => MenuText,
                 Screen.Settings => ShiftRunning ? SettingsDuringShiftText : SettingsText,
                 Screen.Shift => ShiftText(),
-                Screen.MovingCounter => MovingText,
+                Screen.Moving => MovingTextFor(_moving != null && _moving.Keeper != null ? _moving.Keeper.DisplayName : "стойку"),
                 _ => SummaryText(),
             };
         }
@@ -172,13 +194,13 @@ namespace Pvz.Runtime
             Screen.Menu => "ПВЗ · НОВАЯ СМЕНА",
             Screen.Settings => "ПВЗ · НАСТРОЙКИ",
             Screen.Shift => "ПВЗ · СМЕНА",
-            Screen.MovingCounter => "ПВЗ · ПЕРЕНОС СТОЙКИ",
+            Screen.Moving => "ПВЗ · ПЕРЕНОС",
             _ => "ПВЗ · ИТОГИ",
         };
 
         public const string MenuText = "Выберите сложность смены\nкнопками ниже.\n\n«Настройки» — стойка, склад, тема.";
-        public const string SettingsText = "«Перенести стойку» — взять за ручку и поставить.\n«Стойку ко мне» — поставить перед собой.\n«Тема» — оформление стойки.\n«Сбросить склад» — коробки на места.";
-        public const string SettingsDuringShiftText = "«Перенести стойку» — взять за ручку и поставить:\nочередь перейдёт следом.\n«Тема» — оформление стойки.\nСклад сбрасывается до начала смены.";
+        public const string SettingsText = "«Перенести стойку» — взять за ручку и поставить.\n«Стойку ко мне» — поставить перед собой.\n«Тема» — оформление стойки.\n«Место люка» — откуда падают коробки.";
+        public const string SettingsDuringShiftText = "«Перенести стойку» — взять за ручку и поставить:\nочередь перейдёт следом.\n«Тема» — оформление стойки.\n«Место люка» — откуда падают коробки.";
 
         private string ShiftText()
         {
@@ -231,7 +253,7 @@ namespace Pvz.Runtime
             if (settingsBeforeShiftKeys != null) settingsBeforeShiftKeys.SetActive(screen == Screen.Settings && beforeShift);
             if (shiftKeys != null) shiftKeys.SetActive(screen == Screen.Shift);
             if (summaryKeys != null) summaryKeys.SetActive(screen == Screen.Summary);
-            if (movingKeys != null) movingKeys.SetActive(screen == Screen.MovingCounter);
+            if (movingKeys != null) movingKeys.SetActive(screen == Screen.Moving);
             if (titleText != null) titleText.text = TitleFor(screen);
             if (screenText != null) screenText.text = text;
             // Outside play mode text shown by activating its object is not laid out until something asks for it.

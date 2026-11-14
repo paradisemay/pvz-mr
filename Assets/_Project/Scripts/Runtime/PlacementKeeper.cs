@@ -5,17 +5,20 @@ using UnityEngine;
 namespace Pvz.Runtime
 {
     /// <summary>
-    /// Keeps the place of the counter in the room between sessions (T034, #78). The counter rig (counter, computer,
-    /// scanner, bag dispenser, the customers' path) is placed in the headset's tracking space — the room; boxes in the
-    /// room are not part of it and stay where they are.
+    /// Keeps the place of something the player arranges in the room between sessions: the counter rig (T034, #78 —
+    /// counter, computer, scanner, bags, the customers' path), the supply hatch (T036), the shelf rack (T037). Places are
+    /// in the headset's tracking space — the room; each thing under its own key.
     /// </summary>
-    public sealed class CounterPlacementKeeper : MonoBehaviour
+    public sealed class PlacementKeeper : MonoBehaviour
     {
         [SerializeField] private Transform rig;
+        [SerializeField] private string storeKey = PlacementStore.CounterKey;
+        [Tooltip("What it is, for the computer screen while moving it («стойку», «люк»).")]
+        [SerializeField] private string displayName = "стойку";
         [Tooltip("On a headset the play area is first put in front of the player; the saved place is restored after that.")]
         [SerializeField] private MrSessionSetup session;
 
-        private CounterPlacementStore _store;
+        private PlacementStore _store;
         private Vector3 _defaultLocalPosition;
         private Quaternion _defaultLocalRotation = Quaternion.identity;
 
@@ -23,6 +26,7 @@ namespace Pvz.Runtime
         internal static ITextStore StoreOverride { get; set; }
 
         public Transform Rig => rig;
+        public string DisplayName => displayName;
         public bool HasSaved => _store.TryLoad(out _);
 
         /// <summary>The rig was moved (restored, applied, reset): whoever walks to it must walk again.</summary>
@@ -30,7 +34,7 @@ namespace Pvz.Runtime
 
         private void Awake()
         {
-            _store = new CounterPlacementStore(StoreOverride ?? new PlayerPrefsTextStore());
+            _store = new PlacementStore(StoreOverride ?? new PlayerPrefsTextStore(), storeKey);
             if (rig == null) return;
             _defaultLocalPosition = rig.localPosition;
             _defaultLocalRotation = rig.localRotation;
@@ -54,17 +58,17 @@ namespace Pvz.Runtime
         private void OnStartAligned() => RestoreSaved();
 
         /// <summary>The saved place in the room, or null.</summary>
-        public CounterPlacement? Saved => _store.TryLoad(out var placement) ? placement : (CounterPlacement?)null;
+        public Placement? Saved => _store.TryLoad(out var placement) ? placement : (Placement?)null;
 
         /// <summary>The rig's place now (floor position and yaw in the room).</summary>
-        public CounterPlacement Current
+        public Placement Current
         {
             get
             {
                 var position = rig.position;
                 var forward = Vector3.ProjectOnPlane(rig.forward, Vector3.up);
                 var yaw = forward.sqrMagnitude < 1e-6f ? 0f : Quaternion.LookRotation(forward, Vector3.up).eulerAngles.y;
-                return new CounterPlacement(position.x, position.z, yaw);
+                return new Placement(position.x, position.z, yaw);
             }
         }
 
@@ -99,7 +103,7 @@ namespace Pvz.Runtime
         }
 
         /// <summary>Moves the rig to a place in the room (keeps its height).</summary>
-        public void Place(CounterPlacement placement)
+        public void Place(Placement placement)
         {
             if (rig == null) return;
             rig.SetPositionAndRotation(new Vector3(placement.X, rig.position.y, placement.Z), Quaternion.Euler(0f, placement.Yaw, 0f));
@@ -131,10 +135,12 @@ namespace Pvz.Runtime
             Physics.SyncTransforms();
         }
 
-        internal void Configure(Transform counterRig, MrSessionSetup mrSession)
+        internal void Configure(Transform placedRig, MrSessionSetup mrSession, string key = PlacementStore.CounterKey, string name = "стойку")
         {
-            rig = counterRig;
+            rig = placedRig;
             session = mrSession;
+            storeKey = key;
+            displayName = name;
         }
     }
 }

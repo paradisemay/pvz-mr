@@ -15,8 +15,7 @@ namespace Pvz.Runtime.Tests
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
-            WarehouseLayoutKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // never the real saved layout
-            CounterPlacementKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // nor the saved place of the counter
+            PlacementKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // nor the saved place of the counter
             CareerKeeper.StoreOverride = (new Pvz.Core.MemoryScoreStore(), new Pvz.Core.MemoryTextStore()); // nor the career
             yield return SceneManager.LoadSceneAsync("Game", LoadSceneMode.Single);
             yield return null;
@@ -25,8 +24,7 @@ namespace Pvz.Runtime.Tests
         [UnityTearDown]
         public IEnumerator ForgetTestStore()
         {
-            WarehouseLayoutKeeper.StoreOverride = null;
-            CounterPlacementKeeper.StoreOverride = null;
+            PlacementKeeper.StoreOverride = null;
             CareerKeeper.StoreOverride = null;
             yield return null;
         }
@@ -37,7 +35,7 @@ namespace Pvz.Runtime.Tests
             var origin = Object.FindFirstObjectByType<XROrigin>();
             var camera = origin.Camera.transform;
             var playArea = Object.FindFirstObjectByType<MrSessionSetup>().PlayArea;
-            var box = Object.FindObjectsByType<QrBox>(FindObjectsSortMode.None).First();
+            var box = Object.FindFirstObjectByType<SupplyHatch>(); // the room things move with the play area (no boxes before the shift)
             var boxLocal = playArea.InverseTransformPoint(box.transform.position);
 
             // The player stepped back-left into free space and turned to the right.
@@ -53,7 +51,7 @@ namespace Pvz.Runtime.Tests
             Assert.Greater(Vector3.Dot(playArea.forward, lookingAt), 0.99f, "the counter is in front of the player");
 
             var boxNow = playArea.InverseTransformPoint(box.transform.position);
-            Assert.Less(Vector3.Distance(boxLocal, boxNow), 0.15f, "boxes move together with the play area");
+            Assert.Less(Vector3.Distance(boxLocal, boxNow), 0.15f, "the hatch moves together with the play area");
         }
 
         [UnityTest]
@@ -62,7 +60,6 @@ namespace Pvz.Runtime.Tests
             var buttons = new MonoBehaviour[]
             {
                 Object.FindFirstObjectByType<RecenterButton>(FindObjectsInactive.Include),
-                Object.FindFirstObjectByType<ResetWarehouseButton>(FindObjectsInactive.Include),
                 Object.FindFirstObjectByType<ThemeButton>(FindObjectsInactive.Include),
                 Object.FindFirstObjectByType<RestartButton>(FindObjectsInactive.Include),
             }.Concat(Object.FindObjectsByType<DifficultyButton>(FindObjectsInactive.Include, FindObjectsSortMode.None));

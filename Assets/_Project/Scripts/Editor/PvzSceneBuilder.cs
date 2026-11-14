@@ -47,8 +47,6 @@ namespace Pvz.Editor
             var hard = LoadOrCreateSettings(HardSettingsPath, s => { s.CopyLayoutFrom(settings); s.ConfigureDifficulty("Сложная", 45f, 1, 80, 1.6f, 1f, 3, tutorial: false, returnChance: 35, urgentChance: 25, shiftSeconds: 300f, careerPercent: 150); });
             var prefabs = new PvzPrefabBuilder(font);
 
-            var layout = settings.Boxes; // single source of truth: ids, orders and start positions
-            var boxPaths = layout.Select(b => prefabs.Box(b.boxId)).ToArray();
             var scannerPath = prefabs.Scanner();
             var counterPath = prefabs.Counter();
             var customerPath = prefabs.Customer();
@@ -58,7 +56,6 @@ namespace Pvz.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            var boxPrefabs = boxPaths.Select(Load<QrBox>).ToArray();
             var scannerPrefab = Load<HandScanner>(scannerPath);
             var counterPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(counterPath);
             var customerPrefab = Load<Customer>(customerPath);
@@ -93,15 +90,9 @@ namespace Pvz.Editor
             scanner.transform.SetPositionAndRotation(CounterPosition + new Vector3(-0.48f, PvzPrefabBuilder.CounterHeight + 0.04f, -0.05f),
                 Quaternion.Euler(0f, -90f, 90f));
 
+            // T036: no boxes stand in the room before the shift — the stock of every shift drops out of the supply hatch.
             var boxesRoot = new GameObject("Boxes").transform;
             boxesRoot.SetParent(playArea, false);
-            var boxes = new List<QrBox>();
-            for (var i = 0; i < layout.Length; i++)
-            {
-                var box = ((GameObject)PrefabUtility.InstantiatePrefab(boxPrefabs[i].gameObject, boxesRoot)).GetComponent<QrBox>();
-                box.transform.SetPositionAndRotation(layout[i].startPosition, Quaternion.Euler(0f, layout[i].startYaw, 0f));
-                boxes.Add(box);
-            }
 
             var points = new GameObject("Customer Points").transform;
             points.SetParent(rig, false);
@@ -114,9 +105,7 @@ namespace Pvz.Editor
                 Quaternion.Euler(0f, 20f, 0f));
             dispenser.Configure(bagPrefab);
 
-            var supplyDrop = new GameObject("Supply Drop").AddComponent<SupplyDrop>();
-            supplyDrop.transform.SetParent(playArea, false);
-            supplyDrop.Configure(supplyBoxPrefab, camera.transform, counter.transform, spawn, Object.FindFirstObjectByType<ARPlaneManager>());
+            var hatch = CreateSupplyHatch(playArea, supplyBoxPrefab, Object.FindFirstObjectByType<ARPlaneManager>(), boxesRoot, settings);
 
             // Shown before the shift only: the «Как играть» card. The keys are on the counter computer (T033).
             var startMenu = new GameObject("Start Menu").transform;
@@ -125,14 +114,14 @@ namespace Pvz.Editor
 
             var director = new GameObject("Shift Director").AddComponent<ShiftDirector>();
             var restart = CreateRestartKey(pc.Summary, font);
-            director.Configure(settings, boxes.ToArray(), scanner,
+            director.Configure(settings, scanner,
                 counter.GetComponentInChildren<HandoverZone>(true),
                 customerPrefab, spawn, service,
                 counter.GetComponentInChildren<CounterBoard>(true),
                 counter.GetComponentInChildren<ShiftSummaryPanel>(true),
                 restart,
                 counter.GetComponentInChildren<FeedbackAudio>(true),
-                supplyDrop,
+                hatch,
                 CreateDifficultyButtons(pc.Menu, new[] { easy, settings, hard }, font));
             CreateComputerKey(pc.Menu, 4, "НАСТРОЙКИ", ComputerKey.Action.OpenSettings, pc.Computer, font, KeyGrey);
             CreateComputerKey(pc.Summary, 4, "НАСТРОЙКИ", ComputerKey.Action.OpenSettings, pc.Computer, font, KeyGrey);
@@ -143,10 +132,11 @@ namespace Pvz.Editor
             pc.Computer.Configure(director, pc.Screen, pc.Title, pc.Menu.gameObject, pc.Settings.gameObject,
                 pc.SettingsBeforeShift.gameObject, pc.Shift.gameObject, pc.Summary.gameObject, endShift);
             // The counter can be moved at any time and its place in the room is kept (T034).
-            var placement = new GameObject("Counter Placement").AddComponent<CounterPlacementKeeper>();
+            var placement = new GameObject("Counter Placement").AddComponent<PlacementKeeper>();
             placement.Configure(rig, mrSetup);
-            var mover = placement.gameObject.AddComponent<CounterMover>();
-            mover.Configure(placement, CreateCounterHandle(playArea), CounterHandleOffset);
+            var mover = placement.gameObject.AddComponent<PlacementMover>();
+            mover.Configure(placement, CreatePlacementHandle(playArea, "Counter Handle", CounterHandleOffset), CounterHandleOffset,
+                CounterPosition + new Vector3(0f, PvzPrefabBuilder.CounterHeight + 0.26f, 0f), new Vector3(1.5f, 0.5f, 0.65f)); // what lies on the top rides along
             var movingKeys = new GameObject("Moving Keys").transform;
             movingKeys.SetParent(pc.Computer.transform, false);
             CreateComputerKey(pc.Settings, 0, "ПЕРЕНЕСТИ\nСТОЙКУ", ComputerKey.Action.MoveCounter, pc.Computer, font, new Color(0.98f, 0.55f, 0.15f));
@@ -162,10 +152,14 @@ namespace Pvz.Editor
             director.ConfigureReturns(supplyBoxPrefab); // returned boxes use the generic box with a runtime QR
             director.ConfigureEffects(counter.GetComponentInChildren<FeedbackEffects>(true));
 
-            // The player's arrangement of the stock boxes is kept between sessions (T017).
-            var keeper = new GameObject("Warehouse Layout").AddComponent<WarehouseLayoutKeeper>();
-            keeper.Configure(boxes.ToArray(), counter.GetComponentInChildren<HandoverZone>(true));
-            CreateResetWarehouseButton(pc.SettingsBeforeShift, keeper, font);
+            // The supply hatch is moved like the counter (T036): settings → «Место люка», a handle hanging from it.
+            var hatchPlacement = hatch.gameObject.AddComponent<PlacementKeeper>();
+            hatchPlacement.Configure(hatch.transform, mrSetup, Pvz.Core.PlacementStore.HatchKey, "люк");
+            var hatchMover = hatch.gameObject.AddComponent<PlacementMover>();
+            hatchMover.Configure(hatchPlacement, CreatePlacementHandle(playArea, "Hatch Handle", hatch.transform.TransformPoint(HatchHandleOffset)),
+                HatchHandleOffset);
+            pc.Computer.ConfigureHatchMover(hatchMover);
+            CreateComputerKey(pc.Settings, 3, "МЕСТО\nЛЮКА", ComputerKey.Action.MoveHatch, pc.Computer, font, new Color(0.98f, 0.55f, 0.15f));
             // The career between shifts and the counter themes it opens (T022).
             var careerKeeper = new GameObject("Career").AddComponent<CareerKeeper>();
             careerKeeper.Configure(LoadOrCreateThemeCatalog(), counter.GetComponentInChildren<CounterSkin>(true),
@@ -177,7 +171,7 @@ namespace Pvz.Editor
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();
-            Debug.Log($"[PvzSceneBuilder] Built {ScenePath} with {boxes.Count} boxes.");
+            Debug.Log($"[PvzSceneBuilder] Built {ScenePath}: the stock drops out of the supply hatch.");
         }
 
         public const string ThemeCatalogPath = "Assets/_Project/Settings/CounterThemes.asset";
@@ -342,7 +336,7 @@ namespace Pvz.Editor
         }
 
         /// <summary>«Стойку ко мне» (settings, before the shift): moves the play area in front of the player.</summary>
-        private static void CreateRecenterButton(Transform group, MrSessionSetup session, CounterPlacementKeeper placement,
+        private static void CreateRecenterButton(Transform group, MrSessionSetup session, PlacementKeeper placement,
             TMPro.TMP_FontAsset font)
         {
             var go = CreateKey(group, 1, "Recenter Button", "СТОЙКУ\nКО МНЕ", new Color(0.35f, 0.6f, 0.95f), font, out _);
@@ -356,11 +350,12 @@ namespace Pvz.Editor
         /// The handle to carry the counter (T034): a big orange knob with a ring, grabbed with grip, kinematic — it follows
         /// the hand, the counter follows it. Lives outside the rig (the rig moves after it), hidden until «Переместить стойку».
         /// </summary>
-        private static UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable CreateCounterHandle(Transform playArea)
+        private static UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable CreatePlacementHandle(Transform playArea,
+            string name, Vector3 position)
         {
-            var go = new GameObject("Counter Handle");
+            var go = new GameObject(name);
             go.transform.SetParent(playArea, false);
-            go.transform.position = CounterHandleOffset;
+            go.transform.position = position;
             var orange = Lit("CounterHandle", new Color(0.98f, 0.55f, 0.15f), 0.6f);
             Primitive(PrimitiveType.Sphere, "Knob", go.transform, Vector3.zero, Vector3.one * 0.12f, orange, true);
             Primitive(PrimitiveType.Cylinder, "Ring", go.transform, Vector3.zero, new Vector3(0.22f, 0.006f, 0.22f), orange);
@@ -378,13 +373,6 @@ namespace Pvz.Editor
             return grab;
         }
 
-        /// <summary>«Сбросить склад» (settings, before the shift): boxes back to their first places, saved layout forgotten (T020).</summary>
-        private static void CreateResetWarehouseButton(Transform group, WarehouseLayoutKeeper keeper, TMPro.TMP_FontAsset font)
-        {
-            var go = CreateKey(group, 3, "Reset Warehouse Button", "СБРОСИТЬ\nСКЛАД", new Color(0.95f, 0.6f, 0.25f), font, out _);
-            go.AddComponent<ResetWarehouseButton>().Configure(keeper);
-        }
-
         /// <summary>«Тема» (settings, also during the shift): the counter theme opened by the career (T022).</summary>
         private static ThemeButton CreateThemeButton(Transform group, CareerKeeper keeper, TMPro.TMP_FontAsset font)
         {
@@ -392,6 +380,49 @@ namespace Pvz.Editor
             var button = go.AddComponent<ThemeButton>();
             button.Configure(keeper, label);
             return button;
+        }
+
+        /// <summary>Where the supply hatch is at first (play area): to the left of the player, clear of the counter and the line.</summary>
+        public static readonly Vector3 HatchPosition = new Vector3(-1.45f, 0f, 0.45f);
+
+        /// <summary>The hatch's handle hangs on a cord at hand height (relative to the hatch rig on the floor).</summary>
+        public static readonly Vector3 HatchHandleOffset = new Vector3(0f, 1.55f, 0f);
+
+        /// <summary>
+        /// The supply hatch (T036): a dark square with an orange frame and two doors under the ceiling, a cord down to an
+        /// orange handle. The rig stands on the floor (it is moved like the counter); the panel is lifted to the ceiling.
+        /// </summary>
+        private static SupplyHatch CreateSupplyHatch(Transform playArea, QrBox boxPrefab, ARPlaneManager planes, Transform boxesRoot,
+            ShiftSettings settings)
+        {
+            var root = new GameObject("Supply Hatch");
+            root.transform.SetParent(playArea, false);
+            root.transform.localPosition = HatchPosition;
+            var orange = Lit("HatchFrame", new Color(0.98f, 0.55f, 0.15f));
+            var dark = Unlit("HatchHole", new Color(0.06f, 0.06f, 0.08f));
+            var door = Lit("HatchDoor", new Color(0.42f, 0.44f, 0.48f));
+            var panel = new GameObject("Panel").transform;
+            panel.SetParent(root.transform, false);
+            const float size = 0.8f, bar = 0.06f;
+            foreach (var (x, z, sx, sz) in new[] { (0f, size / 2f, size + bar, bar), (0f, -size / 2f, size + bar, bar), (size / 2f, 0f, bar, size), (-size / 2f, 0f, bar, size) })
+                Primitive(PrimitiveType.Cube, "Frame", panel, new Vector3(x, 0f, z), new Vector3(sx, 0.05f, sz), orange);
+            Primitive(PrimitiveType.Cube, "Hole", panel, new Vector3(0f, 0.02f, 0f), new Vector3(size, 0.01f, size), dark);
+            Transform Door(string name, float side)
+            {
+                var hinge = new GameObject(name).transform;
+                hinge.SetParent(panel, false);
+                hinge.localPosition = new Vector3(side * size / 2f, -0.01f, 0f);
+                Primitive(PrimitiveType.Cube, "Leaf", hinge, new Vector3(-side * size / 4f, 0f, 0f), new Vector3(size / 2f - 0.01f, 0.02f, size - 0.02f), door);
+                return hinge;
+            }
+            var left = Door("Door Left", -1f);
+            var right = Door("Door Right", 1f);
+            var cord = Primitive(PrimitiveType.Cylinder, "Cord", root.transform, Vector3.zero, new Vector3(0.012f, 0.5f, 0.012f),
+                Lit("HatchCord", new Color(0.2f, 0.2f, 0.22f))).transform;
+            var hatch = root.AddComponent<SupplyHatch>();
+            hatch.Configure(boxPrefab, planes, boxesRoot, panel, left, right, cord, HatchHandleOffset.y);
+            hatch.FitToCeiling(settings.DefaultCeilingHeight); // the editor has no AR ceiling: the default height
+            return hatch;
         }
 
         /// <summary>The menu screen of the computer: three difficulty keys in slots 0–2.</summary>

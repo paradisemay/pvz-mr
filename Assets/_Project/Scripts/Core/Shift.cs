@@ -98,7 +98,34 @@ namespace Pvz.Core
         /// <summary>Number of different orders of the shift so far (initial stock + arrived deliveries).</summary>
         public int OrdersTotal => _orderNumbers.Count;
 
-        public bool HasOrdersLeft => Desk.Catalog.Count > 0;
+        public bool HasOrdersLeft
+        {
+            get
+            {
+                foreach (var box in Desk.Catalog.Boxes) if (!_notForSale.Contains(box.OrderNumber)) return true;
+                return false;
+            }
+        }
+
+        private readonly HashSet<string> _notForSale = new HashSet<string>();
+
+        /// <summary>
+        /// T036 (#80): orders lying in the warehouse that nobody picks up this shift (spare boxes in the pile from the
+        /// hatch — other days' orders). They are scanned as «another order», never come to the counter and do not count
+        /// towards the shift. Set before customers come.
+        /// </summary>
+        public void MarkNotForSale(IEnumerable<string> orderNumbers)
+        {
+            if (orderNumbers == null) throw new ArgumentNullException(nameof(orderNumbers));
+            foreach (var number in orderNumbers)
+            {
+                if (string.IsNullOrEmpty(number)) continue;
+                _notForSale.Add(number);
+                _orderNumbers.Remove(number);
+            }
+        }
+
+        public bool IsForSale(string orderNumber) => !_notForSale.Contains(orderNumber);
 
         public bool HasPendingIntake => _pendingIntake.Count > 0;
 
@@ -408,7 +435,8 @@ namespace Pvz.Core
 
         private HashSet<string> ReservedNumbers()
         {
-            var numbers = new HashSet<string>();
+            // Orders not for sale this shift are as good as taken: nobody comes for them (T036).
+            var numbers = new HashSet<string>(_notForSale);
             // An order opened at the desk without joining the line (tests, single-customer use) is taken too.
             if (Desk.HasActiveOrder) numbers.Add(Desk.ActiveOrder.Number);
             foreach (var visit in Book.Line)
