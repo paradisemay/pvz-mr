@@ -56,6 +56,29 @@ namespace Pvz.Core.Tests
         }
 
         [Test]
+        public void AHandedOverBoxScannedAgain_IsUnknown_AndTheCountStays()
+        {
+            var desk = DeskWithAThreeItemOrder();
+            desk.Scan(A);
+            desk.Handover(A, 1);
+            var again = desk.Scan(A);
+            Assert.AreEqual(ScanStatus.UnknownBox, again.Status, "it left the warehouse with the customer");
+            Assert.AreEqual(0, again.ItemsInOrder);
+            Assert.AreEqual(1, desk.ActiveSession.ScannedCount);
+        }
+
+        [Test]
+        public void TheNextCustomer_StartsFromNothing()
+        {
+            var desk = DeskWithAThreeItemOrder();
+            desk.Scan(A);
+            desk.Abandon(); // the first customer left
+            desk.OpenOrder(new Order("4401", new[] { A, B, C }), 5);
+            Assert.AreEqual(0, desk.ActiveSession.ScannedCount);
+            Assert.AreEqual(1, desk.Scan(B).ItemsScanned);
+        }
+
+        [Test]
         public void NoCustomer_NoCount()
         {
             var desk = new PickupDesk(new BoxCatalog(new[] { new BoxRecord(A, "4401") }));

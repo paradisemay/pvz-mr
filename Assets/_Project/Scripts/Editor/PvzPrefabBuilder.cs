@@ -145,14 +145,28 @@ namespace Pvz.Editor
             voiceSource.spatialBlend = 1f;
             voiceSource.minDistance = 0.4f;
             voiceSource.maxDistance = 8f;
+            voiceSource.dopplerLevel = 0f; // a swung scanner must not wobble the voice's pitch
             static AudioClip Voice(string key)
             {
-                var clip = AssetDatabase.LoadAssetAtPath<AudioClip>($"{VoiceDir}/{key}.wav");
+                var path = $"{VoiceDir}/{key}.wav";
+                // Loaded with the scene, decoded once: no hitch on Quest at the first scans.
+                if (AssetImporter.GetAtPath(path) is AudioImporter importer)
+                {
+                    var sample = importer.defaultSampleSettings;
+                    if (!sample.preloadAudioData || sample.loadType != AudioClipLoadType.DecompressOnLoad)
+                    {
+                        sample.preloadAudioData = true;
+                        sample.loadType = AudioClipLoadType.DecompressOnLoad;
+                        importer.defaultSampleSettings = sample;
+                        importer.SaveAndReimport();
+                    }
+                }
+                var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
                 if (clip == null) throw new System.InvalidOperationException($"Voice clip {key}.wav is missing in {VoiceDir} (tools/make-voice.ps1)");
                 return clip;
             }
-            root.AddComponent<ScannerVoice>().Configure(voiceSource, Voice("match"), Voice("other"), Voice("done"), Voice("items"),
-                Voice("scanned"), Enumerable.Range(0, 21).Select(n => Voice("n" + n)).ToArray());
+            root.AddComponent<ScannerVoice>().Configure(voiceSource, Voice("match"), Voice("other"), Voice("done"), Voice("of"),
+                Enumerable.Range(0, 21).Select(n => Voice("n" + n)).ToArray(), Enumerable.Range(0, 21).Select(n => Voice("g" + n)).ToArray());
 
             var grab = root.AddComponent<XRGrabInteractable>();
             grab.attachTransform = attach;
