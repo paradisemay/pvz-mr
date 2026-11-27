@@ -164,10 +164,12 @@ def make_ears(index, x_offset):
 for index in range(5):
     offset = (index - 2) * 0.43 if PREVIEW_ALL else 0
     if PREVIEW_ALL:
-        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.13, location=(offset, 0, 0))
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=20, radius=0.13, location=(offset, 0, 0))
         head = bpy.context.object
         head.name = f"Head_{index}"
         head.data.materials.append(skins[index])
+        for polygon in head.data.polygons:
+            polygon.use_smooth = True
     make_eyes(index, offset)
     make_nose(index, offset)
     make_mouth(index, offset)

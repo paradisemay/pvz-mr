@@ -24,4 +24,19 @@ bpy.ops.export_scene.fbx(
     bake_space_transform=True,
     path_mode="STRIP",
 )
+
+# Keep the editable Blender source as five assembled, smoothly rounded heads.
+for obj in bpy.data.objects:
+    if obj.type != "MESH":
+        continue
+    style = int(obj.name.split("_")[1])
+    obj.location.x = (style - 2) * 0.43
+for index in range(5):
+    offset = (index - 2) * 0.43
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=20, radius=0.13, location=(offset, 0, 0))
+    head = bpy.context.object
+    head.name = f"Head_{index}"
+    head.data.materials.append(skins[index])
+    for polygon in head.data.polygons:
+        polygon.use_smooth = True
 bpy.ops.wm.save_as_mainfile(filepath=str(project / "tools/CustomerFaces.blend"))

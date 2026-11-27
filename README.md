@@ -56,8 +56,8 @@
 - Ковбойские шляпы с пятью текстурными расцветками создаются скриптом
   `blender -b --python tools/export-cowboy-hats.py`. Исходники: `tools/create-cowboy-hats.py` и `tools/CowboyHats.blend`.
 - Пять форм губ, носов, глаз и ушей создаются скриптом `blender -b --python tools/export-customer-faces.py`.
-  Исходники: `tools/create-customer-faces.py` и `tools/CustomerFaces.blend`. Игра сочетает детали по номеру посетителя
-  и окрашивает голову и части лица одним из пяти оттенков кожи.
+  Исходники: `tools/create-customer-faces.py` и `tools/CustomerFaces.blend` с пятью круглыми головами для просмотра.
+  Игра сочетает детали по номеру посетителя и окрашивает голову и части лица одним из пяти оттенков кожи.
 - Интерфейс использует приложенный шрифт Tiny5 Duo; его лицензия находится в `Assets/_Project/Art/Fonts/Tiny5Duo-OFL.txt`.
 - В `Assets/_Project/Resources/Audio/` лежат приложенные звуки: `Scan.mp3` звучит при считывании коробки сканером,
   `Payment.mp3` — при завершении заказа и начислении очков. Остальные сигналы остаются синтезированными.
