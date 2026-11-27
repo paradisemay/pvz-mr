@@ -94,6 +94,56 @@ namespace Pvz.Editor.Tests
         }
 
         [Test]
+        public void ParcelShapesKeepTheirColliderAndQrLabelsOnTheBox()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<QrBox>("Assets/_Project/Prefabs/Box_Supply.prefab");
+            var shapes = new[]
+            {
+                ("BOX-001", new Vector3(0.34f, 0.26f, 0.34f)),
+                ("BOX-002", new Vector3(0.25f, 0.22f, 0.62f)),
+                ("BOX-003", new Vector3(0.48f, 0.12f, 0.40f)),
+                ("BOX-104", new Vector3(0.58f, 0.60f, 0.50f)),
+                ("BOX-105", new Vector3(0.30f, 0.44f, 0.32f)),
+            };
+            foreach (var (id, expected) in shapes)
+            {
+                var box = Object.Instantiate(prefab);
+                try
+                {
+                    box.AssignId(id, null);
+                    var size = box.GetComponent<BoxCollider>().size;
+                    Assert.Less(Vector3.Distance(size, expected), 0.001f, id);
+                    var visual = box.transform.Find("ITMO_Visual");
+                    Assert.IsNotNull(visual, id);
+                    Assert.AreEqual(expected.x / 0.34f, visual.localScale.x, 0.001f, id);
+                    Assert.AreEqual(expected.y / 0.26f, visual.localScale.y, 0.001f, id);
+                    Assert.AreEqual(expected.z / 0.34f, visual.localScale.z, 0.001f, id);
+                    Assert.AreEqual(expected.y / 2f + 0.021f, box.transform.Find("QR_Top").localPosition.y, 0.001f, id);
+                    Assert.AreEqual(-expected.z / 2f - 0.011f, box.transform.Find("QR_Front").localPosition.z, 0.001f, id);
+                    foreach (var side in new[] { "Top", "Front", "Back", "Left", "Right" })
+                        Assert.LessOrEqual(box.transform.Find($"QR_{side}").localScale.x, 0.072f, id);
+                }
+                finally { Object.DestroyImmediate(box.gameObject); }
+            }
+        }
+
+        [Test]
+        public void ParcelBagHasTheItmoPrintOnBothSides()
+        {
+            var bag = AssetDatabase.LoadAssetAtPath<ParcelBag>("Assets/_Project/Prefabs/ParcelBag.prefab");
+            var print = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/_Project/Art/Textures/ITMO_Bag.png");
+            Assert.IsNotNull(bag);
+            Assert.IsNotNull(print);
+            foreach (var side in new[] { "PrintFront", "PrintBack" })
+            {
+                var face = bag.transform.Find(side);
+                Assert.IsNotNull(face, side);
+                Assert.AreSame(print, face.GetComponent<MeshRenderer>().sharedMaterial.GetTexture("_BaseMap"), side);
+            }
+            Assert.IsNull(bag.transform.Find("Logo"));
+        }
+
+        [Test]
         public void FiveCustomerLooksHaveTexturedCowboyHats()
         {
             var hat = Resources.Load<GameObject>("Hats/CowboyHat");
