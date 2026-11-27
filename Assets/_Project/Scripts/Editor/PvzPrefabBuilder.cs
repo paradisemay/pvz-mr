@@ -346,7 +346,7 @@ namespace Pvz.Editor
             face.transform.localRotation = Quaternion.Euler(0, 180, 0);
             var faceWhite = Lit("FaceWhite", new Color(0.94f, 0.92f, 0.86f));
             var faceIris = Lit("FaceIris", new Color(0.08f, 0.055f, 0.045f));
-            var (mouthStyle, noseStyle, eyeStyle, earStyle, _) = Customer.FaceStyles(0);
+            var (mouthStyle, noseStyle, eyeStyle, earStyle, _) = Pvz.Runtime.Customer.FaceStyles(0);
             foreach (var renderer in face.GetComponentsInChildren<MeshRenderer>())
             {
                 renderer.sharedMaterial = renderer.name.Contains("White") ? faceWhite
