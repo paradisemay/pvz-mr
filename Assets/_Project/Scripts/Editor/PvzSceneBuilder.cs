@@ -202,6 +202,12 @@ namespace Pvz.Editor
             var careerKeeper = new GameObject("Career").AddComponent<CareerKeeper>();
             careerKeeper.Configure(LoadOrCreateThemeCatalog(), counter.GetComponentInChildren<CounterSkin>(true),
                 CreateThemeButton(pc.Settings, careerKeeper, font));
+            // T048: the theme paints the computer and the rack too, and names the pickup point on the computer.
+            Renderer[] PartsOf(Transform under, params string[] names) => under.GetComponentsInChildren<Renderer>(true)
+                .Where(r => System.Array.IndexOf(names, r.name) >= 0).ToArray();
+            counter.GetComponentInChildren<CounterSkin>(true).ConfigureRoom(PartsOf(pc.Computer.transform, "Foot", "Neck", "Case", "Back", "Bulge"),
+                PartsOf(rack, "Post", "Lip"), pc.Computer);
+            PrefabUtility.RecordPrefabInstancePropertyModifications(counter.GetComponentInChildren<CounterSkin>(true));
             director.ConfigureCareer(careerKeeper);
 
             // Saved as the menu screen; done last, so every key label was laid out while its group was still active.
@@ -217,20 +223,29 @@ namespace Pvz.Editor
         /// <summary>Counter themes of the career; created once, then left to designers (thresholds, names, colours).</summary>
         private static CounterThemeCatalog LoadOrCreateThemeCatalog()
         {
-            var catalog = AssetDatabase.LoadAssetAtPath<CounterThemeCatalog>(ThemeCatalogPath);
-            if (catalog != null) return catalog;
-            catalog = ScriptableObject.CreateInstance<CounterThemeCatalog>();
-            catalog.Configure(new[]
+            // T048 (#87): the three themes of the pickup point, open from the start — each with its name on the sign.
+            var entries = new[]
             {
-                new CounterThemeCatalog.Entry { id = "classic", displayName = "Классика", unlockPoints = 0, recolor = false },
-                new CounterThemeCatalog.Entry { id = "mint", displayName = "Мята", unlockPoints = 1000, recolor = true,
-                    body = new Color(0.14f, 0.34f, 0.31f), top = new Color(0.88f, 0.95f, 0.9f), accent = new Color(0.35f, 0.85f, 0.7f) },
-                new CounterThemeCatalog.Entry { id = "night", displayName = "Ночь", unlockPoints = 2500, recolor = true,
-                    body = new Color(0.08f, 0.08f, 0.15f), top = new Color(0.3f, 0.32f, 0.42f), accent = new Color(0.58f, 0.46f, 1f) },
-                new CounterThemeCatalog.Entry { id = "gold", displayName = "Золото", unlockPoints = 5000, recolor = true,
-                    body = new Color(0.27f, 0.19f, 0.08f), top = new Color(0.95f, 0.86f, 0.58f), accent = new Color(1f, 0.8f, 0.2f) },
-            });
-            AssetDatabase.CreateAsset(catalog, ThemeCatalogPath);
+                new CounterThemeCatalog.Entry { id = "azot", displayName = "Азот", brand = "Азот", unlockPoints = 0, recolor = true,
+                    body = new Color(0.1f, 0.22f, 0.55f), top = new Color(0.86f, 0.91f, 1f), accent = new Color(1f, 0.36f, 0.66f),
+                    computer = new Color(0.8f, 0.86f, 0.96f) },
+                new CounterThemeCatalog.Entry { id = "razbory", displayName = "Разборы", brand = "Разборы", unlockPoints = 0, recolor = true,
+                    body = new Color(0.4f, 0.15f, 0.55f), top = new Color(0.97f, 0.96f, 0.99f), accent = new Color(0.97f, 0.9f, 1f),
+                    computer = new Color(0.97f, 0.96f, 0.99f) },
+                new CounterThemeCatalog.Entry { id = "rynok", displayName = "Рынок", brand = "Рынок", unlockPoints = 0, recolor = true,
+                    body = new Color(0.98f, 0.52f, 0.1f), top = new Color(1f, 0.86f, 0.32f), accent = new Color(0.85f, 0.13f, 0.1f),
+                    computer = new Color(0.99f, 0.93f, 0.8f) },
+            };
+            var catalog = AssetDatabase.LoadAssetAtPath<CounterThemeCatalog>(ThemeCatalogPath);
+            if (catalog == null)
+            {
+                catalog = ScriptableObject.CreateInstance<CounterThemeCatalog>();
+                catalog.Configure(entries);
+                AssetDatabase.CreateAsset(catalog, ThemeCatalogPath);
+                return catalog;
+            }
+            catalog.Configure(entries); // the career themes of T022 are replaced
+            EditorUtility.SetDirty(catalog);
             return catalog;
         }
 

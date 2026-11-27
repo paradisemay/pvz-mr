@@ -215,7 +215,7 @@ namespace Pvz.Runtime
         private void RefreshText()
         {
             if (screenText == null) return;
-            if (titleText != null) titleText.text = TitleFor(Current);
+            if (titleText != null) titleText.text = TitleFor(Current, _brand);
             screenText.text = Current switch
             {
                 Screen.Menu => MenuText + (roomMesh != null && roomMesh.IsMissing ? "\n\n" + RoomMesh.MissingText : string.Empty),
@@ -227,14 +227,31 @@ namespace Pvz.Runtime
             };
         }
 
-        public static string TitleFor(Screen screen) => screen switch
+        public const string DefaultBrand = "ПВЗ";
+
+        private string _brand = DefaultBrand;
+
+        /// <summary>T048 (#87): the name of the pickup point in the chosen theme («Азот», «Разборы», «Рынок»).</summary>
+        public string Brand => _brand;
+
+        public void SetBrand(string brand)
         {
-            Screen.Menu => "ПВЗ · НОВАЯ СМЕНА",
-            Screen.Settings => "ПВЗ · НАСТРОЙКИ",
-            Screen.Shift => "ПВЗ · СМЕНА",
-            Screen.Moving => "ПВЗ · ПЕРЕНОС",
-            _ => "ПВЗ · ИТОГИ",
-        };
+            _brand = string.IsNullOrWhiteSpace(brand) ? DefaultBrand : brand;
+            if (titleText != null) titleText.text = TitleFor(Current, _brand);
+        }
+
+        public static string TitleFor(Screen screen, string brand = DefaultBrand)
+        {
+            var name = string.IsNullOrWhiteSpace(brand) ? DefaultBrand : brand.ToUpperInvariant();
+            return screen switch
+            {
+                Screen.Menu => name + " · НОВАЯ СМЕНА",
+                Screen.Settings => name + " · НАСТРОЙКИ",
+                Screen.Shift => name + " · СМЕНА",
+                Screen.Moving => name + " · ПЕРЕНОС",
+                _ => name + " · ИТОГИ",
+            };
+        }
 
         public const string MenuText = "Выберите сложность смены\nкнопками ниже.\n\n«Настройки» — стойка, склад, тема.";
         public const string SettingsText = "Стойку, стеллаж и люк переносят за\nоранжевую ручку («Применить» — сохранить).\n«Место люка» — откуда падают коробки.\n«Тема» — оформление стойки.";
@@ -295,7 +312,7 @@ namespace Pvz.Runtime
             if (shiftKeys != null) shiftKeys.SetActive(screen == Screen.Shift);
             if (summaryKeys != null) summaryKeys.SetActive(screen == Screen.Summary);
             if (movingKeys != null) movingKeys.SetActive(screen == Screen.Moving);
-            if (titleText != null) titleText.text = TitleFor(screen);
+            if (titleText != null) titleText.text = TitleFor(screen, _brand);
             if (screenText != null) screenText.text = text;
             // Outside play mode text shown by activating its object is not laid out until something asks for it.
             foreach (var label in GetComponentsInChildren<TMP_Text>(false)) label.ForceMeshUpdate();

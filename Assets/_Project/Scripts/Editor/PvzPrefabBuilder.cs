@@ -249,9 +249,9 @@ namespace Pvz.Editor
                 new Vector3(1.4f, 0.08f, 0.004f), _accent);
             Primitive(PrimitiveType.Cube, "StripeBack", root.transform, new Vector3(0, 0.8f, 0.276f),
                 new Vector3(1.4f, 0.08f, 0.004f), _accent);
-            Text("SignFront", root.transform, new Vector3(0, 0.5f, -0.28f), new Vector2(1.2f, 0.3f), "ПУНКТ ВЫДАЧИ",
+            Text("SignFront", root.transform, new Vector3(0, 0.5f, -0.28f), new Vector2(1.2f, 0.3f), CounterSkin.SignText(PvzComputer.DefaultBrand),
                 _font, new Color(0.95f, 0.95f, 0.95f), 3f);
-            Text("SignBack", root.transform, new Vector3(0, 0.5f, 0.28f), new Vector2(1.2f, 0.3f), "ПУНКТ ВЫДАЧИ",
+            Text("SignBack", root.transform, new Vector3(0, 0.5f, 0.28f), new Vector2(1.2f, 0.3f), CounterSkin.SignText(PvzComputer.DefaultBrand),
                 _font, new Color(0.95f, 0.95f, 0.95f), 3f, localRot: Quaternion.Euler(0, 180, 0));
 
             // Handover zone (right side of the counter top, from the player's view)
@@ -321,7 +321,8 @@ namespace Pvz.Editor
             Renderer[] Named(Transform under, params string[] names) => under.GetComponentsInChildren<Renderer>(true)
                 .Where(r => System.Array.IndexOf(names, r.name) >= 0).ToArray();
             root.AddComponent<CounterSkin>().Configure(Named(root.transform, "Body", "Post"), Named(root.transform, "Top"),
-                Named(root.transform, "StripeFront", "StripeBack", "Frame"));
+                Named(root.transform, "StripeFront", "StripeBack", "Frame"),
+                root.GetComponentsInChildren<TMPro.TMP_Text>(true).Where(t => t.name == "SignFront" || t.name == "SignBack").ToArray()); // T048: the name of the pickup point
             return SavePrefab(root, "PickupCounter");
         }
 

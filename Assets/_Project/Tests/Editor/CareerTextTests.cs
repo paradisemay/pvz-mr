@@ -42,13 +42,15 @@ namespace Pvz.Editor.Tests
             Assert.IsNotNull(catalog, "the scene builder creates the catalog");
             Assert.DoesNotThrow(() => new Career(new MemoryScoreStore(), new MemoryTextStore(), catalog.ToCoreThemes()),
                 "first theme open, thresholds in order, ids unique");
-            Assert.IsFalse(catalog.Entries[0].recolor, "the first theme shows the counter's own materials");
+            // T048 (#87): «Азот», «Разборы», «Рынок» — open from the start, each with its colours and its name on the sign.
+            CollectionAssert.AreEqual(new[] { "Азот", "Разборы", "Рынок" }, catalog.Entries.Select(e => e.displayName));
             foreach (var entry in catalog.Entries)
             {
-                Assert.IsFalse(string.IsNullOrWhiteSpace(entry.displayName), $"{entry.id} has a name");
-                if (entry.recolor) Assert.Greater(entry.body.a, 0f, $"{entry.id} has colours");
+                Assert.AreEqual(0, entry.unlockPoints, $"{entry.id} is open from the start");
+                Assert.IsTrue(entry.recolor, $"{entry.id} paints the pickup point");
+                Assert.Greater(entry.body.a, 0f, $"{entry.id} has colours");
+                Assert.AreEqual(entry.displayName, entry.brand, $"{entry.id} names the pickup point");
             }
-            Assert.GreaterOrEqual(catalog.Entries.Count(e => e.recolor), 3, "something to unlock");
         }
     }
 }
