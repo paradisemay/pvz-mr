@@ -186,12 +186,20 @@ namespace Pvz.Runtime
 
         private void ApplyShape()
         {
-            // The last digit keeps each order's parcel shape stable across deliveries and returns.
-            var last = boxId[boxId.Length - 1];
-            var size = last == '2' || last == '7' ? new Vector3(0.25f, 0.22f, 0.62f) :
-                       last == '3' || last == '8' ? new Vector3(0.48f, 0.12f, 0.40f) :
-                       last == '4' || last == '9' ? new Vector3(0.58f, 0.60f, 0.50f) :
-                       last == '5' || last == '0' ? new Vector3(0.30f, 0.44f, 0.32f) :
+            // Digit sum gives existing orders all five shapes and keeps a parcel's shape stable on returns.
+            var shape = 0;
+            var hasDigit = false;
+            foreach (var ch in boxId)
+            {
+                if (ch < '0' || ch > '9') continue;
+                shape += ch - '0';
+                hasDigit = true;
+            }
+            shape = hasDigit ? shape % 5 : 1;
+            var size = shape == 2 ? new Vector3(0.25f, 0.22f, 0.62f) :
+                       shape == 3 ? new Vector3(0.48f, 0.12f, 0.40f) :
+                       shape == 4 ? new Vector3(0.58f, 0.60f, 0.50f) :
+                       shape == 0 ? new Vector3(0.30f, 0.44f, 0.32f) :
                        new Vector3(0.34f, 0.26f, 0.34f);
             var collider = GetComponent<BoxCollider>();
             if (collider != null) collider.size = size;

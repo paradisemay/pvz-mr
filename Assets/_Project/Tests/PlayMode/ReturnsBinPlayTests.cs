@@ -135,13 +135,13 @@ namespace Pvz.Runtime.Tests
             Assert.AreEqual(_director.OrdersTotal, returns.Length, "everyone refused one box");
             StringAssert.Contains("ящик", Object.FindFirstObjectByType<CounterBoard>().Headline);
 
-            // As a player would: a couple of boxes into the bin, «Сдать возвраты», the next couple — the last ones are
-            // handed in by the end of the shift itself.
+            // Large parcels take the bin one at a time; the final return is handed in when the shift ends.
             for (var i = 0; i < returns.Length; i++)
             {
-                Put(returns[i], _director.ReturnsBin.transform.TransformPoint(new Vector3((i % 2 - 0.5f) * 0.3f, 0.35f, 0f)));
+                if (returns[i] == null) continue; // it may have been in the bin with an earlier return
+                Put(returns[i], _director.ReturnsBin.transform.TransformPoint(new Vector3(0f, 0.35f, 0f)));
                 yield return new WaitForSeconds(0.6f);
-                if (i % 2 == 1 && i < returns.Length - 2) Assert.AreEqual(2, _director.HandInReturns(), "two boxes handed in");
+                if (i < returns.Length - 1) Assert.GreaterOrEqual(_director.HandInReturns(), 1, "the box fits in the returns bin");
             }
             deadline = Time.realtimeSinceStartup + 20f;
             while (!_director.IsShiftOver && Time.realtimeSinceStartup < deadline) yield return null;

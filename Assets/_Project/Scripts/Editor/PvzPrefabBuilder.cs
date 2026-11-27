@@ -343,7 +343,7 @@ namespace Pvz.Editor
             var face = (GameObject)PrefabUtility.InstantiatePrefab(faceModel, body);
             face.name = "FaceParts";
             face.transform.localPosition = new Vector3(0, 1.62f, 0);
-            face.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            face.transform.localRotation = Quaternion.identity;
             var faceWhite = Lit("FaceWhite", new Color(0.94f, 0.92f, 0.86f));
             var faceIris = Lit("FaceIris", new Color(0.08f, 0.055f, 0.045f));
             var (mouthStyle, noseStyle, eyeStyle, earStyle, _) = Pvz.Runtime.Customer.FaceStyles(0);
@@ -361,8 +361,8 @@ namespace Pvz.Editor
             if (hatModel == null) throw new System.IO.FileNotFoundException("The cowboy hat model is missing.");
             var hat = (GameObject)PrefabUtility.InstantiatePrefab(hatModel, body);
             hat.name = "CowboyHat";
-            hat.transform.localPosition = new Vector3(0, 1.75f, 0);
-            hat.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            hat.transform.localPosition = new Vector3(0, 1.65f, 0);
+            hat.transform.localRotation = Quaternion.identity;
             foreach (var renderer in hat.GetComponentsInChildren<MeshRenderer>())
                 renderer.sharedMaterial = renderer.name.Contains("Band") ? _hatBand
                     : renderer.name.Contains("Buckle") ? _hatBuckle : _hatLeather;

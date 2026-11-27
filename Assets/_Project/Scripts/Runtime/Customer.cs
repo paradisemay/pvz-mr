@@ -31,6 +31,7 @@ namespace Pvz.Runtime
             new Color(0.56f, 0.34f, 0.23f),
             new Color(0.34f, 0.19f, 0.13f),
             new Color(0.83f, 0.64f, 0.46f),
+            new Color(0.16f, 0.09f, 0.065f),
         };
 
         private Vector3 _bodyRestPosition;
@@ -62,9 +63,9 @@ namespace Pvz.Runtime
                 if (model == null) return;
                 hat = Instantiate(model, body).transform;
                 hat.name = "CowboyHat";
-                hat.localPosition = new Vector3(0, 1.75f, 0);
-                hat.localRotation = Quaternion.Euler(0, 180, 0);
             }
+            hat.localPosition = new Vector3(0, 1.65f, 0);
+            hat.localRotation = Quaternion.identity;
             hatRenderers = hat.GetComponentsInChildren<MeshRenderer>();
             if (hatBand == null) hatBand = HatMaterial(new Color(0.095f, 0.055f, 0.035f));
             if (hatBuckle == null) hatBuckle = HatMaterial(new Color(0.72f, 0.5f, 0.18f));
@@ -106,9 +107,9 @@ namespace Pvz.Runtime
                 if (model == null) return;
                 face = Instantiate(model, body).transform;
                 face.name = "FaceParts";
-                face.localPosition = new Vector3(0, 1.62f, 0);
-                face.localRotation = Quaternion.Euler(0, 180, 0);
             }
+            face.localPosition = new Vector3(0, 1.62f, 0);
+            face.localRotation = Quaternion.identity;
             foreach (var oldPart in new[] { "EyeL", "EyeR", "Smile" })
             {
                 var part = body.Find(oldPart);
@@ -162,7 +163,7 @@ namespace Pvz.Runtime
             var nose = (slot * 2 + cycle * 3 + 1) % 5;
             var eyes = (slot * 3 + cycle + 2) % 5;
             var ears = (slot * 4 + cycle * 2 + 3) % 5;
-            return (mouth, nose, eyes, ears, (slot + cycle * 3) % 5);
+            return (mouth, nose, eyes, ears, look % SkinTones.Length);
         }
 
         [SerializeField] private CustomerVoice voice;

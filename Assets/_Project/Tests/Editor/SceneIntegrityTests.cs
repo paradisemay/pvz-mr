@@ -102,8 +102,8 @@ namespace Pvz.Editor.Tests
                 ("BOX-001", new Vector3(0.34f, 0.26f, 0.34f)),
                 ("BOX-002", new Vector3(0.25f, 0.22f, 0.62f)),
                 ("BOX-003", new Vector3(0.48f, 0.12f, 0.40f)),
-                ("BOX-104", new Vector3(0.58f, 0.60f, 0.50f)),
-                ("BOX-105", new Vector3(0.30f, 0.44f, 0.32f)),
+                ("BOX-103", new Vector3(0.58f, 0.60f, 0.50f)),
+                ("BOX-104", new Vector3(0.30f, 0.44f, 0.32f)),
             };
             foreach (var (id, expected) in shapes)
             {
@@ -168,6 +168,22 @@ namespace Pvz.Editor.Tests
                 Assert.Contains($"Eyes_{i}_White", names);
                 Assert.Contains($"Eyes_{i}_Iris", names);
             }
+        }
+
+        [Test]
+        public void CustomerFaceLooksForwardAndHatRestsOnHead()
+        {
+            var customer = AssetDatabase.LoadAssetAtPath<Customer>("Assets/_Project/Prefabs/Customer.prefab");
+            var body = customer.transform.Find("Body");
+            var face = body.Find("FaceParts");
+            var hat = body.Find("CowboyHat");
+            var head = body.Find("Head");
+            var eye = face.GetComponentsInChildren<MeshRenderer>(true).First(r => r.name == "Eyes_0_White");
+            var eyeCenter = eye.transform.TransformPoint(eye.GetComponent<MeshFilter>().sharedMesh.bounds.center);
+            Assert.Greater(customer.transform.InverseTransformPoint(eyeCenter).z, 0.08f, "eyes belong on the front of the head");
+            Assert.Less(hat.localPosition.y - head.localPosition.y, 0.05f, "hat brim must touch the head");
+            var buckle = hat.GetComponentsInChildren<MeshRenderer>().First(r => r.name.Contains("Buckle"));
+            Assert.Greater(customer.transform.InverseTransformPoint(buckle.bounds.center).z, 0.08f, "hat buckle faces forward");
         }
 
         [Test]
