@@ -14,6 +14,14 @@ namespace Pvz.Core
         public int BagService { get; set; } = 20;
         public int AbandonPenalty { get; set; } = 50;
         public int ReturnService { get; set; } = 30;
+        /// <summary>T047: an order truly missing from the warehouse, reported as «Не найден».</summary>
+        public int LostOrderReported { get; set; } = 30;
+        /// <summary>T047: «Не найден» while every box of the order was in the warehouse.</summary>
+        public int FalseNotFoundPenalty { get; set; } = 50;
+        /// <summary>T045: every returned or refused box handed in from the returns bin.</summary>
+        public int ReturnHandedIn { get; set; } = 10;
+        /// <summary>T045: every returned or refused box left outside the bin at the end of the shift.</summary>
+        public int ReturnLostPenalty { get; set; } = 30;
         /// <summary>Extra points for serving a customer who was in a hurry (on top of <see cref="PointsForOrder"/>).</summary>
         public int UrgentBonus { get; set; } = 50;
 

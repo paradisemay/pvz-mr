@@ -13,7 +13,7 @@ namespace Pvz.Runtime.Tests
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
-            WarehouseLayoutKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // never the real saved layout
+            PlacementKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // nor the saved place of the counter
             CareerKeeper.StoreOverride = (new Pvz.Core.MemoryScoreStore(), new Pvz.Core.MemoryTextStore()); // nor the career
             yield return SceneManager.LoadSceneAsync("Game", LoadSceneMode.Single);
             yield return null;
@@ -22,7 +22,7 @@ namespace Pvz.Runtime.Tests
         [UnityTearDown]
         public IEnumerator ForgetTestStore()
         {
-            WarehouseLayoutKeeper.StoreOverride = null;
+            PlacementKeeper.StoreOverride = null;
             CareerKeeper.StoreOverride = null;
             yield return null;
         }
@@ -42,27 +42,33 @@ namespace Pvz.Runtime.Tests
             Assert.AreEqual(ShiftPresenter.HowToPlayText(), Object.FindFirstObjectByType<CounterBoard>().HowToPlay, "written by the presenter");
         }
 
+        /// <summary>T048 (#87): three themes of the pickup point, open from the start; each names the pickup point.</summary>
         [UnityTest]
-        public IEnumerator ThemeButton_PaintsTheCounter_InAThemeTheCareerOpened()
+        public IEnumerator ThemeButton_SwitchesAzotRazboryRynok_AndTheNameOfThePickupPoint()
         {
-            // A player with 1200 career points: «Мята» is open.
-            var points = new Pvz.Core.MemoryScoreStore();
-            points.Set(Pvz.Core.Career.PointsKey, 1200);
-            CareerKeeper.StoreOverride = (points, new Pvz.Core.MemoryTextStore());
+            var choice = new Pvz.Core.MemoryTextStore();
+            CareerKeeper.StoreOverride = (new Pvz.Core.MemoryScoreStore(), choice); // a new player, no career points
             yield return SceneManager.LoadSceneAsync("Game", LoadSceneMode.Single);
             yield return null;
 
             var keeper = Object.FindFirstObjectByType<CareerKeeper>();
-            var button = Object.FindFirstObjectByType<ThemeButton>();
-            Assert.IsNotNull(button, "the menu has a theme button");
-            Assert.AreEqual("classic", keeper.Skin.ThemeId, "nothing chosen yet");
-            StringAssert.Contains("до темы «Ночь»", Object.FindFirstObjectByType<CounterBoard>().Footer);
+            var button = Object.FindFirstObjectByType<ThemeButton>(FindObjectsInactive.Include); // on the settings screen of the computer
+            var computer = Object.FindFirstObjectByType<PvzComputer>();
+            var sign = GameObject.Find("SignFront").GetComponent<TMPro.TMP_Text>();
+            Assert.IsNotNull(button, "the computer settings have a theme key");
+            Assert.AreEqual("azot", keeper.Skin.ThemeId, "«Азот» first");
+            StringAssert.Contains("АЗОТ", sign.text);
+            Assert.AreEqual("Азот", computer.Brand);
 
-            button.Press();
-            Assert.AreEqual("mint", keeper.Skin.ThemeId);
-            StringAssert.Contains("МЯТА", button.Label);
-            button.Press();
-            Assert.AreEqual("classic", keeper.Skin.ThemeId, "«Ночь» is still closed: back to the classic look");
+            foreach (var (id, name) in new[] { ("razbory", "РАЗБОРЫ"), ("rynok", "РЫНОК"), ("azot", "АЗОТ") })
+            {
+                button.Press();
+                Assert.AreEqual(id, keeper.Skin.ThemeId, "every theme is open without career points");
+                StringAssert.Contains(name, button.Label);
+                StringAssert.Contains(name, sign.text, "the counter's sign names the pickup point");
+                StringAssert.StartsWith(name, PvzComputer.TitleFor(computer.Current, computer.Brand));
+                Assert.AreEqual(id, choice.Load(Pvz.Core.Career.ThemeKey), "the choice is saved");
+            }
         }
 
         [UnityTest]
@@ -77,7 +83,9 @@ namespace Pvz.Runtime.Tests
             Assert.IsTrue(director.IsStarted);
             Assert.AreSame(hard.Settings, director.ActiveSettings);
             Assert.AreEqual(45, director.Shift.PatienceSeconds, 1e-6);
-            Assert.AreEqual(3, director.ActiveSettings.QueueLength);
+            Assert.AreEqual(4, director.ActiveSettings.QueueLength);
+            Assert.AreEqual(14, director.ActiveSettings.OrdersPerShift, "hard: about fourteen customers (T044)");
+            Assert.AreEqual(15f, director.ActiveSettings.ArrivalInterval, 1e-4f, "hard: a customer every 15 s");
             Assert.IsTrue(director.DifficultyButtons.All(b => !b.gameObject.activeInHierarchy));
             Assert.IsNull(GameObject.Find("How To Play"), "the card goes away with the menu");
 
@@ -102,6 +110,9 @@ namespace Pvz.Runtime.Tests
 
                 StringAssert.Contains("возьмите сканер", board.Status);
                 director.Scanner.SimulateGrab();
+                StringAssert.Contains("телефон клиента", board.Status, "T035: first the code on the customer's phone");
+                director.Scanner.ScanDirect(director.CurrentCustomer.Phone);
+                StringAssert.Contains("на коробку", board.Status);
                 StringAssert.Contains("курок", board.Status);
 
                 var wanted = director.Desk.ActiveOrder.Boxes[0];
@@ -169,7 +180,9 @@ namespace Pvz.Runtime.Tests
             Assert.IsFalse(director.Shift.HasScheduledDelivery);
             Assert.AreEqual(0, director.Shift.BagChancePercent);
             Assert.AreEqual(0, director.Shift.PatienceSeconds, 1e-6);
-            Assert.AreEqual(1, director.ActiveSettings.QueueLength, "easy: one customer at a time");
+            Assert.AreEqual(3, director.ActiveSettings.QueueLength, "easy: a short line (T044)");
+            Assert.AreEqual(6, director.ActiveSettings.OrdersPerShift, "easy: about six customers");
+            Assert.AreEqual(30f, director.ActiveSettings.ArrivalInterval, 1e-4f, "easy: a calm pace");
         }
     }
 }

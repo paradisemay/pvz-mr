@@ -32,6 +32,7 @@ namespace Pvz.Core
             Desk.ReturnOpened += OnReturnOpened;
             Desk.OrderCompleted += OnOrderCompleted;
             Desk.OrderAbandoned += OnOrderAbandoned;
+            Desk.OrderLost += OnOrderLost;
             Desk.ReturnAccepted += OnReturnAccepted;
         }
 
@@ -50,6 +51,50 @@ namespace Pvz.Core
             // The line is the book's open visits: serving the visit takes the customer out of the line.
             var visit = Book.OpenPickup(result.Order);
             if (visit != null) Book.Serve(visit);
+
+            // T045: sometimes the customer checks a box and refuses it — it stays at the counter, to the returns bin.
+            if (RefusalChancePercent > 0 && result.Order.Boxes.Count > 0 && _random.Range(0, 100) < RefusalChancePercent)
+            {
+                var refused = result.Order.Boxes[_random.Range(0, result.Order.Boxes.Count)];
+                _returnable.RemoveAll(b => b.Id == refused); // it is not with the customer: they cannot bring it back
+                Returns.Expect(refused, result.Order.Number, ReturnKind.Refusal);
+                _refusedOrders.Add(result.Order.Number);
+                Stats.OnRefusal();
+                BoxRefused?.Invoke(new BoxRecord(refused, result.Order.Number));
+            }
+        }
+
+        private readonly HashSet<string> _refusedOrders = new HashSet<string>();
+
+        /// <summary>T045 (#85): returns and refusals waiting for the returns bin and the hand-in.</summary>
+        public ReturnsShelf Returns { get; } = new ReturnsShelf();
+
+        /// <summary>T045: chance that a customer refuses one box of a handed-over order.</summary>
+        public int RefusalChancePercent { get; set; }
+
+        /// <summary>T045: a customer refused a box at the counter (raised after the order counts as completed).</summary>
+        public event Action<BoxRecord> BoxRefused;
+
+        public bool WasRefused(string orderNumber) => _refusedOrders.Contains(orderNumber);
+
+        /// <summary>T045: «Сдать возвраты» — the boxes in the returns bin are handed in (points); returns them.</summary>
+        public List<BoxId> HandInReturns()
+        {
+            var handed = Returns.TakeBin();
+            Stats.OnReturnsHandedIn(handed.Count);
+            return handed;
+        }
+
+        /// <summary>
+        /// T045: the end of the shift — what is in the returns bin is handed in, the rest is lost (a penalty).
+        /// Returns (handed in, lost).
+        /// </summary>
+        public (List<BoxId> handed, List<BoxId> lost) CloseReturns()
+        {
+            var handed = HandInReturns();
+            var lost = Returns.TakeLost();
+            Stats.OnReturnsLost(lost.Count);
+            return (handed, lost);
         }
 
         // An order opened at the desk without joining the line (tests, single-customer use) is not in the book.
@@ -69,12 +114,29 @@ namespace Pvz.Core
         {
             var visit = Book.OpenPickup(order);
             if (visit != null) Book.Abandon(visit); // the order goes back to the pool for the next customers
+            // T047: unless a box of it is missing — the next customer would wait for it in vain all the same.
+            foreach (var box in order.Boxes)
+                if (_missing.Contains(box)) { _notForSale.Add(order.Number); break; }
+        }
+
+        /// <summary>T047: every box of the order not handed over yet is missing from the warehouse.</summary>
+        private bool OnlyMissingLeft(ServiceSession session)
+        {
+            var any = false;
+            foreach (var box in session.Order.Boxes)
+            {
+                if (session.IsDelivered(box)) continue;
+                if (!_missing.Contains(box)) return false;
+                any = true;
+            }
+            return any;
         }
 
         private void OnReturnAccepted(ReturnRequest request)
         {
             var visit = OpenReturn(request);
             if (visit != null) Book.Serve(visit);
+            Returns.Expect(request.Box, request.OrderNumber, ReturnKind.Return); // T045: to the returns bin, not written off
         }
 
         private Visit OpenReturn(ReturnRequest request)
@@ -98,7 +160,87 @@ namespace Pvz.Core
         /// <summary>Number of different orders of the shift so far (initial stock + arrived deliveries).</summary>
         public int OrdersTotal => _orderNumbers.Count;
 
-        public bool HasOrdersLeft => Desk.Catalog.Count > 0;
+        public bool HasOrdersLeft
+        {
+            get
+            {
+                foreach (var box in Desk.Catalog.Boxes) if (!_notForSale.Contains(box.OrderNumber)) return true;
+                return false;
+            }
+        }
+
+        private readonly HashSet<string> _notForSale = new HashSet<string>();
+
+        /// <summary>
+        /// T036 (#80): orders lying in the warehouse that nobody picks up this shift (spare boxes in the pile from the
+        /// hatch — other days' orders). They are scanned as «another order», never come to the counter and do not count
+        /// towards the shift. Set before customers come.
+        /// </summary>
+        private readonly HashSet<BoxId> _missing = new HashSet<BoxId>();
+
+        /// <summary>
+        /// T047 (#86): boxes that are in the orders but not in the warehouse (never delivered, lost). Set before customers
+        /// come; the boxes are not dropped out of the hatch.
+        /// </summary>
+        public void MarkMissing(IEnumerable<BoxId> boxes)
+        {
+            if (boxes == null) throw new ArgumentNullException(nameof(boxes));
+            foreach (var box in boxes) _missing.Add(box);
+        }
+
+        public bool IsMissing(BoxId box) => _missing.Contains(box);
+
+        public int MissingCount => _missing.Count;
+
+        /// <summary>T047: an order was reported lost («Не найден», and rightly so).</summary>
+        public event Action<Order> OrderLost;
+
+        /// <summary>T047: «Не найден» was pressed, but every box of the order is in the warehouse.</summary>
+        public event Action<Order> FalseNotFound;
+
+        /// <summary>
+        /// T047 (#86): the player reports that a box of the order at the counter is not in the warehouse. True and the
+        /// order is closed as lost (the customer leaves calmly, a few points for honesty, its other boxes stay unsold);
+        /// false and it is a penalty — the box is there, the customer keeps waiting.
+        /// </summary>
+        public bool DeclareNotFound()
+        {
+            if (!Desk.HasActiveOrder) return false;
+            var session = Desk.ActiveSession;
+            var missing = false;
+            foreach (var box in session.Order.Boxes)
+                if (!session.IsDelivered(box) && _missing.Contains(box)) { missing = true; break; }
+            if (!missing)
+            {
+                Stats.OnFalseNotFound();
+                FalseNotFound?.Invoke(session.Order);
+                return false;
+            }
+            Desk.CloseAsLost();
+            return true;
+        }
+
+        private void OnOrderLost(Order order)
+        {
+            var visit = Book.OpenPickup(order);
+            if (visit != null) Book.MarkLost(visit);
+            _notForSale.Add(order.Number); // its boxes still in the warehouse are not sold to anyone else
+            Stats.OnLostOrder();
+            OrderLost?.Invoke(order);
+        }
+
+        public void MarkNotForSale(IEnumerable<string> orderNumbers)
+        {
+            if (orderNumbers == null) throw new ArgumentNullException(nameof(orderNumbers));
+            foreach (var number in orderNumbers)
+            {
+                if (string.IsNullOrEmpty(number)) continue;
+                _notForSale.Add(number);
+                _orderNumbers.Remove(number);
+            }
+        }
+
+        public bool IsForSale(string orderNumber) => !_notForSale.Contains(orderNumber);
 
         public bool HasPendingIntake => _pendingIntake.Count > 0;
 
@@ -153,7 +295,27 @@ namespace Pvz.Core
         public void Start(double now) => Clock.Start(now);
 
         /// <summary>Seconds of the shift left, or null when there is no time limit or the clock has not started.</summary>
-        public double? TimeLeft(double now) => Clock.TimeLeft(now);
+        public double? TimeLeft(double now) => Clock.LimitSeconds > 0 ? Clock.TimeLeft(now) : null; // a shift without a limit shows no clock, even when ended early
+
+        /// <summary>The customer shows a barcode on their phone, scanned before anything is served (T035).</summary>
+        public bool RequiresCustomerCode
+        {
+            get => Desk.RequiresCustomerCode;
+            set => Desk.RequiresCustomerCode = value;
+        }
+
+        /// <summary>The player scanned the barcode the customer at the counter shows.</summary>
+        public bool ScanCustomerCode() => Desk.ScanCustomerCode();
+
+        /// <summary>
+        /// The player ends the shift early (T033, «Завершить смену» on the counter computer): it goes as when the time runs
+        /// out — the line goes home, the customer at the counter is served to the end, no delivery comes any more.
+        /// </summary>
+        public void EndNow(double now)
+        {
+            Clock.EndNow();
+            CheckTime(now);
+        }
 
         /// <summary>The time ran out: the line goes home (the customer at the counter stays), then <see cref="TimeUp"/>.</summary>
         private void CheckTime(double now)
@@ -180,7 +342,6 @@ namespace Pvz.Core
             _random = random ?? throw new ArgumentNullException(nameof(random));
             _generator = new OrderGenerator(_random, BagChancePercent) {
                 UrgentChancePercent = UrgentChancePercent,
-                ForgotNumberChancePercent = ForgotNumberChancePercent,
             };
         }
 
@@ -228,8 +389,17 @@ namespace Pvz.Core
             CheckTime(now);
             if (!Desk.HasActiveOrder) return;
             var session = Desk.ActiveSession;
+            // T047: what is left of the order is nowhere in the warehouse — nothing can complete it but «Не найден».
+            var onlyMissingLeft = OnlyMissingLeft(session);
+            if (onlyMissingLeft && IsTimeUp)
+            {
+                // The shift is over and nobody said «Не найден»: the customer gives up (the shift must be able to end).
+                Desk.Abandon();
+                return;
+            }
             var patience = PatienceFor(session.Order);
-            if (patience <= 0 || session.DeliveredCount > 0) return;
+            // A customer who already got part of the order waits for the rest — unless the rest does not exist.
+            if (patience <= 0 || (session.DeliveredCount > 0 && !onlyMissingLeft)) return;
             var waited = now - session.OpenedAt;
             if (!session.Hurried && waited >= patience * HurryFraction)
             {
@@ -267,13 +437,6 @@ namespace Pvz.Core
             set => _generator.UrgentChancePercent = value;
         }
 
-        /// <summary>Probability (0..100) that a customer remembers only the end of the order number.</summary>
-        public int ForgotNumberChancePercent
-        {
-            get => _generator.ForgotNumberChancePercent;
-            set => _generator.ForgotNumberChancePercent = value;
-        }
-
         /// <summary>How many customers may wait in line (including the one at the counter).</summary>
         public int QueueLength { get; set; } = 1;
 
@@ -298,6 +461,15 @@ namespace Pvz.Core
         }
 
         public bool CanEnqueue => !IsTimeUp && Book.Line.Count < Math.Max(1, QueueLength) && HasUnreservedOrders;
+
+        /// <summary>T044 (#84): somebody would come now, but the line is full.</summary>
+        public bool IsLineFull => !IsTimeUp && Book.Line.Count >= Math.Max(1, QueueLength) && HasUnreservedOrders;
+
+        /// <summary>
+        /// T044 (#84): a customer came while the line was full and left at once. Their order stays in the warehouse
+        /// for a later customer; the summary says how many did not stay.
+        /// </summary>
+        public void TurnAway() => Stats.OnTurnedAway();
 
         /// <summary>
         /// A new customer joins the line. Usually they come for an order nobody in line has yet (it is reserved,
@@ -331,7 +503,7 @@ namespace Pvz.Core
         /// <summary>A new pickup customer joins the line; returns their visit (null when nothing is left to promise).</summary>
         private Visit JoinPickup()
         {
-            var order = _generator.CreateRandomOrder(Desk.Catalog, ReservedNumbers(), KnownOrderNumbers());
+            var order = _generator.CreateRandomOrder(Desk.Catalog, ReservedNumbers());
             if (order == null) return null;
             var visit = Visit.Pickup(order);
             Join(visit);
@@ -394,26 +566,19 @@ namespace Pvz.Core
             if (visit != null) LeaveQueue(visit);
         }
 
-        /// <summary>
-        /// Every order this shift has or will have: stock, deliveries waiting to be scanned and the planned delivery.
-        /// A forgetful customer's hint must stay unambiguous against all of them.
-        /// </summary>
-        private IEnumerable<string> KnownOrderNumbers()
-        {
-            foreach (var number in _orderNumbers) yield return number;
-            if (!HasScheduledDelivery) yield break;
-            foreach (var box in _supplyPlan.Boxes) yield return box.OrderNumber;
-        }
-
         private HashSet<string> ReservedNumbers()
         {
-            var numbers = new HashSet<string>();
+            // Orders not for sale this shift are as good as taken: nobody comes for them (T036).
+            var numbers = new HashSet<string>(_notForSale);
             // An order opened at the desk without joining the line (tests, single-customer use) is taken too.
             if (Desk.HasActiveOrder) numbers.Add(Desk.ActiveOrder.Number);
             foreach (var visit in Book.Line)
             {
                 if (visit.ReservedOrderNumber != null) numbers.Add(visit.ReservedOrderNumber);
             }
+            // #106: an order whose boxes are still being received from the delivery is not ready — a customer for it
+            // would get the boxes received so far, and the rest would be sold again under the same number.
+            foreach (var pending in _pendingIntake.Values) numbers.Add(pending.OrderNumber);
             return numbers;
         }
 
@@ -493,6 +658,7 @@ namespace Pvz.Core
             BoxReceived -= Stats.OnBoxReceived;
             Desk.OrderCompleted -= OnOrderCompleted;
             Desk.OrderAbandoned -= OnOrderAbandoned;
+            Desk.OrderLost -= OnOrderLost;
             Desk.OrderOpened -= OnOrderOpened;
             Desk.ReturnOpened -= OnReturnOpened;
             Desk.ReturnAccepted -= OnReturnAccepted;

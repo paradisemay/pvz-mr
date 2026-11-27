@@ -183,18 +183,18 @@ namespace Pvz.Runtime.Remote
                 switch (name)
                 {
                     case "ping": return RemoteProtocol.Ok("pong", true);
-                    case "help": return RemoteProtocol.Ok("commands", "ping state begin recenter reset-layout theme restart scan give bag " +
-                                                                      "return move timescale area autoplay shot record view hand");
+                    case "help": return RemoteProtocol.Ok("commands", "ping state begin recenter theme restart code scan give bag " +
+                                                                      "return move timescale area autoplay shot record view hand pc");
                     case "state": return State();
                     case "begin": return Begin(args.Length > 0 ? args[0] : "normal");
                     case "recenter": return Press<RecenterButton>(b => b.Press());
-                    case "reset-layout": return Press<ResetWarehouseButton>(b => b.Press());
                     case "theme": return Press<ThemeButton>(b => b.Press());
                     case "restart":
                         StopAutoplay();
                         SceneManager.LoadScene(SceneManager.GetActiveScene().path);
                         return RemoteProtocol.Ok("restarting", true);
                     case "scan": return Scan(Arg(args, 0));
+                    case "code": return ScanCode();
                     case "give": return Give(Arg(args, 0));
                     case "bag": return Bag();
                     case "return": return ScanReturn();
@@ -206,6 +206,7 @@ namespace Pvz.Runtime.Remote
                     case "shot": return Shot(args.Length > 0 ? args[0] : "shot", args.Length > 1 ? args[1] : _view);
                     case "record": return Record(args);
                     case "hand": return Hand(args);
+                    case "pc": return Computer(Arg(args, 0));
                     default: return RemoteProtocol.Error($"unknown command «{name}» (try help)");
                 }
             }
@@ -240,6 +241,20 @@ namespace Pvz.Runtime.Remote
             {
                 json.Add("headline", board.Headline).Add("status", board.Status).Add("footer", board.Footer).Add("orders", board.Orders);
             }
+            var pc = FindFirstObjectByType<PvzComputer>();
+            if (pc != null) json.Add("computer", pc.Current.ToString()).Add("screen", pc.ScreenText);
+            foreach (var placement in FindObjectsByType<PlacementKeeper>(FindObjectsSortMode.None))
+            {
+                if (placement.Rig == null) continue;
+                json.Add(placement.Rig.GetComponent<SupplyHatch>() != null ? "hatchAt" : placement.Rig.name == "Shelf Rack" ? "rackAt" : "counterAt",
+                    placement.Current.Format());
+            }
+            var room = FindFirstObjectByType<RoomMesh>(); // T041: did the room mesh come from the headset?
+            if (room != null) json.Add("roomMesh", room.Current.ToString()).Add("roomMeshes", room.MeshCount);
+            var holder = FindFirstObjectByType<ScannerHolder>(); // T038
+            if (holder != null) json.Add("scannerDocked", holder.IsDocked).Add("scannerReturns", holder.Returns);
+            var voice = FindFirstObjectByType<ScannerVoice>(); // T043: what the scanner said aloud
+            if (voice != null) json.Add("voice", voice.Spoken);
             if (director == null) return json.Add("director", false).ToString();
 
             json.Add("started", director.IsStarted).Add("shiftOver", director.IsShiftOver)
@@ -263,10 +278,10 @@ namespace Pvz.Runtime.Remote
                     .Add("boxes", new Json.Raw(Json.Array(session.Order.Boxes.Select(b => Json.Quote(b.Value)))))
                     .Add("left", session.RemainingCount)
                     .Add("awaitingBag", session.AwaitingBag)
-                    .Add("urgent", session.Order.IsUrgent)
-                    .Add("forgotNumber", session.Order.ForgotNumber).ToString()));
+                    .Add("urgent", session.Order.IsUrgent).ToString()));
             }
             if (desk.HasActiveReturn) json.Add("return", desk.ActiveReturn.Box.Value);
+            json.Add("awaitsCode", desk.AwaitsCode);
             json.Add("boxes", new Json.Raw(Json.Array(director.RemainingBoxes.Where(b => b != null).Select(b =>
             {
                 var p = b.transform.localPosition;
@@ -293,8 +308,12 @@ namespace Pvz.Runtime.Remote
 
         private static string Press<T>(Action<T> press) where T : Component
         {
-            var button = FindFirstObjectByType<T>(FindObjectsInactive.Exclude);
-            if (button == null) return RemoteProtocol.Error($"no active {typeof(T).Name} (the start menu is hidden during a shift)");
+            var button = FindFirstObjectByType<T>(FindObjectsInactive.Include); // keys of other computer screens are hidden
+            if (button == null) return RemoteProtocol.Error($"no {typeof(T).Name} in the scene");
+            var director = Director;
+            var running = director != null && director.IsStarted && !director.IsShiftOver;
+            if (running && button is RecenterButton)
+                return RemoteProtocol.Error($"{typeof(T).Name} is a before-the-shift setting (the computer hides it during a shift)");
             press(button);
             return RemoteProtocol.Ok("pressed", typeof(T).Name);
         }
@@ -317,6 +336,16 @@ namespace Pvz.Runtime.Remote
             if (!TryBox(id, out var box, out var error)) return RemoteProtocol.Error(error);
             Director.Scanner.ScanDirect(box);
             return RemoteProtocol.Ok("scanner", Director.Scanner.ScreenText);
+        }
+
+        /// <summary>code: scans the barcode on the phone of the customer at the counter (T035).</summary>
+        private static string ScanCode()
+        {
+            var director = Director;
+            var phone = director != null && director.CurrentCustomer != null ? director.CurrentCustomer.Phone : null;
+            if (phone == null || !phone.IsShown) return RemoteProtocol.Error("no phone shown at the counter");
+            director.Scanner.ScanDirect(phone);
+            return RemoteProtocol.Ok("scanner", director.Scanner.ScreenText);
         }
 
         private static string ScanReturn()
@@ -367,12 +396,33 @@ namespace Pvz.Runtime.Remote
             Physics.SyncTransforms();
         }
 
+        /// <summary>pc settings|back|end: the keys of the counter computer (T033); without an argument — its screen.</summary>
+        private static string Computer(string key)
+        {
+            var pc = FindFirstObjectByType<PvzComputer>();
+            if (pc == null) return RemoteProtocol.Error("no computer in the scene");
+            switch ((key ?? string.Empty).ToLowerInvariant())
+            {
+                case "settings": pc.OpenSettings(); break;
+                case "back": pc.Back(); break;
+                case "end": pc.EndShift(); break;
+                case "move": pc.StartMovingCounter(); break;
+                case "hatch": pc.StartMovingHatch(); break;
+                case "rack": pc.StartMovingRack(); break;
+                case "apply": pc.ApplyMove(); break;
+                case "cancel": pc.CancelMove(); break;
+                case "": break;
+                default: return RemoteProtocol.Error("pc settings|back|end|move|hatch|rack|apply|cancel");
+            }
+            return new Json().Add("ok", true).Add("computer", pc.Current.ToString()).Add("screen", pc.ScreenText).ToString();
+        }
+
         // ---------- virtual controller (real XRI input path) ----------
 
         private VirtualHand _hand;
 
         /// <summary>
-        /// hand on|off · hand aim scanner|BOX-ID|x y z · hand grip on|off · hand trigger on|off · hand (status).
+        /// hand on|off · hand aim scanner|BOX-ID|button|x y z · hand grip on|off · hand trigger on|off · hand [debug] (status).
         /// </summary>
         private string Hand(string[] args)
         {
@@ -381,18 +431,34 @@ namespace Pvz.Runtime.Remote
             switch (verb)
             {
                 case "on":
+                    if (_hand.IsOn) break; // already on: never jump a hand that may hold something
                     _hand.TurnOn();
                     if (Camera.main != null) _hand.PointAt(Camera.main.transform.position + Camera.main.transform.forward);
+                    _hand.Teleport(_hand.TargetPosition, _hand.TargetRotation); // nothing is held yet
                     break;
                 case "off": _hand.TurnOff(); break;
                 case "aim":
                     if (!_hand.IsOn) return RemoteProtocol.Error("hand on first");
-                    if (!TryTarget(args, out var target, out var error)) return RemoteProtocol.Error(error);
+                    if (!TryTarget(args, out var target, out var error, out var targetObject)) return RemoteProtocol.Error(error);
                     var held = FindFirstObjectByType<HandScanner>();
                     var holding = held != null && held.IsHeld;
-                    // A scanner grabbed by the ray hangs where the ray caught it, ahead of the hand: step back further.
-                    _hand.PointAt(target, holding ? 1.3f : 0.5f);
-                    if (holding) _hand.AimHeld(held.Muzzle, target); // aim the scan ray, not the hand
+                    // Aim from a spot with a clear line to the target (other boxes, the counter are not in the way).
+                    if (!holding)
+                    {
+                        _hand.PointAt(target, 0.5f, targetObject);
+                        break;
+                    }
+                    // Holding the scanner: the line is checked from where its muzzle will be, 0.5 m from the target (#93).
+                    if (targetObject != null && targetObject.IsChildOf(held.transform))
+                        return RemoteProtocol.Error("the scanner is already in the hand");
+                    if (!_hand.AimHeldAt(held.Muzzle, target, targetObject, held.transform))
+                        return RemoteProtocol.Error($"no clear line from the scanner to {args[1]} (something is in the way from every side)");
+                    break;
+                case "to":
+                    if (!_hand.IsOn) return RemoteProtocol.Error("hand on first");
+                    if (args.Length < 4 || !RemoteProtocol.TryNumber(args[1], out var tx) || !RemoteProtocol.TryNumber(args[2], out var ty) ||
+                        !RemoteProtocol.TryNumber(args[3], out var tz)) return RemoteProtocol.Error("hand to x y z (metres, world)");
+                    _hand.SetPose(new Vector3(tx, ty, tz), _hand.TargetRotation); // carry what is held, keep the hand turned as it is
                     break;
                 case "grip":
                 case "trigger":
@@ -401,6 +467,7 @@ namespace Pvz.Runtime.Remote
                     if (verb == "grip") _hand.SetGrip(on); else _hand.SetTrigger(on);
                     break;
                 case "": break;
+                case "debug": return HandStatus(debug: true);
                 default: return RemoteProtocol.Error("hand on|off|aim TARGET|grip on|off|trigger on|off");
             }
             return HandStatus();
@@ -408,16 +475,37 @@ namespace Pvz.Runtime.Remote
 
         private static string Vec(Vector3 v) => string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0.00} {1:0.00} {2:0.00}", v.x, v.y, v.z);
 
-        private static bool TryTarget(string[] args, out Vector3 target, out string error)
+        private static bool TryTarget(string[] args, out Vector3 target, out string error, out Transform targetObject)
         {
             target = default;
             error = null;
+            targetObject = null;
             var what = Arg(args, 1);
+            if (string.Equals(what, "phone", StringComparison.OrdinalIgnoreCase))
+            {
+                var director = Director;
+                var phone = director != null && director.CurrentCustomer != null ? director.CurrentCustomer.Phone : null;
+                if (phone == null || !phone.IsShown) { error = "no phone shown at the counter"; return false; }
+                var hit = phone.GetComponentInChildren<Collider>();
+                target = hit != null ? hit.bounds.center : phone.transform.position;
+                targetObject = phone.transform;
+                return true;
+            }
+            if (string.Equals(what, "handle", StringComparison.OrdinalIgnoreCase))
+            {
+                var mover = FindObjectsByType<PlacementMover>(FindObjectsSortMode.None)
+                    .FirstOrDefault(m => m.Handle != null && m.Handle.gameObject.activeInHierarchy); // the counter's or the hatch's
+                if (mover == null) { error = "no handle shown (pc settings, then pc move or pc hatch)"; return false; }
+                target = mover.Handle.transform.position;
+                targetObject = mover.Handle.transform;
+                return true;
+            }
             if (string.Equals(what, "scanner", StringComparison.OrdinalIgnoreCase))
             {
                 var scanner = FindFirstObjectByType<HandScanner>();
                 if (scanner == null) { error = "no scanner"; return false; }
                 target = scanner.transform.position;
+                targetObject = scanner.transform;
                 return true;
             }
             if (args.Length >= 4 && RemoteProtocol.TryNumber(args[1], out var x) && RemoteProtocol.TryNumber(args[2], out var y) &&
@@ -426,58 +514,62 @@ namespace Pvz.Runtime.Remote
                 target = new Vector3(x, y, z);
                 return true;
             }
+            foreach (var button in FindObjectsByType<PressableButton>(FindObjectsSortMode.None))
+            {
+                if (string.IsNullOrEmpty(what) || button.name.IndexOf(what, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                target = button.transform.position; // a counter button by part of its name (hand aim Обычная, hand aim Recenter…)
+                targetObject = button.transform;
+                return true;
+            }
             if (!TryBox(what, out var box, out error)) return false;
             target = box.transform.position;
+            targetObject = box.transform;
             return true;
         }
 
-        private string HandStatus()
+        private string HandStatus(bool debug = false)
         {
             var selected = new List<string>();
             var hovered = new List<string>();
+            var details = new List<string>();
             foreach (var interactor in FindObjectsByType<UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInteractor>(FindObjectsSortMode.None))
             {
                 if (!interactor.isActiveAndEnabled) continue;
                 foreach (var i in interactor.interactablesSelected) selected.Add(interactor.name + ":" + i.transform.name);
                 foreach (var i in interactor.interactablesHovered) hovered.Add(interactor.name + ":" + i.transform.name);
+                if (!debug) continue;
+                details.Add($"{interactor.name}@{Vec(interactor.transform.position)}>{Vec(interactor.transform.forward)}");
+                if (interactor is UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInputInteractor input)
+                    details.Add($"{interactor.name}:selectActive={input.isSelectActive}");
             }
-            var active = new List<string>();
-            foreach (var interactor in FindObjectsByType<UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInteractor>(FindObjectsSortMode.None))
-                if (interactor.isActiveAndEnabled) active.Add($"{interactor.name}@{Vec(interactor.transform.position)}>{Vec(interactor.transform.forward)}");
-            var scannerObject = FindFirstObjectByType<HandScanner>();
-            if (scannerObject != null) active.Add($"muzzle@{Vec(scannerObject.Muzzle.position)}>{Vec(scannerObject.Muzzle.forward)}");
-            if (Camera.main != null) active.Add("head@" + Vec(Camera.main.transform.position));
-            var grab = scannerObject != null ? scannerObject.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>() : null;
-            foreach (var interactor in FindObjectsByType<UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInputInteractor>(FindObjectsSortMode.None))
+            var scanner = FindFirstObjectByType<HandScanner>();
+            if (debug)
             {
-                if (!interactor.isActiveAndEnabled) continue;
-                var selectable = grab != null && grab.IsSelectableBy((UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor)interactor);
-                active.Add($"{interactor.name}:selectActive={interactor.isSelectActive},canSelect={selectable}," +
-                           $"grabEnabled={(grab != null && grab.isActiveAndEnabled)},selectedBy={(grab != null ? grab.interactorsSelecting.Count : -1)}");
-            }
-            var manager = FindFirstObjectByType<UnityEngine.XR.Interaction.Toolkit.Inputs.InputActionManager>();
-            if (manager != null)
-                foreach (var asset in manager.actionAssets)
-                {
-                    var map = asset != null ? asset.FindActionMap("XRI Right Interaction") : null;
-                    if (map == null) continue;
-                    foreach (var a in new[] { "Select", "Activate" })
+                if (scanner != null) details.Add($"muzzle@{Vec(scanner.Muzzle.position)}>{Vec(scanner.Muzzle.forward)}");
+                if (Camera.main != null) details.Add("head@" + Vec(Camera.main.transform.position));
+                var manager = FindFirstObjectByType<UnityEngine.XR.Interaction.Toolkit.Inputs.InputActionManager>();
+                if (manager != null)
+                    foreach (var asset in manager.actionAssets)
                     {
-                        var action = map.FindAction(a);
-                        if (action != null)
-                            active.Add($"{a}:enabled={action.enabled},phase={action.phase},pressed={action.IsPressed()},controls={action.controls.Count}");
+                        var map = asset != null ? asset.FindActionMap("XRI Right Interaction") : null;
+                        if (map == null) continue;
+                        foreach (var a in new[] { "Select", "Activate" })
+                        {
+                            var action = map.FindAction(a);
+                            if (action != null) details.Add($"{a}:phase={action.phase},pressed={action.IsPressed()}");
+                        }
                     }
-                }
+            }
             var json = new Json().Add("ok", true).Add("hand", _hand != null && _hand.IsOn);
             if (_hand != null && _hand.IsOn)
             {
-                json.Add("grip", _hand.Grip).Add("trigger", _hand.Trigger).Add("pos", Vec(_hand.WorldPosition)).Add("device", _hand.DeviceReport);
+                json.Add("grip", _hand.Grip).Add("trigger", _hand.Trigger).Add("pos", Vec(_hand.WorldPosition)).Add("moving", _hand.IsMoving || _hand.IsAiming);
+                if (debug) json.Add("device", _hand.DeviceReport);
             }
             json.Add("mode", UnityEngine.XR.Interaction.Toolkit.Inputs.XRInputModalityManager.currentInputMode.Value.ToString())
-                .Add("interactors", string.Join(", ", active))
                 .Add("selected", string.Join(", ", selected)).Add("hovered", string.Join(", ", hovered));
-            var director = Director;
-            if (director != null && director.Scanner != null) json.Add("scanner", director.Scanner.ScreenText);
+            if (scanner != null) json.Add("scanner", scanner.ScreenText).Add("lastHit", scanner.LastHit);
+            if (debug) json.Add("debug", string.Join(", ", details));
             return json.ToString();
         }
 
@@ -546,7 +638,34 @@ namespace Pvz.Runtime.Remote
                     yield return pause;
                 }
 
+                // T045: returned and refused boxes go into the returns bin, and once there they are handed in.
+                if (director.ReturnsBin != null)
+                {
+                    var loose = director.ReturnBoxes.Where(b => !director.ReturnsBin.Contains(b) && !b.IsHeld).ToArray();
+                    for (var i = 0; i < loose.Length; i++)
+                    {
+                        var returned = loose[i];
+                        // Spread over the bin, a little higher each: two boxes never drop in at the same point.
+                        var drop = director.ReturnsBin.transform.TransformPoint(new Vector3((i % 2 - 0.5f) * 0.1f, 0.3f + 0.25f * (i / 2), 0f));
+                        Teleport(returned.transform, returned.GetComponent<Rigidbody>(), drop);
+                        yield return pause;
+                    }
+                    if (director.Shift.Returns.InBin > 0)
+                    {
+                        director.HandInReturns();
+                        yield return pause;
+                    }
+                }
+
                 var desk = director.Desk;
+                if (desk.AwaitsCode && director.CurrentCustomer != null && !director.CurrentCustomer.IsWalking)
+                {
+                    // T035: the code on the phone first (a customer without a phone: the code is taken as read).
+                    if (director.CurrentCustomer.Phone != null) director.Scanner.ScanDirect(director.CurrentCustomer.Phone);
+                    else director.Shift.ScanCustomerCode();
+                    yield return pause;
+                    continue;
+                }
                 if (desk.HasActiveReturn && director.CurrentReturnBox != null)
                 {
                     director.Scanner.ScanDirect(director.CurrentReturnBox);
@@ -566,6 +685,13 @@ namespace Pvz.Runtime.Remote
                         if (!SameCustomer()) break;
                         Teleport(box.transform, box.GetComponent<Rigidbody>(), director.Zone.transform.position + Vector3.up * 0.05f);
                         yield return pause;
+                    }
+                    // T047: a box of the order is nowhere in the room — a «потеряшка»: say so on the computer.
+                    if (SameCustomer() && session.Order.Boxes.Any(id => !session.IsDelivered(id) && !director.TryGetBox(id, out _)))
+                    {
+                        director.DeclareNotFound();
+                        yield return pause;
+                        continue;
                     }
                     if (SameCustomer() && session.AwaitingBag)
                     {

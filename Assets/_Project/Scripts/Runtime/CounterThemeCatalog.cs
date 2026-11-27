@@ -6,8 +6,8 @@ using UnityEngine;
 namespace Pvz.Runtime
 {
     /// <summary>
-    /// The counter themes of the career (T022): id and threshold (handed to Core), the name the player sees and the
-    /// colours. One asset for the whole game — the career spans all difficulties, so it is not in <see cref="ShiftSettings"/>.
+    /// The themes of the pickup point (T022, T048 #87): id and threshold (handed to Core), the name the player sees, the
+    /// brand on the sign and the colours of the counter, the board, the computer and the rack. One asset for the whole game — the career spans all difficulties, so it is not in <see cref="ShiftSettings"/>.
     /// </summary>
     [CreateAssetMenu(menuName = "PVZ/Counter Theme Catalog", fileName = "CounterThemes")]
     public sealed class CounterThemeCatalog : ScriptableObject
@@ -23,6 +23,10 @@ namespace Pvz.Runtime
             public Color body = Color.gray;
             public Color top = Color.white;
             public Color accent = Color.yellow;
+            [Tooltip("T048: the name of the pickup point in this theme — on the counter's sign and the computer's title.")]
+            public string brand = "ПВЗ";
+            [Tooltip("T048: the computer's case.")]
+            public Color computer = new Color(0.86f, 0.87f, 0.84f);
         }
 
         [SerializeField] private Entry[] themes = Array.Empty<Entry>();

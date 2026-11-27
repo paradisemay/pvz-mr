@@ -16,6 +16,8 @@ namespace Pvz.Core
         Abandoned,
         /// <summary>Left the line before reaching the counter (vanished on the way, or the shift time ran out).</summary>
         Left,
+        /// <summary>T047 (#86): the order's box was not in the warehouse; the player said so and the customer left calmly.</summary>
+        Lost,
     }
 
     /// <summary>One visit of the shift and its current state.</summary>
@@ -83,6 +85,9 @@ namespace Pvz.Core
 
         /// <summary>The customer at the counter ran out of patience.</summary>
         internal void Abandon(Visit visit) => Move(visit, VisitState.AtCounter, VisitState.Abandoned);
+
+        /// <summary>T047: the order at the counter was declared not found (its box is missing).</summary>
+        internal void MarkLost(Visit visit) => Move(visit, VisitState.AtCounter, VisitState.Lost);
 
         /// <summary>Customers left the line before reaching the counter (one <see cref="Changed"/> for all of them).</summary>
         internal void Leave(IEnumerable<Visit> visits)

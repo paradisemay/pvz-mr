@@ -1,6 +1,7 @@
 using System.Linq;
 using NUnit.Framework;
 using Pvz.Runtime;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -26,9 +27,7 @@ namespace Pvz.Editor.Tests
         }
 
         [TestCase(typeof(ShiftDirector))]
-        [TestCase(typeof(WarehouseLayoutKeeper))]
         [TestCase(typeof(FeedbackEffects))]
-        [TestCase(typeof(ResetWarehouseButton))]
         [TestCase(typeof(ThemeButton))]
         [TestCase(typeof(CounterSkin))]
         [TestCase(typeof(CareerKeeper))]
@@ -36,7 +35,9 @@ namespace Pvz.Editor.Tests
         [TestCase(typeof(CounterBoard))]
         [TestCase(typeof(ShiftSummaryPanel))]
         [TestCase(typeof(MrSessionSetup))]
-        [TestCase(typeof(SupplyDrop))]
+        [TestCase(typeof(SupplyHatch))]
+        [TestCase(typeof(ScannerHolder))]
+        [TestCase(typeof(RoomMesh))]
         [TestCase(typeof(BagDispenser))]
         [TestCase(typeof(DifficultyButton))]
         [TestCase(typeof(RecenterButton))]
@@ -75,16 +76,139 @@ namespace Pvz.Editor.Tests
         }
 
         [Test]
-        public void SceneBoxesMatchShiftSettings()
+        public void ItmoArtKeepsTheScannableQrBoxes()
         {
-            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(PvzSceneBuilder.SettingsPath);
-            var expected = settings.Boxes.Select(b => new Core.BoxId(b.boxId)).OrderBy(b => b.Value).ToArray();
-            var inScene = Object.FindObjectsByType<QrBox>(FindObjectsSortMode.None).Select(b => b.Id).OrderBy(b => b.Value).ToArray();
-            CollectionAssert.AreEqual(expected, inScene);
+            var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/_Project/Art/Fonts/Tiny5 Duo SDF.asset");
+            Assert.IsNotNull(font);
+            Assert.AreEqual("Assets/_Project/Art/Fonts/Tiny5Duo-Regular.ttf",
+                AssetDatabase.GetAssetPath(new SerializedObject(font).FindProperty("m_SourceFontFile").objectReferenceValue));
 
+            var model = Resources.Load<GameObject>("ITMO/ITMO_Box");
+            Assert.IsNotNull(model);
+            Assert.IsTrue(model.GetComponentsInChildren<MeshRenderer>().Any(r => r.name.Contains("ITMO_Front")));
+
+            var box = AssetDatabase.LoadAssetAtPath<QrBox>("Assets/_Project/Prefabs/Box_Supply.prefab");
+            Assert.IsNotNull(box);
+            foreach (var face in new[] { "Top", "Front", "Back", "Left", "Right" })
+                Assert.IsNotNull(box.transform.Find($"QR_{face}"), $"missing QR_{face}");
+        }
+
+        [Test]
+        public void ParcelShapesKeepTheirColliderAndQrLabelsOnTheBox()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<QrBox>("Assets/_Project/Prefabs/Box_Supply.prefab");
+            var shapes = new[]
+            {
+                ("BOX-001", new Vector3(0.34f, 0.26f, 0.34f)),
+                ("BOX-002", new Vector3(0.25f, 0.22f, 0.62f)),
+                ("BOX-003", new Vector3(0.48f, 0.12f, 0.40f)),
+                ("BOX-103", new Vector3(0.58f, 0.60f, 0.50f)),
+                ("BOX-104", new Vector3(0.30f, 0.44f, 0.32f)),
+            };
+            foreach (var (id, expected) in shapes)
+            {
+                var box = Object.Instantiate(prefab);
+                try
+                {
+                    box.AssignId(id, null);
+                    var size = box.GetComponent<BoxCollider>().size;
+                    Assert.Less(Vector3.Distance(size, expected), 0.001f, id);
+                    var visual = box.transform.Find("ITMO_Visual");
+                    Assert.IsNotNull(visual, id);
+                    Assert.AreEqual(expected.x / 0.34f, visual.localScale.x, 0.001f, id);
+                    Assert.AreEqual(expected.y / 0.26f, visual.localScale.y, 0.001f, id);
+                    Assert.AreEqual(expected.z / 0.34f, visual.localScale.z, 0.001f, id);
+                    Assert.AreEqual(expected.y / 2f + 0.021f, box.transform.Find("QR_Top").localPosition.y, 0.001f, id);
+                    Assert.AreEqual(-expected.z / 2f - 0.011f, box.transform.Find("QR_Front").localPosition.z, 0.001f, id);
+                    foreach (var side in new[] { "Top", "Front", "Back", "Left", "Right" })
+                        Assert.LessOrEqual(box.transform.Find($"QR_{side}").localScale.x, 0.072f, id);
+                }
+                finally { Object.DestroyImmediate(box.gameObject); }
+            }
+        }
+
+        [Test]
+        public void ParcelBagHasTheItmoPrintOnBothSides()
+        {
+            var bag = AssetDatabase.LoadAssetAtPath<ParcelBag>("Assets/_Project/Prefabs/ParcelBag.prefab");
+            var print = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/_Project/Art/Textures/ITMO_Bag.png");
+            Assert.IsNotNull(bag);
+            Assert.IsNotNull(print);
+            foreach (var side in new[] { "PrintFront", "PrintBack" })
+            {
+                var face = bag.transform.Find(side);
+                Assert.IsNotNull(face, side);
+                Assert.AreSame(print, face.GetComponent<MeshRenderer>().sharedMaterial.GetTexture("_BaseMap"), side);
+            }
+            Assert.IsNull(bag.transform.Find("Logo"));
+        }
+
+        [Test]
+        public void FiveCustomerLooksHaveTexturedCowboyHats()
+        {
+            var hat = Resources.Load<GameObject>("Hats/CowboyHat");
+            Assert.IsNotNull(hat);
+            var parts = hat.GetComponentsInChildren<MeshRenderer>().Select(r => r.name).ToArray();
+            foreach (var part in new[] { "Brim", "Crown", "Band", "Buckle" })
+                Assert.IsTrue(parts.Any(name => name.Contains(part)), $"missing cowboy hat {part}");
+            for (var i = 0; i < 5; i++)
+                Assert.IsNotNull(Resources.Load<Texture2D>($"Hats/Hat_{i}"), $"missing hat texture {i}");
+        }
+
+        [Test]
+        public void CustomerFaceModelHasFiveShapesForEveryFeature()
+        {
+            var face = Resources.Load<GameObject>("Faces/FaceParts");
+            Assert.IsNotNull(face);
+            var names = face.GetComponentsInChildren<MeshRenderer>().Select(r => r.name).ToArray();
+            for (var i = 0; i < 5; i++)
+            {
+                foreach (var part in new[] { "Mouth", "Nose", "Ears" })
+                    Assert.Contains($"{part}_{i}", names);
+                Assert.Contains($"Eyes_{i}_White", names);
+                Assert.Contains($"Eyes_{i}_Iris", names);
+            }
+        }
+
+        [Test]
+        public void CustomerFaceLooksForwardAndHatRestsOnHead()
+        {
+            var customer = AssetDatabase.LoadAssetAtPath<Customer>("Assets/_Project/Prefabs/Customer.prefab");
+            var body = customer.transform.Find("Body");
+            var face = body.Find("FaceParts");
+            var hat = body.Find("CowboyHat");
+            var head = body.Find("Head");
+            var eye = face.GetComponentsInChildren<MeshRenderer>(true).First(r => r.name == "Eyes_0_White");
+            var eyeCenter = eye.transform.TransformPoint(eye.GetComponent<MeshFilter>().sharedMesh.bounds.center);
+            Assert.Greater(customer.transform.InverseTransformPoint(eyeCenter).z, 0.08f, "eyes belong on the front of the head");
+            Assert.Less(hat.localPosition.y - head.localPosition.y, 0.05f, "hat brim must touch the head");
+            var buckle = hat.GetComponentsInChildren<MeshRenderer>().First(r => r.name.Contains("Buckle"));
+            Assert.Greater(customer.transform.InverseTransformPoint(buckle.bounds.center).z, 0.08f, "hat buckle faces forward");
+        }
+
+        [Test]
+        public void SuppliedPaymentSoundIsAvailable()
+        {
+            var clip = Resources.Load<AudioClip>("Audio/Payment");
+            Assert.IsNotNull(clip, "missing payment sound");
+            Assert.Greater(clip.length, 0.1f, "payment sound is empty");
+        }
+
+        /// <summary>T036: no box stands in the room before the shift; the stock drops out of the supply hatch.</summary>
+        [Test]
+        public void NoBoxesBeforeTheShift_TheHatchIsThere()
+        {
+            Assert.IsEmpty(Object.FindObjectsByType<QrBox>(FindObjectsSortMode.None));
+            var hatch = Object.FindFirstObjectByType<SupplyHatch>();
+            Assert.IsNotNull(hatch);
             var director = Object.FindFirstObjectByType<ShiftDirector>();
-            var listed = new SerializedObject(director).FindProperty("boxes");
-            Assert.AreEqual(expected.Length, listed.arraySize, "ShiftDirector must list every box in the scene");
+            Assert.AreSame(hatch, new SerializedObject(director).FindProperty("hatch").objectReferenceValue);
+            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(PvzSceneBuilder.SettingsPath);
+            Assert.IsNotEmpty(settings.SpareBoxes, "a few spare boxes fall out with the stock");
+            Assert.IsEmpty(settings.SpareBoxes.Select(b => b.orderNumber).Intersect(settings.Boxes.Concat(settings.SupplyBoxes).Select(b => b.orderNumber)),
+                "spare boxes are other days' orders");
+            Assert.IsEmpty(settings.SpareBoxes.Select(b => b.boxId).Intersect(settings.Boxes.Concat(settings.SupplyBoxes).Select(b => b.boxId)),
+                "a spare box id must not repeat a box of the shift or the delivery");
         }
 
         [Test]
@@ -155,17 +279,6 @@ namespace Pvz.Editor.Tests
             Assert.GreaterOrEqual(biggest, 3, $"{settingsPath}: no big order in the delivery");
         }
 
-        /// <summary>T014: a forgetful customer's «…NN» must name exactly one order of the shift.</summary>
-        [TestCase(PvzSceneBuilder.SettingsPath)]
-        [TestCase(PvzSceneBuilder.EasySettingsPath)]
-        [TestCase(PvzSceneBuilder.HardSettingsPath)]
-        public void Presets_HaveDistinctNumberEndings(string settingsPath)
-        {
-            var numbers = AllOrderNumbers(settingsPath);
-            Assert.IsFalse(numbers.Any(a => numbers.Any(b => Core.OrderNumbers.SameHint(a, b))),
-                $"{settingsPath}: two orders end the same way: {string.Join(", ", numbers)}");
-        }
-
         private static string[] AllOrderNumbers(string settingsPath)
         {
             var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(settingsPath);
@@ -192,6 +305,20 @@ namespace Pvz.Editor.Tests
         {
             Assert.IsFalse(Object.FindFirstObjectByType<UnityEngine.XR.ARFoundation.ARPlaneManager>(FindObjectsInactive.Include).enabled,
                 "Meta requires USE_SCENE before plane detection starts; ScenePermissionGate enables it");
+        }
+
+        [Test]
+        public void RoomMesh_IsAnInvisibleCollider_UnderTheXrOrigin_SavedDisabled()
+        {
+            var manager = Object.FindFirstObjectByType<UnityEngine.XR.ARFoundation.ARMeshManager>(FindObjectsInactive.Include);
+            Assert.IsNotNull(manager, "T041: the room mesh");
+            Assert.IsFalse(manager.enabled, "Meta gives the mesh only with USE_SCENE; ScenePermissionGate enables it");
+            Assert.IsNotNull(manager.GetComponentInParent<Unity.XR.CoreUtils.XROrigin>(), "meshes come in session space");
+            Assert.IsNull(manager.GetComponent<Unity.XR.CoreUtils.XROrigin>(), "a child of the XR Origin, not on it");
+            Assert.IsNotNull(manager.meshPrefab);
+            Assert.IsNotNull(manager.meshPrefab.GetComponent<MeshCollider>(), "boxes collide with the real furniture");
+            Assert.IsNull(manager.meshPrefab.GetComponent<MeshRenderer>(), "nothing is drawn over the passthrough");
+            Assert.AreEqual(manager, new SerializedObject(Object.FindFirstObjectByType<ScenePermissionGate>()).FindProperty("meshes").objectReferenceValue);
         }
 
         [Test]

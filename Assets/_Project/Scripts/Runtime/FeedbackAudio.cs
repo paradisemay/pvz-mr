@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Pvz.Runtime
 {
-    /// <summary>Short procedural sounds (no audio assets needed): scan beep, success chime, error buzz.</summary>
+    /// <summary>Player feedback sounds: short scan tones and the supplied checkout clip.</summary>
     [RequireComponent(typeof(AudioSource))]
     public sealed class FeedbackAudio : MonoBehaviour
     {
@@ -12,6 +12,7 @@ namespace Pvz.Runtime
         private AudioClip _beep;
         private AudioClip _success;
         private AudioClip _error;
+        private AudioClip _payment;
 
         private void Awake()
         {
@@ -19,6 +20,7 @@ namespace Pvz.Runtime
             _beep = Tone("beep", new[] { 1760f }, 0.08f, 0.35f);
             _success = Tone("success", new[] { 880f, 1320f }, 0.12f, 0.4f);
             _error = Tone("error", new[] { 220f, 180f }, 0.16f, 0.45f);
+            _payment = Resources.Load<AudioClip>("Audio/Payment") ?? _success;
         }
 
         public enum Sound
@@ -26,6 +28,8 @@ namespace Pvz.Runtime
             Beep,
             Success,
             Error,
+            Scan,
+            Payment,
         }
 
         public void Play(Sound sound)
@@ -35,6 +39,8 @@ namespace Pvz.Runtime
                 case Sound.Beep: PlayClip(_beep); break;
                 case Sound.Success: PlayClip(_success); break;
                 case Sound.Error: PlayClip(_error); break;
+                case Sound.Scan: PlayClip(_beep); break;
+                case Sound.Payment: PlayClip(_payment); break;
             }
         }
 

@@ -53,6 +53,9 @@ namespace Pvz.Runtime
         /// <summary>Where the scan ray starts and points.</summary>
         public Transform Muzzle => muzzle != null ? muzzle : transform;
 
+        /// <summary>What the last scan ray hit first (diagnostics for the debug remote).</summary>
+        public string LastHit { get; private set; } = string.Empty;
+
         private void Awake()
         {
             _grab = GetComponent<XRGrabInteractable>();
@@ -92,9 +95,12 @@ namespace Pvz.Runtime
         public void Fire()
         {
             var origin = muzzle != null ? muzzle : transform;
-            var box = FindBox(origin.position, origin.forward, out var endPoint);
+            var hit = FindTarget(origin.position, origin.forward, out var endPoint);
             ShowBeam(origin.position, endPoint);
-            if (box != null) BoxScanned?.Invoke(box);
+            var phone = hit != null ? hit.GetComponentInParent<CustomerPhone>() : null;
+            var box = hit != null ? hit.GetComponentInParent<QrBox>() : null;
+            if (phone != null) PhoneScanned?.Invoke(phone);
+            else if (box != null) BoxScanned?.Invoke(box);
             else Missed?.Invoke();
         }
 
@@ -103,6 +109,16 @@ namespace Pvz.Runtime
         {
             if (box == null) throw new ArgumentNullException(nameof(box));
             BoxScanned?.Invoke(box);
+        }
+
+        /// <summary>The barcode on a customer's phone was scanned (T035).</summary>
+        public event Action<CustomerPhone> PhoneScanned;
+
+        /// <summary>Simulates a successful scan of a customer's phone (debug / automated tests).</summary>
+        public void ScanDirect(CustomerPhone phone)
+        {
+            if (phone == null) throw new ArgumentNullException(nameof(phone));
+            PhoneScanned?.Invoke(phone);
         }
 
         public void ShowResult(string text, Color color)
@@ -140,12 +156,14 @@ namespace Pvz.Runtime
             screenBack.SetPropertyBlock(_block);
         }
 
-        private QrBox FindBox(Vector3 origin, Vector3 direction, out Vector3 endPoint)
+        /// <summary>The first thing the scan ray hits (a box, a customer's phone, or anything else in the way).</summary>
+        private Collider FindTarget(Vector3 origin, Vector3 direction, out Vector3 endPoint)
         {
             endPoint = origin + direction * range;
-            var count = Physics.RaycastNonAlloc(origin, direction, _hits, range, scanMask, QueryTriggerInteraction.Ignore);
+            var count = Physics.RaycastNonAlloc(origin, direction, _hits, range, RoomMesh.Without(scanMask), QueryTriggerInteraction.Ignore); // not the invisible furniture mesh
             var bestDistance = float.MaxValue;
-            QrBox best = null;
+            Collider best = null;
+            LastHit = $"nothing within {range:0.0} m";
             for (var i = 0; i < count; i++)
             {
                 var hit = _hits[i];
@@ -153,7 +171,8 @@ namespace Pvz.Runtime
                 if (hit.distance >= bestDistance) continue;
                 bestDistance = hit.distance;
                 endPoint = hit.point;
-                best = hit.collider.GetComponentInParent<QrBox>();
+                best = hit.collider;
+                LastHit = $"{hit.collider.name} @ {hit.distance:0.00} m";
             }
             return best;
         }

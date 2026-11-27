@@ -6,30 +6,30 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 namespace Pvz.Runtime
 {
     /// <summary>
-    /// "New shift" button: select it (grab/poke/trigger) to reload the scene. It arms itself a moment after
+    /// "New shift" button: press it (trigger or poke) to reload the scene. It arms itself a moment after
     /// appearing so a hand that happens to be over it does not restart the shift by accident.
     /// </summary>
-    [RequireComponent(typeof(XRSimpleInteractable))]
+    [RequireComponent(typeof(PressableButton))]
     public sealed class RestartButton : MonoBehaviour
     {
         [SerializeField, Min(0)] private float armDelaySeconds = 1f;
 
-        private XRSimpleInteractable _interactable;
+        private PressableButton _button;
         private float _armedAt;
 
-        private void Awake() => _interactable = GetComponent<XRSimpleInteractable>();
+        private void Awake() => _button = GetComponent<PressableButton>();
 
         private void OnEnable()
         {
             _armedAt = Time.unscaledTime + armDelaySeconds;
-            _interactable.selectExited.AddListener(OnReleased);
+            _button.Pressed += OnPressed;
         }
 
-        private void OnDisable() => _interactable.selectExited.RemoveListener(OnReleased);
+        private void OnDisable() => _button.Pressed -= OnPressed;
 
-        private void OnReleased(SelectExitEventArgs args)
+        private void OnPressed()
         {
-            if (args.isCanceled || Time.unscaledTime < _armedAt) return;
+            if (Time.unscaledTime < _armedAt) return;
             Restart();
         }
 

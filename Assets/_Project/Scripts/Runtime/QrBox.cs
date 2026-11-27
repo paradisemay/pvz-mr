@@ -19,6 +19,7 @@ namespace Pvz.Runtime
         [SerializeField] private float lostBelowY = -1f;
 
         private static readonly int BaseMap = Shader.PropertyToID("_BaseMap");
+        private static Material cardboardMaterial, itmoMaterial;
 
         private Vector3 _startLocalPosition;
         private Quaternion _startLocalRotation;
@@ -32,19 +33,45 @@ namespace Pvz.Runtime
         /// <summary>True once the box was handed over and belongs to a customer.</summary>
         public bool IsHandedOver { get; private set; }
 
+        /// <summary>
+        /// T045 (#85): a box that came back (a return or a refusal): loose on the counter, to be put into the returns bin.
+        /// It is no longer stock, so the handover zone ignores it (<see cref="IsHandedOver"/> stays true).
+        /// </summary>
+        public bool IsReturn { get; private set; }
+
+        /// <summary>
+        /// T045: the box came back to the counter — the player can grab it and carry it to the returns bin.
+        /// <paramref name="room"/> is where boxes of the room live (the lost-box check measures reach from it);
+        /// <paramref name="home"/> says where a return lost out of reach comes back (the counter, wherever it is then).
+        /// </summary>
+        public void BecomeReturn(Vector3 position, Quaternion rotation, Transform room, System.Func<Vector3> home)
+        {
+            // A refused box still in the player's hand is let go first: velocity tracking would yank it back.
+            if (grabInteractable != null && grabInteractable.isSelected && grabInteractable.interactionManager != null)
+                grabInteractable.interactionManager.CancelInteractableSelection(
+                    (UnityEngine.XR.Interaction.Toolkit.Interactables.IXRSelectInteractable)grabInteractable);
+            IsHandedOver = true;
+            IsReturn = true;
+            if (room != null) _startParent = room;
+            transform.SetParent(_startParent, true);
+            transform.SetPositionAndRotation(position, rotation);
+            if (grabInteractable != null) grabInteractable.enabled = true;
+            if (body != null)
+            {
+                body.isKinematic = false;
+                body.detectCollisions = true;
+                body.interpolation = RigidbodyInterpolation.Interpolate;
+                body.position = position;
+                body.rotation = rotation;
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
+            // A return dropped out of reach comes back to the counter (where it is then), not out of the hatch.
+            Respawn = home ?? (() => position);
+        }
+
         /// <summary>The player holds the box right now.</summary>
         public bool IsHeld => grabInteractable != null && grabInteractable.isSelected;
-
-        /// <summary>The player let the box go and it came to rest (see <see cref="PlacedLocalPosition"/>).</summary>
-        public event System.Action<QrBox> Placed;
-
-        /// <summary>The player has put the box down at least once (see <see cref="PlacedLocalPosition"/>).</summary>
-        public bool HasPlacement { get; private set; }
-
-        /// <summary>Where the player last put the box down, relative to where it lives (the boxes root of the play area).</summary>
-        public Vector3 PlacedLocalPosition { get; private set; }
-
-        public float PlacedYaw { get; private set; }
 
         /// <summary>Radius of a sphere around the box centre that contains the whole box.</summary>
         public float Reach
@@ -56,28 +83,72 @@ namespace Pvz.Runtime
             }
         }
 
-        /// <summary><see cref="PlacedLocalPosition"/> in world space (valid even after the box was handed over).</summary>
-        public Vector3 PlacedWorldPosition =>
-            _startParent != null ? _startParent.TransformPoint(PlacedLocalPosition) : PlacedLocalPosition;
+        private void Awake()
+        {
+            RememberStartPose();
+            AddItmoVisual();
+        }
 
-        /// <summary>The player moved the box and has not put it down to rest yet.</summary>
-        private bool _movedByPlayer;
+        private void AddItmoVisual()
+        {
+            if (transform.Find("ITMO_Visual") != null) return;
+            var model = Resources.Load<GameObject>("ITMO/ITMO_Box");
+            if (model == null) return;
 
-        private void Awake() => RememberStartPose();
+            var oldBody = transform.Find("Body");
+            if (oldBody != null) oldBody.gameObject.SetActive(false);
+            var oldTape = transform.Find("Tape");
+            if (oldTape != null) oldTape.gameObject.SetActive(false);
+
+            var topQr = transform.Find("QR_Top");
+            if (topQr != null)
+            {
+                topQr.localPosition = new Vector3(0.115f, 0.151f, 0.095f);
+                topQr.localScale = Vector3.one * 0.072f;
+            }
+            var frontQr = transform.Find("QR_Front");
+            if (frontQr != null)
+            {
+                frontQr.localPosition = new Vector3(0.115f, 0.075f, -0.181f);
+                frontQr.localScale = Vector3.one * 0.072f;
+            }
+
+            if (cardboardMaterial == null)
+                cardboardMaterial = BoxMaterial("ITMO/Cardboard");
+            if (itmoMaterial == null)
+                itmoMaterial = BoxMaterial("ITMO/Label");
+
+            var visual = Instantiate(model, transform);
+            visual.name = "ITMO_Visual";
+            visual.transform.localPosition = Vector3.zero;
+            visual.transform.localRotation = Quaternion.identity;
+            foreach (var renderer in visual.GetComponentsInChildren<MeshRenderer>())
+                renderer.sharedMaterial = renderer.name.Contains("ITMO") ? itmoMaterial : cardboardMaterial;
+        }
+
+        private static Material BoxMaterial(string texturePath)
+        {
+            var material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            material.SetTexture(BaseMap, Resources.Load<Texture2D>(texturePath));
+            material.SetColor("_BaseColor", Color.white);
+            return material;
+        }
 
         private void Update()
         {
-            if (IsHandedOver) return;
-            TrackPlacement();
+            if (IsHandedOver && !IsReturn) return;
             var origin = _startParent != null ? _startParent.position : Vector3.zero;
             var offset = transform.position - origin;
             offset.y = 0f;
             // Fell through the floor, or thrown out of the player's reach — measured from where the box lives (the boxes
-            // root of the play area, the same rule as for saved places; a box with no parent, e.g. a return box, from the origin).
+            // root of the play area; a box with no parent, e.g. a return box, from the origin). It drops out of the hatch again (T036).
             if (transform.position.y < lostBelowY || !Pvz.Core.WarehouseBounds.IsWithinReach(offset.x, offset.z)) ReturnToStart();
         }
 
         /// <summary>Puts the box back where the shift started (relative to the play area).</summary>
+        /// <summary>Where a lost box comes back (set by the supply hatch); null: where the box first was.</summary>
+        public System.Func<Vector3> Respawn { get; set; }
+
         public void ReturnToStart()
         {
             if (body != null && !body.isKinematic)
@@ -85,7 +156,8 @@ namespace Pvz.Runtime
                 body.linearVelocity = Vector3.zero;
                 body.angularVelocity = Vector3.zero;
             }
-            transform.localPosition = _startLocalPosition;
+            if (Respawn != null) transform.position = Respawn(); // out of the hatch where it is now (T036)
+            else transform.localPosition = _startLocalPosition;
             transform.localRotation = _startLocalRotation;
             if (body != null)
             {
@@ -94,80 +166,11 @@ namespace Pvz.Runtime
             }
         }
 
-        /// <summary>A box the player carried is remembered where it comes to rest after being let go.</summary>
-        private void TrackPlacement()
-        {
-            if (grabInteractable != null && grabInteractable.isSelected)
-            {
-                _movedByPlayer = true;
-                return;
-            }
-            if (_movedByPlayer && body != null && !body.isKinematic && body.IsSleeping()) RecordPlacement();
-        }
-
-        /// <summary>Remembers the current pose as the player's place for this box (tests call it directly).</summary>
-        internal void RecordPlacement()
-        {
-            _movedByPlayer = false;
-            if (IsHandedOver) return;
-            PlacedLocalPosition = _startParent != null ? _startParent.InverseTransformPoint(transform.position) : transform.position;
-            PlacedYaw = (_startParent != null ? Quaternion.Inverse(_startParent.rotation) * transform.rotation : transform.rotation).eulerAngles.y;
-            HasPlacement = true;
-            Placed?.Invoke(this);
-            // The return point for a lost box stays where the session started: a resting place can be a bad one
-            // (inside the handover zone, on top of another box), the start place is known to be free.
-        }
-
-        /// <summary>
-        /// Nothing solid (another box, the counter, the scanner) is where this box would stand at the given place.
-        /// The box is shrunk a little, so the floor or a shelf it rests on does not count.
-        /// </summary>
-        public bool IsSpotFree(Vector3 localPosition, float yaw)
-        {
-            var shape = GetComponentInChildren<BoxCollider>();
-            if (shape == null) return true;
-            var parent = _startParent;
-            var centre = parent != null ? parent.TransformPoint(localPosition) : localPosition;
-            var rotation = (parent != null ? parent.rotation : Quaternion.identity) * Quaternion.Euler(0f, yaw, 0f);
-            var halfExtents = Vector3.Scale(shape.size, shape.transform.lossyScale) * (0.5f * 0.9f);
-            centre += rotation * Vector3.Scale(shape.center, shape.transform.lossyScale);
-            foreach (var hit in Physics.OverlapBox(centre, halfExtents, rotation, ~0, QueryTriggerInteraction.Ignore))
-            {
-                if (hit.GetComponentInParent<QrBox>() != this) return false;
-            }
-            return true;
-        }
-
-        /// <summary>Puts the box where the player left it in an earlier session (upright, at the saved yaw).</summary>
-        public void MoveToSavedPlace(Vector3 localPosition, float yaw)
-        {
-            // Called before the shift, while the box still lives under its start parent (the boxes root).
-            transform.localPosition = localPosition;
-            transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
-            if (body != null)
-            {
-                if (!body.isKinematic)
-                {
-                    body.linearVelocity = Vector3.zero;
-                    body.angularVelocity = Vector3.zero;
-                }
-                body.position = transform.position;
-                body.rotation = transform.rotation;
-            }
-            Physics.SyncTransforms(); // the next box checking its spot must see this one already moved
-            // The new place is also where a lost box returns; the parent it lives under never changes here.
-            _startLocalPosition = localPosition;
-            _startLocalRotation = transform.localRotation;
-            _movedByPlayer = false;
-            PlacedLocalPosition = localPosition;
-            PlacedYaw = yaw;
-            HasPlacement = true;
-        }
-
         /// <summary>Gives a generic (supply) box its identity and QR picture at runtime.</summary>
         public void AssignId(string id, Texture2D qrTexture)
         {
             boxId = new BoxId(id).Value;
+            ApplyShape();
             if (qrTexture == null) return;
             ReleaseRuntimeTexture();
             _runtimeTexture = qrTexture;
@@ -179,6 +182,45 @@ namespace Pvz.Runtime
                 block.SetTexture(BaseMap, qrTexture);
                 label.SetPropertyBlock(block);
             }
+        }
+
+        private void ApplyShape()
+        {
+            // Digit sum gives existing orders all five shapes and keeps a parcel's shape stable on returns.
+            var shape = 0;
+            var hasDigit = false;
+            foreach (var ch in boxId)
+            {
+                if (ch < '0' || ch > '9') continue;
+                shape += ch - '0';
+                hasDigit = true;
+            }
+            shape = hasDigit ? shape % 5 : 1;
+            var size = shape == 2 ? new Vector3(0.25f, 0.22f, 0.62f) :
+                       shape == 3 ? new Vector3(0.48f, 0.12f, 0.40f) :
+                       shape == 4 ? new Vector3(0.58f, 0.60f, 0.50f) :
+                       shape == 0 ? new Vector3(0.30f, 0.44f, 0.32f) :
+                       new Vector3(0.34f, 0.26f, 0.34f);
+            var collider = GetComponent<BoxCollider>();
+            if (collider != null) collider.size = size;
+            var visual = transform.Find("ITMO_Visual");
+            if (visual != null) visual.localScale = new Vector3(size.x / 0.34f, size.y / 0.26f, size.z / 0.34f);
+            if (body != null) body.mass = 1.2f * size.x * size.y * size.z / (0.34f * 0.26f * 0.34f);
+
+            var label = Mathf.Min(0.072f, size.y * 0.7f);
+            PlaceLabel("QR_Top", new Vector3(size.x * 0.34f, size.y / 2f + 0.021f, size.z * 0.28f), label);
+            PlaceLabel("QR_Front", new Vector3(size.x * 0.34f, Mathf.Min(size.y * 0.29f, (size.y - label) / 2f), -size.z / 2f - 0.011f), label);
+            PlaceLabel("QR_Back", new Vector3(0f, 0f, size.z / 2f + 0.002f), label);
+            PlaceLabel("QR_Left", new Vector3(-size.x / 2f - 0.002f, 0f, 0f), label);
+            PlaceLabel("QR_Right", new Vector3(size.x / 2f + 0.002f, 0f, 0f), label);
+        }
+
+        private void PlaceLabel(string name, Vector3 position, float size)
+        {
+            var label = transform.Find(name);
+            if (label == null) return;
+            label.localPosition = position;
+            label.localScale = Vector3.one * size;
         }
 
         /// <summary>Releases the box from the player's hand and attaches it to the customer.</summary>

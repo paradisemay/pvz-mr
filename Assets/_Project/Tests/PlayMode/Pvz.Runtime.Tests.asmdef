@@ -6,6 +6,9 @@
         "Pvz.Runtime",
         "Unity.XR.ARFoundation",
         "Unity.XR.CoreUtils",
+        "Unity.InputSystem",
+        "Unity.TextMeshPro",
+        "Unity.XR.Interaction.Toolkit",
         "UnityEngine.TestRunner"
     ],
     "includePlatforms": [],

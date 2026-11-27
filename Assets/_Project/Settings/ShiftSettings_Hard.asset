@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Pvz.Runtime::Pvz.Runtime.ShiftSettings
   displayName: "\u0421\u043B\u043E\u0436\u043D\u0430\u044F"
   patienceSeconds: 45
-  queueLength: 3
+  queueLength: 4
   shiftDurationSeconds: 300
   showTutorial: 0
   boxes:
@@ -48,11 +48,23 @@ MonoBehaviour:
     orderNumber: 2718
     startPosition: {x: 0, y: 0, z: 0}
     startYaw: 0
+  spareBoxes:
+  - boxId: BOX-201
+    orderNumber: 8804
+    startPosition: {x: 0, y: 0, z: 0}
+    startYaw: 0
+  - boxId: BOX-202
+    orderNumber: 9163
+    startPosition: {x: 0, y: 0, z: 0}
+    startYaw: 0
   bagChancePercent: 80
   returnChancePercent: 35
+  refusalChancePercent: 25
+  lostChancePercent: 15
   urgentChancePercent: 25
   urgentPatienceFactor: 0.6
-  forgotNumberChancePercent: 20
+  ordersPerShift: 14
+  arrivalInterval: 15
   firstCustomerDelay: 2
   delayBetweenCustomers: 1
   thanksDuration: 1.5

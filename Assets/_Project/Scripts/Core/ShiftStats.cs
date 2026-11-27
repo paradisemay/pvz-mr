@@ -49,6 +49,72 @@ namespace Pvz.Core
         /// <summary>Urgent orders handed over in full.</summary>
         public int UrgentServed { get; private set; }
 
+        /// <summary>T047 (#86): orders whose box was missing, reported with «Не найден».</summary>
+        public int LostOrders { get; private set; }
+
+        /// <summary>T047: «Не найден» pressed while every box of the order was in the warehouse.</summary>
+        public int FalseNotFound { get; private set; }
+
+        internal void OnLostOrder()
+        {
+            LostOrders++;
+            Score += _rules.LostOrderReported;
+            Changed?.Invoke();
+        }
+
+        internal void OnFalseNotFound()
+        {
+            FalseNotFound++;
+            Score = Math.Max(0, Score - _rules.FalseNotFoundPenalty); // never below zero, like the other penalties
+            Changed?.Invoke();
+        }
+
+        public int PointsPerLostOrder => _rules.LostOrderReported;
+        public int FalseNotFoundPenaltyPoints => _rules.FalseNotFoundPenalty;
+
+        /// <summary>T045: points for every return handed in from the bin.</summary>
+        public int PointsPerReturnHandedIn => _rules.ReturnHandedIn;
+
+        /// <summary>T045 (#85): boxes customers checked at the counter and refused.</summary>
+        public int Refusals { get; private set; }
+
+        /// <summary>T045: returned and refused boxes handed in from the returns bin.</summary>
+        public int ReturnsHandedIn { get; private set; }
+
+        /// <summary>T045: returned and refused boxes left outside the bin when the shift ended.</summary>
+        public int ReturnsLost { get; private set; }
+
+        internal void OnRefusal()
+        {
+            Refusals++;
+            Changed?.Invoke();
+        }
+
+        internal void OnReturnsHandedIn(int count)
+        {
+            if (count <= 0) return;
+            ReturnsHandedIn += count;
+            Score += count * _rules.ReturnHandedIn;
+            Changed?.Invoke();
+        }
+
+        internal void OnReturnsLost(int count)
+        {
+            if (count <= 0) return;
+            ReturnsLost += count;
+            Score = Math.Max(0, Score - count * _rules.ReturnLostPenalty);
+            Changed?.Invoke();
+        }
+
+        /// <summary>T044 (#84): customers who came while the line was full and did not stay.</summary>
+        public int CustomersTurnedAway { get; private set; }
+
+        internal void OnTurnedAway()
+        {
+            CustomersTurnedAway++;
+            Changed?.Invoke();
+        }
+
         /// <summary>Points every accepted return gives.</summary>
         public int PointsPerReturn => _rules.ReturnService;
 
@@ -73,6 +139,7 @@ namespace Pvz.Core
 
         private void OnBoxScanned(ScanOutcome outcome)
         {
+            if (outcome.Status == ScanStatus.CodeNotScanned) return; // the box was not looked at: the code comes first (T035)
             Scans++;
             if (outcome.Status == ScanStatus.OtherOrder) WrongScans++;
             Changed?.Invoke();

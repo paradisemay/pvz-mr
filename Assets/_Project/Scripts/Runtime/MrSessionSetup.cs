@@ -48,6 +48,7 @@ namespace Pvz.Runtime
             // Wait for head tracking to report a real pose, then put the counter in front of the player.
             yield return new WaitForSeconds(alignAfterSeconds);
             AlignPlayAreaToPlayer();
+            StartAligned?.Invoke();
         }
 
         /// <summary>Moves the play area so its origin is under the player's head and +Z is where they look.</summary>
@@ -71,6 +72,10 @@ namespace Pvz.Runtime
             }
             Physics.SyncTransforms();
         }
+
+        /// <summary>The play area was put in front of the player at the start (headset only): the saved counter place
+        /// is restored after this (T034).</summary>
+        public event System.Action StartAligned;
 
         /// <summary>Root of everything the game places in the room.</summary>
         public Transform PlayArea => playArea;

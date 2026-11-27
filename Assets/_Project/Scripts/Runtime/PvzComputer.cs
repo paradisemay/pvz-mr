@@ -1,0 +1,335 @@
+using System;
+using System.Text;
+using Pvz.Core;
+using TMPro;
+using UnityEngine;
+
+namespace Pvz.Runtime
+{
+    /// <summary>
+    /// The pickup point's computer on the counter (T033, #77): a monitor and a row of physical keys that stays on the
+    /// counter all the time. Each screen shows its own group of keys in the same slots, like the soft keys of a cash
+    /// machine: the menu (difficulty, settings), the settings, the shift (current order, end shift) and the summary
+    /// (new shift). Before, the start menu disappeared with the start of the shift and nothing could be changed until
+    /// the end.
+    /// </summary>
+    public sealed class PvzComputer : MonoBehaviour
+    {
+        public enum Screen { Menu, Settings, Shift, Summary, Moving }
+
+        [SerializeField] private PlacementMover counterMover;
+        [SerializeField] private PlacementMover hatchMover;
+        [SerializeField] private PlacementMover rackMover;
+        [Tooltip("The room mesh (T041): the menu says when the room was not scanned on the headset.")]
+        [SerializeField] private RoomMesh roomMesh;
+        [SerializeField] private GameObject movingKeys;
+
+        /// <summary>What is being moved on the moving screen (null otherwise).</summary>
+        private PlacementMover _moving;
+
+        internal void ConfigureMover(PlacementMover mover, GameObject keys)
+        {
+            counterMover = mover;
+            movingKeys = keys;
+        }
+
+        internal void ConfigureHatchMover(PlacementMover mover) => hatchMover = mover;
+        internal void ConfigureRackMover(PlacementMover mover) => rackMover = mover;
+
+        internal void ConfigureRoomMesh(RoomMesh mesh) => roomMesh = mesh;
+
+        /// <summary>«Перенести стеллаж» (T037).</summary>
+        public void StartMovingRack() => StartMoving(rackMover);
+
+        /// <summary>«Перенести стойку» (T034): the handle appears; «Применить» / «Отмена» end it.</summary>
+        public void StartMovingCounter() => StartMoving(counterMover);
+
+        /// <summary>«Место люка» (T036): the hatch is moved along the ceiling by a handle hanging from it.</summary>
+        public void StartMovingHatch() => StartMoving(hatchMover);
+
+        public void StartMoving(PlacementMover mover)
+        {
+            if (mover == null || Current != Screen.Settings) return;
+            _moving = mover;
+            mover.Begin();
+            Show(Screen.Moving);
+        }
+
+        public void ApplyMove()
+        {
+            if (_moving == null || Current != Screen.Moving) return;
+            _moving.Apply();
+            _moving = null;
+            Show(Screen.Settings);
+        }
+
+        public void CancelMove()
+        {
+            if (_moving == null || Current != Screen.Moving) return;
+            _moving.Cancel();
+            _moving = null;
+            Show(Screen.Settings);
+        }
+
+        /// <summary>The moving screen for <paramref name="what"/> («стойку», «люк»).</summary>
+        public static string MovingTextFor(string what) =>
+            $"Возьмите оранжевую ручку хватом\nи перенесите {what}.\n\n«Применить» — оставить здесь,\n«Отмена» — вернуть на место.";
+
+        public static string MovingText => MovingTextFor("стойку");
+
+        [SerializeField] private ShiftDirector director;
+        [SerializeField] private TMP_Text screenText;
+        [SerializeField] private TMP_Text titleText;
+        [SerializeField] private GameObject menuKeys;
+        [SerializeField] private GameObject settingsKeys;
+        [Tooltip("Extra keys while moving the counter before the shift («Стойку ко мне», T037).")]
+        [SerializeField] private GameObject settingsBeforeShiftKeys;
+        [SerializeField] private GameObject shiftKeys;
+        [SerializeField] private GameObject summaryKeys;
+        [SerializeField] private TMP_Text endShiftLabel;
+        [SerializeField, Min(0.5f)] private float confirmSeconds = 3f;
+
+        private Screen _beforeSettings = Screen.Menu;
+        private float _confirmEndUntil = float.NegativeInfinity;
+        private float _nextRefresh;
+
+        public Screen Current { get; private set; } = Screen.Menu;
+        public string ScreenText => screenText != null ? screenText.text : string.Empty;
+        public bool IsConfirmingEnd => Time.unscaledTime < _confirmEndUntil;
+
+        public event Action<Screen> ScreenChanged;
+
+        private void OnEnable()
+        {
+            if (roomMesh != null) roomMesh.Changed += OnRoomMeshChanged;
+            if (director == null) return;
+            director.ShiftStarted += OnShiftStarted;
+            director.ShiftEnded += OnShiftEnded;
+        }
+
+        private void OnRoomMeshChanged(RoomMesh.State state) => RefreshText();
+
+        private void OnDisable()
+        {
+            if (roomMesh != null) roomMesh.Changed -= OnRoomMeshChanged;
+            if (director == null) return;
+            director.ShiftStarted -= OnShiftStarted;
+            director.ShiftEnded -= OnShiftEnded;
+        }
+
+        private void Start() => Show(director != null && director.IsShiftOver ? Screen.Summary
+            : director != null && director.IsStarted ? Screen.Shift : Screen.Menu);
+
+        private void Update()
+        {
+            if (Time.unscaledTime < _nextRefresh) return;
+            _nextRefresh = Time.unscaledTime + 0.25f;
+            // The confirmation ran out: the key reads «Завершить смену» again, not «Точно?».
+            if (endShiftLabel != null && !IsConfirmingEnd && endShiftLabel.text != EndShiftCaption) endShiftLabel.text = EndShiftCaption;
+            RefreshText();
+        }
+
+        private void OnShiftStarted() => Show(Screen.Shift);
+        private void OnShiftEnded() => Show(Screen.Summary);
+
+        /// <summary>«Настройки»: from the menu, the shift or the summary; «Назад» returns there.</summary>
+        public void OpenSettings()
+        {
+            if (Current != Screen.Settings) _beforeSettings = Current;
+            Show(Screen.Settings);
+        }
+
+        public void Back()
+        {
+            if (Current == Screen.Settings) Show(_beforeSettings);
+        }
+
+        /// <summary>Between the start and the end of a shift (settings are limited then).</summary>
+        private bool ShiftRunning => director != null && director.IsStarted && !director.IsShiftOver;
+
+        public const string HandInReturnsCaption = "СДАТЬ\nВОЗВРАТЫ";
+        public const string NotFoundCaption = "НЕ\nНАЙДЕН";
+
+        /// <summary>T047 (#86): «Не найден» — a box of the order at the counter is not in the warehouse.</summary>
+        public void DeclareNotFound()
+        {
+            if (director == null || !ShiftRunning) return;
+            director.DeclareNotFound();
+            RefreshText();
+        }
+
+        /// <summary>T045: the returns waiting for the hand-in, on the shift screen (nothing when there are none).</summary>
+        public static string ReturnsLine(int inBin, int pending) =>
+            pending > 0 ? $"\nВозвраты: в ящике {inBin} из {pending}" : string.Empty;
+
+        /// <summary>T045: «Сдать возвраты» — what lies in the returns bin is handed in.</summary>
+        public void HandInReturns()
+        {
+            if (director == null || !ShiftRunning) return;
+            director.HandInReturns();
+            RefreshText();
+        }
+
+        /// <summary>«Завершить смену»: the first press asks to confirm, the second (within a few seconds) ends the shift.</summary>
+        public void EndShift()
+        {
+            if (director == null || !director.IsStarted || director.IsShiftOver) return;
+            if (!IsConfirmingEnd)
+            {
+                _confirmEndUntil = Time.unscaledTime + confirmSeconds;
+                if (endShiftLabel != null) endShiftLabel.text = "ТОЧНО?";
+                RefreshText();
+                return;
+            }
+            _confirmEndUntil = float.NegativeInfinity;
+            if (endShiftLabel != null) endShiftLabel.text = EndShiftCaption;
+            director.EndShiftNow();
+            RefreshText();
+        }
+
+        public const string EndShiftCaption = "ЗАВЕРШИТЬ\nСМЕНУ";
+
+        public void Show(Screen screen)
+        {
+            // Leaving the moving screen another way (the shift ended meanwhile): keep the counter where it is now.
+            if (screen != Screen.Moving && _moving != null && _moving.IsMoving)
+            {
+                _moving.Apply();
+                _moving = null;
+            }
+            Current = screen;
+            var shiftRunning = ShiftRunning;
+            if (menuKeys != null) menuKeys.SetActive(screen == Screen.Menu);
+            if (settingsKeys != null) settingsKeys.SetActive(screen == Screen.Settings);
+            if (settingsBeforeShiftKeys != null)
+                settingsBeforeShiftKeys.SetActive(screen == Screen.Moving && _moving != null && _moving == counterMover && !shiftRunning);
+            if (shiftKeys != null) shiftKeys.SetActive(screen == Screen.Shift);
+            if (summaryKeys != null) summaryKeys.SetActive(screen == Screen.Summary);
+            if (movingKeys != null) movingKeys.SetActive(screen == Screen.Moving);
+            if (screen == Screen.Settings && shiftRunning) _beforeSettings = Screen.Shift;
+            if (endShiftLabel != null && !IsConfirmingEnd) endShiftLabel.text = EndShiftCaption;
+            RefreshText();
+            ScreenChanged?.Invoke(screen);
+        }
+
+        private void RefreshText()
+        {
+            if (screenText == null) return;
+            if (titleText != null) titleText.text = TitleFor(Current, _brand);
+            screenText.text = Current switch
+            {
+                Screen.Menu => MenuText + (roomMesh != null && roomMesh.IsMissing ? "\n\n" + RoomMesh.MissingText : string.Empty),
+                Screen.Settings => ShiftRunning ? SettingsDuringShiftText : SettingsText,
+                Screen.Shift => ShiftText(),
+                Screen.Moving => MovingTextFor(_moving != null && _moving.Keeper != null ? _moving.Keeper.DisplayName : "стойку")
+                                 + (_moving == counterMover && !ShiftRunning ? "\n«Стойку ко мне» — поставить перед собой." : string.Empty),
+                _ => SummaryText(),
+            };
+        }
+
+        public const string DefaultBrand = "ПВЗ";
+
+        private string _brand = DefaultBrand;
+
+        /// <summary>T048 (#87): the name of the pickup point in the chosen theme («Азот», «Разборы», «Рынок»).</summary>
+        public string Brand => _brand;
+
+        public void SetBrand(string brand)
+        {
+            _brand = string.IsNullOrWhiteSpace(brand) ? DefaultBrand : brand;
+            if (titleText != null) titleText.text = TitleFor(Current, _brand);
+        }
+
+        public static string TitleFor(Screen screen, string brand = DefaultBrand)
+        {
+            var name = string.IsNullOrWhiteSpace(brand) ? DefaultBrand : brand.ToUpperInvariant();
+            return screen switch
+            {
+                Screen.Menu => name + " · НОВАЯ СМЕНА",
+                Screen.Settings => name + " · НАСТРОЙКИ",
+                Screen.Shift => name + " · СМЕНА",
+                Screen.Moving => name + " · ПЕРЕНОС",
+                _ => name + " · ИТОГИ",
+            };
+        }
+
+        public const string MenuText = "Выберите сложность смены\nкнопками ниже.\n\n«Настройки» — стойка, склад, тема.";
+        public const string SettingsText = "Стойку, стеллаж и люк переносят за\nоранжевую ручку («Применить» — сохранить).\n«Место люка» — откуда падают коробки.\n«Тема» — оформление стойки.";
+        public const string SettingsDuringShiftText = SettingsText + "\nОчередь перейдёт за стойкой следом.";
+
+        private string ShiftText()
+        {
+            if (director == null || !director.IsStarted) return string.Empty;
+            var desk = director.Desk;
+            var session = desk.ActiveSession;
+            return OrderScreen(
+                session?.Order.Number, session?.Order.Boxes.Count ?? 0, session?.DeliveredCount ?? 0, session?.AwaitingBag ?? false,
+                desk.HasActiveReturn ? desk.ActiveReturn.OrderNumber : null,
+                Math.Max(0, director.QueuedVisits.Count - (desk.HasCustomer ? 1 : 0)),
+                director.Shift.TimeLeft(Time.timeAsDouble), IsConfirmingEnd, desk.AwaitsCode, session?.ScannedCount ?? 0)
+                + ReturnsLine(director.Shift.Returns.InBin, director.Shift.Returns.Pending);
+        }
+
+        /// <summary>The shift screen: the order at the counter, how many of its items are scanned and handed over, the line, the time.</summary>
+        public static string OrderScreen(string orderNumber, int items, int delivered, bool awaitingBag, string returnNumber,
+            int waiting, double? timeLeft, bool confirmingEnd, bool awaitingCode = false, int scanned = -1)
+        {
+            var text = new StringBuilder();
+            if (confirmingEnd) text.Append("<color=#FF8A70>Нажмите ещё раз, чтобы\nзавершить смену</color>\n\n");
+            // T035: before the code nothing about the customer is known.
+            if (awaitingCode) text.Append("Клиент у стойки\nОтсканируйте код на его телефоне\n");
+            else if (orderNumber != null)
+            {
+                text.Append("Заказ №").Append(orderNumber).Append('\n');
+                // T043 (#83): «Товаров 8, отсканировано 7» — scanned never lags behind what is already handed over.
+                text.Append("Товаров: ").Append(items).Append(" · выдано: ").Append(delivered).Append('\n');
+                text.Append("Отсканировано: ").Append(Math.Max(scanned, delivered)).Append('\n');
+                if (awaitingBag) text.Append("Нужен пакет\n");
+            }
+            else if (returnNumber != null) text.Append("Возврат по заказу №").Append(returnNumber).Append("\nОтсканируйте коробку\n");
+            else text.Append("Ждём клиента\n");
+            text.Append("В очереди: ").Append(waiting);
+            if (timeLeft.HasValue)
+            {
+                var seconds = (int)Math.Ceiling(timeLeft.Value);
+                text.Append(" · Время: ").Append(seconds / 60).Append(':').Append((seconds % 60).ToString("00"));
+            }
+            return text.ToString();
+        }
+
+        private string SummaryText()
+        {
+            if (director == null || !director.IsStarted) return string.Empty;
+            return $"Смена завершена\nОчки: {director.Stats.Score}\nВыдано заказов: {director.Stats.OrdersCompleted}\n\n«Новая смена» — сыграть ещё.";
+        }
+
+        /// <summary>Shows a screen with a given text outside play mode (screenshots; the scene is set up as the menu).</summary>
+        internal void Preview(Screen screen, string text, bool beforeShift)
+        {
+            if (menuKeys != null) menuKeys.SetActive(screen == Screen.Menu);
+            if (settingsKeys != null) settingsKeys.SetActive(screen == Screen.Settings);
+            if (settingsBeforeShiftKeys != null) settingsBeforeShiftKeys.SetActive(screen == Screen.Moving && beforeShift);
+            if (shiftKeys != null) shiftKeys.SetActive(screen == Screen.Shift);
+            if (summaryKeys != null) summaryKeys.SetActive(screen == Screen.Summary);
+            if (movingKeys != null) movingKeys.SetActive(screen == Screen.Moving);
+            if (titleText != null) titleText.text = TitleFor(screen, _brand);
+            if (screenText != null) screenText.text = text;
+            // Outside play mode text shown by activating its object is not laid out until something asks for it.
+            foreach (var label in GetComponentsInChildren<TMP_Text>(false)) label.ForceMeshUpdate();
+        }
+
+        internal void Configure(ShiftDirector shiftDirector, TMP_Text screen, TMP_Text title, GameObject menu, GameObject settings,
+            GameObject settingsBeforeShift, GameObject shift, GameObject summary, TMP_Text endShift)
+        {
+            director = shiftDirector;
+            screenText = screen;
+            titleText = title;
+            menuKeys = menu;
+            settingsKeys = settings;
+            settingsBeforeShiftKeys = settingsBeforeShift;
+            shiftKeys = shift;
+            summaryKeys = summary;
+            endShiftLabel = endShift;
+        }
+    }
+}

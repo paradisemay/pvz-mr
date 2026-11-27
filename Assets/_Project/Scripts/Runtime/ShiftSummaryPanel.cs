@@ -21,7 +21,10 @@ namespace Pvz.Runtime
         public void Show(ShiftStats stats, int ordersTotal, RecordResult? record = null, string difficulty = null, int maxQueue = 0,
             bool endedByTime = false, string careerLine = null)
         {
-            var grade = ShiftRating.Grade(stats.OrdersCompleted, ordersTotal, stats.WrongHandovers, stats.OrdersAbandoned);
+            // A customer who did not stay in a full line (T044) is a customer lost, like one who left the counter.
+            var grade = ShiftRating.Grade(stats.OrdersCompleted + stats.LostOrders, ordersTotal, // T047: a reported «потеряшка» is a handled order
+                stats.WrongHandovers,
+                stats.OrdersAbandoned + stats.CustomersTurnedAway + stats.ReturnsLost); // T045: a lost return too
             if (body != null)
             {
                 body.text =
@@ -34,8 +37,14 @@ namespace Pvz.Runtime
                     (stats.BoxesReceived > 0 ? $"Принято из поставки: {stats.BoxesReceived}\n" : string.Empty) +
                     (stats.BagsGiven > 0 ? $"Выдано пакетов: {stats.BagsGiven}\n" : string.Empty) +
                     (stats.ReturnsAccepted > 0 ? $"Принято возвратов: {stats.ReturnsAccepted}\n" : string.Empty) +
+                    (stats.Refusals > 0 ? $"Отказов от товара: {stats.Refusals}\n" : string.Empty) +
+                    (stats.LostOrders > 0 ? $"Потеряшек: {stats.LostOrders}\n" : string.Empty) +
+                    (stats.FalseNotFound > 0 ? $"<color=#FF8A70>Ложных «Не найден»: {stats.FalseNotFound}</color>\n" : string.Empty) +
+                    (stats.ReturnsHandedIn > 0 ? $"Сдано возвратов: {stats.ReturnsHandedIn}\n" : string.Empty) +
+                    (stats.ReturnsLost > 0 ? $"<color=#FF8A70>Не сдано возвратов: {stats.ReturnsLost}</color>\n" : string.Empty) +
                     (stats.UrgentServed > 0 ? $"Срочных заказов выдано: {stats.UrgentServed}\n" : string.Empty) +
                     (stats.OrdersAbandoned > 0 ? $"Ушли без заказа: {stats.OrdersAbandoned}\n" : string.Empty) +
+                    (stats.CustomersTurnedAway > 0 ? $"Не дождались очереди: {stats.CustomersTurnedAway}\n" : string.Empty) +
                     $"Среднее время выдачи: {stats.AverageServiceSeconds:0.0} с\n" +
                     $"Очки: {stats.Score}\n" +
                     $"Рейтинг смены: <b>{GradeText(grade)}</b>" +

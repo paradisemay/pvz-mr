@@ -34,9 +34,19 @@ namespace Pvz.Core
             if (StartedAt == null) StartedAt = now;
         }
 
+        /// <summary>The player ended the shift early (<see cref="EndNow"/>): the time counts as run out.</summary>
+        public bool EndedEarly { get; private set; }
+
+        /// <summary>Ends the shift now, whatever the limit (also without one). Only once the clock has started.</summary>
+        public void EndNow()
+        {
+            if (StartedAt != null) EndedEarly = true;
+        }
+
         /// <summary>Seconds left, or null when there is no limit or the clock has not started.</summary>
-        public double? TimeLeft(double now) => _limitSeconds <= 0 || StartedAt == null
-            ? (double?)null
+        public double? TimeLeft(double now) => StartedAt == null ? (double?)null
+            : EndedEarly ? 0.0
+            : _limitSeconds <= 0 ? (double?)null
             : Math.Max(0.0, StartedAt.Value + _limitSeconds - now);
 
         /// <summary>True exactly once: on the first call after the time ran out.</summary>

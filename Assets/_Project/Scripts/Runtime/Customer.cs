@@ -24,8 +24,23 @@ namespace Pvz.Runtime
             new Color(0.73f, 0.42f, 0.85f),
             new Color(0.95f, 0.76f, 0.26f),
         };
+        private static readonly Color[] SkinTones =
+        {
+            new Color(0.94f, 0.75f, 0.61f),
+            new Color(0.75f, 0.50f, 0.34f),
+            new Color(0.56f, 0.34f, 0.23f),
+            new Color(0.34f, 0.19f, 0.13f),
+            new Color(0.83f, 0.64f, 0.46f),
+            new Color(0.16f, 0.09f, 0.065f),
+        };
 
         private Vector3 _bodyRestPosition;
+        private static readonly Material[] HatLeathers = new Material[5];
+        private static Material hatBand, hatBuckle;
+        private MeshRenderer[] hatRenderers;
+        private static Material eyeWhite, iris;
+        private MeshRenderer headRenderer;
+        private MeshRenderer[] faceRenderers;
 
         public bool IsWalking { get; private set; }
         public Transform CarryAnchor => carryAnchor;
@@ -34,6 +49,121 @@ namespace Pvz.Runtime
         private void Awake()
         {
             if (body != null) _bodyRestPosition = body.localPosition;
+            AddHat();
+            AddFace();
+        }
+
+        private void AddHat()
+        {
+            if (body == null) return;
+            var hat = body.Find("CowboyHat");
+            if (hat == null)
+            {
+                var model = Resources.Load<GameObject>("Hats/CowboyHat");
+                if (model == null) return;
+                hat = Instantiate(model, body).transform;
+                hat.name = "CowboyHat";
+            }
+            hat.localPosition = new Vector3(0, 1.65f, 0);
+            hat.localRotation = Quaternion.identity;
+            hatRenderers = hat.GetComponentsInChildren<MeshRenderer>();
+            if (hatBand == null) hatBand = HatMaterial(new Color(0.095f, 0.055f, 0.035f));
+            if (hatBuckle == null) hatBuckle = HatMaterial(new Color(0.72f, 0.5f, 0.18f));
+            foreach (var renderer in hatRenderers)
+            {
+                if (renderer.name.Contains("Band")) renderer.sharedMaterial = hatBand;
+                else if (renderer.name.Contains("Buckle")) renderer.sharedMaterial = hatBuckle;
+                else renderer.sharedMaterial = Leather(0);
+            }
+            var bar = transform.Find("PatienceBar");
+            if (bar != null) bar.localPosition = new Vector3(0, 2.08f, 0);
+            var bubble = transform.Find("SpeechBubble");
+            if (bubble != null) bubble.localPosition = new Vector3(-0.62f, 1.68f, 0);
+        }
+
+        private static Material Leather(int index)
+        {
+            if (HatLeathers[index] == null)
+                HatLeathers[index] = HatMaterial(Color.white, Resources.Load<Texture2D>($"Hats/Hat_{index}"));
+            return HatLeathers[index];
+        }
+
+        private static Material HatMaterial(Color color, Texture2D texture = null)
+        {
+            var material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            material.SetColor("_BaseColor", color);
+            if (texture != null) material.SetTexture("_BaseMap", texture);
+            return material;
+        }
+
+        private void AddFace()
+        {
+            if (body == null) return;
+            headRenderer = body.Find("Head")?.GetComponent<MeshRenderer>();
+            var face = body.Find("FaceParts");
+            if (face == null)
+            {
+                var model = Resources.Load<GameObject>("Faces/FaceParts");
+                if (model == null) return;
+                face = Instantiate(model, body).transform;
+                face.name = "FaceParts";
+            }
+            face.localPosition = new Vector3(0, 1.62f, 0);
+            face.localRotation = Quaternion.identity;
+            foreach (var oldPart in new[] { "EyeL", "EyeR", "Smile" })
+            {
+                var part = body.Find(oldPart);
+                if (part != null) part.gameObject.SetActive(false);
+            }
+            faceRenderers = face.GetComponentsInChildren<MeshRenderer>(true);
+            if (eyeWhite == null) eyeWhite = HatMaterial(new Color(0.94f, 0.92f, 0.86f));
+            if (iris == null) iris = HatMaterial(new Color(0.08f, 0.055f, 0.045f));
+            foreach (var renderer in faceRenderers)
+            {
+                if (renderer.name.Contains("White")) renderer.sharedMaterial = eyeWhite;
+                else if (renderer.name.Contains("Iris")) renderer.sharedMaterial = iris;
+                else if (headRenderer != null) renderer.sharedMaterial = headRenderer.sharedMaterial;
+            }
+        }
+
+        private void SetFace(int variant)
+        {
+            if (faceRenderers == null) return;
+            var (mouth, nose, eyes, ears, skinIndex) = FaceStyles(variant);
+            var skin = SkinTones[skinIndex];
+            var block = new MaterialPropertyBlock();
+            if (headRenderer != null)
+            {
+                headRenderer.GetPropertyBlock(block);
+                block.SetColor("_BaseColor", skin);
+                headRenderer.SetPropertyBlock(block);
+            }
+            foreach (var renderer in faceRenderers)
+            {
+                var parts = renderer.name.Split('_');
+                if (parts.Length < 2 || !int.TryParse(parts[1], out var style)) continue;
+                var selected = parts[0] == "Mouth" ? mouth : parts[0] == "Nose" ? nose
+                    : parts[0] == "Eyes" ? eyes : ears;
+                renderer.gameObject.SetActive(style == selected);
+                if (style != selected || (parts[0] != "Nose" && parts[0] != "Ears" && parts[0] != "Mouth")) continue;
+                renderer.GetPropertyBlock(block);
+                var color = parts[0] == "Mouth"
+                    ? new Color(skin.r * 0.77f, skin.g * 0.58f, skin.b * 0.59f) : skin;
+                block.SetColor("_BaseColor", color);
+                renderer.SetPropertyBlock(block);
+            }
+        }
+
+        internal static (int mouth, int nose, int eyes, int ears, int skin) FaceStyles(int variant)
+        {
+            var look = Mathf.Abs(variant);
+            var slot = look % 5;
+            var cycle = (look / 5) % 5;
+            var mouth = (slot + cycle) % 5;
+            var nose = (slot * 2 + cycle * 3 + 1) % 5;
+            var eyes = (slot * 3 + cycle + 2) % 5;
+            var ears = (slot * 4 + cycle * 2 + 3) % 5;
+            return (mouth, nose, eyes, ears, look % SkinTones.Length);
         }
 
         [SerializeField] private CustomerVoice voice;
@@ -43,16 +173,25 @@ namespace Pvz.Runtime
         public void SetLook(int variant)
         {
             if (voice != null) voice.SetVoice(variant); // each look has its own voice
-            if (tintedRenderers == null || tintedRenderers.Length == 0) return;
             var color = Palette[Mathf.Abs(variant) % Palette.Length];
             var block = new MaterialPropertyBlock();
-            foreach (var r in tintedRenderers)
+            if (tintedRenderers != null)
             {
-                if (r == null) continue;
-                r.GetPropertyBlock(block);
-                block.SetColor("_BaseColor", color);
-                r.SetPropertyBlock(block);
+                foreach (var r in tintedRenderers)
+                {
+                    if (r == null) continue;
+                    r.GetPropertyBlock(block);
+                    block.SetColor("_BaseColor", color);
+                    r.SetPropertyBlock(block);
+                }
             }
+            if (hatRenderers != null)
+            {
+                foreach (var renderer in hatRenderers)
+                    if (!renderer.name.Contains("Band") && !renderer.name.Contains("Buckle"))
+                        renderer.sharedMaterial = Leather(Mathf.Abs(variant) % HatLeathers.Length);
+            }
+            SetFace(variant);
         }
 
         [SerializeField] private PatienceBar patienceBar;
@@ -68,6 +207,13 @@ namespace Pvz.Runtime
         internal void ConfigurePatienceBar(PatienceBar bar) => patienceBar = bar;
 
         internal void ConfigureVoice(CustomerVoice customerVoice) => voice = customerVoice;
+
+        [SerializeField] private CustomerPhone phone;
+
+        /// <summary>The phone with the order's barcode (T035).</summary>
+        public CustomerPhone Phone => phone;
+
+        internal void ConfigurePhone(CustomerPhone customerPhone) => phone = customerPhone;
 
         public void Say(string line)
         {
@@ -116,6 +262,7 @@ namespace Pvz.Runtime
             if (_walk != null) StopCoroutine(_walk);
             _leaving = true;
             StopTalking();
+            if (phone != null) phone.Hide();
             _walk = StartCoroutine(Leave(exit, speed));
         }
 

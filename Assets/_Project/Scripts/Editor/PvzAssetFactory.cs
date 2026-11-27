@@ -16,6 +16,7 @@ namespace Pvz.Editor
         public const string TexturesDir = Root + "/Art/Textures";
         public const string FontsDir = Root + "/Art/Fonts";
         public const string PrefabsDir = Root + "/Prefabs";
+        public const string VoiceDir = Root + "/Audio/Voice"; // T043: recorded by tools/make-voice.ps1
         public const string SettingsDir = Root + "/Settings";
         public const string ScenesDir = Root + "/Scenes";
 
@@ -45,6 +46,27 @@ namespace Pvz.Editor
         // ---------- Materials ----------
 
         // Materials are only initialised when created: an artist may retune existing ones and a rebuild keeps that.
+
+        /// <summary>
+        /// A physics material (T037): cardboard boxes that grip the shelves and each other instead of sliding like ice.
+        /// Created once in the materials folder; kept if it exists (it may have been tuned).
+        /// </summary>
+        public static PhysicsMaterial PhysicMaterialAsset(string name, float dynamicFriction, float staticFriction, float bounciness)
+        {
+            var path = $"{MaterialsDir}/{name}.physicMaterial";
+            var existing = AssetDatabase.LoadAssetAtPath<PhysicsMaterial>(path);
+            if (existing != null) return existing;
+            var material = new PhysicsMaterial(name)
+            {
+                dynamicFriction = dynamicFriction,
+                staticFriction = staticFriction,
+                bounciness = bounciness,
+                frictionCombine = PhysicsMaterialCombine.Maximum,
+                bounceCombine = PhysicsMaterialCombine.Minimum,
+            };
+            AssetDatabase.CreateAsset(material, path);
+            return material;
+        }
 
         public static Material Lit(string name, Color color, float smoothness = 0.2f)
         {
@@ -126,29 +148,63 @@ namespace Pvz.Editor
             return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
         }
 
+        /// <summary>
+        /// The barcode on a customer's phone (T035): black bars of varying width on white, with quiet margins. Decorative —
+        /// the scanner recognises the phone itself, like the QR on boxes.
+        /// </summary>
+        public static Texture2D BarcodeTexture()
+        {
+            const int width = 128, height = 32;
+            var path = $"{TexturesDir}/Barcode.png";
+            var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            var random = new System.Random(4207);
+            var bars = new bool[width];
+            for (var x = 10; x < width - 10;)
+            {
+                var run = random.Next(1, 4);
+                var black = random.Next(2) == 0;
+                for (var i = 0; i < run && x < width - 10; i++, x++) bars[x] = black;
+            }
+            for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
+                tex.SetPixel(x, y, bars[x] && y > 3 && y < height - 4 ? Color.black : Color.white);
+            tex.Apply();
+            File.WriteAllBytes(path, tex.EncodeToPNG());
+            Object.DestroyImmediate(tex);
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+            {
+                importer.textureType = TextureImporterType.Default;
+                importer.filterMode = FilterMode.Point;
+                importer.mipmapEnabled = true;
+                importer.wrapMode = TextureWrapMode.Clamp;
+                importer.SaveAndReimport();
+            }
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        }
+
         // ---------- Font ----------
 
-        /// <summary>Dynamic TMP font asset from Liberation Sans with Cyrillic glyphs pre-baked.</summary>
+        /// <summary>Dynamic TMP font asset from the bundled Tiny5 Duo font with Cyrillic glyphs pre-baked.</summary>
         public static TMP_FontAsset CyrillicFont()
         {
-            var path = $"{FontsDir}/PvzSans SDF.asset";
+            var path = $"{FontsDir}/Tiny5 Duo SDF.asset";
             var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
             if (existing != null) return existing;
 
-            var source = AssetDatabase.LoadAssetAtPath<Font>("Assets/TextMesh Pro/Fonts/LiberationSans.ttf");
+            var source = AssetDatabase.LoadAssetAtPath<Font>($"{FontsDir}/Tiny5Duo-Regular.ttf");
             if (source == null)
             {
-                Debug.LogWarning("[PvzAssetFactory] LiberationSans.ttf not found; using TMP default font.");
-                return TMP_Settings.defaultFontAsset;
+                throw new System.IO.FileNotFoundException("The bundled Tiny5 Duo font is missing.", $"{FontsDir}/Tiny5Duo-Regular.ttf");
             }
 
             var font = TMP_FontAsset.CreateFontAsset(source, 72, 7, GlyphRenderMode.SDFAA, 2048, 2048,
                 AtlasPopulationMode.Dynamic, false);
-            font.name = "PvzSans SDF";
+            font.name = "Tiny5 Duo SDF";
             AssetDatabase.CreateAsset(font, path);
-            font.atlasTextures[0].name = "PvzSans Atlas";
+            font.atlasTextures[0].name = "Tiny5 Duo Atlas";
             AssetDatabase.AddObjectToAsset(font.atlasTextures[0], font);
-            font.material.name = "PvzSans Material";
+            font.material.name = "Tiny5 Duo Material";
             AssetDatabase.AddObjectToAsset(font.material, font);
 
             if (!font.TryAddCharacters(FontCharacters, out var missing))

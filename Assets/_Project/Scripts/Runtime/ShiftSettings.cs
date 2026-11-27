@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Pvz.Core;
 using UnityEngine;
 
@@ -60,19 +61,35 @@ namespace Pvz.Runtime
             new BoxDefinition("BOX-103", "2718", Vector3.zero, 0f), // «похожий заказ»: same digits as 2781
         };
 
+        [Header("Spare boxes (T036)")]
+        [Tooltip("Other days' orders that fall out of the hatch with the stock: nobody comes for them this shift.")]
+        [SerializeField] private BoxDefinition[] spareBoxes =
+        {
+            new BoxDefinition("BOX-201", "8804", Vector3.zero, 0f),
+            new BoxDefinition("BOX-202", "9163", Vector3.zero, 0f),
+        };
+
         [Header("Extra requests")]
         [Tooltip("Chance (0..100) that a customer also asks for a carrier bag.")]
         [SerializeField, Range(0, 100)] private int bagChancePercent = 50;
         [Tooltip("Chance (0..100) that a new customer brings back a box sold earlier in the shift.")]
         [SerializeField, Range(0, 100)] private int returnChancePercent = 20;
+        [Tooltip("T045: chance that a customer checks a handed-over box and refuses it (to the returns bin).")]
+        [SerializeField, Range(0, 100)] private int refusalChancePercent = 15;
+        [Tooltip("T047: chance that an order of the stock misses one of its boxes («потеряшка»).")]
+        [SerializeField, Range(0, 100)] private int lostChancePercent = 10;
 
         [Header("Random events")]
         [Tooltip("Chance (0..100) that a customer is in a hurry: less patience, bonus points.")]
         [SerializeField, Range(0, 100)] private int urgentChancePercent = 15;
         [Tooltip("Share of the usual patience an urgent customer has.")]
         [SerializeField, Range(0.1f, 1f)] private float urgentPatienceFactor = 0.6f;
-        [Tooltip("Chance (0..100) that a customer remembers only the last digits of the order number.")]
-        [SerializeField, Range(0, 100)] private int forgotNumberChancePercent = 15;
+
+        [Header("Length of the shift (T044)")]
+        [Tooltip("Orders sold this shift; the stock is filled up with generated orders to reach it.")]
+        [SerializeField, Min(1)] private int ordersPerShift = 10;
+        [Tooltip("A new customer comes every this many seconds (± a fifth), whether the line moves or not.")]
+        [SerializeField, Min(1f)] private float arrivalInterval = 22f;
 
         [Header("Pacing (seconds, m/s)")]
         [SerializeField, Min(0)] private float firstCustomerDelay = 2f;
@@ -118,18 +135,18 @@ namespace Pvz.Runtime
         {
             boxes = (BoxDefinition[])other.boxes.Clone();
             supplyBoxes = (BoxDefinition[])other.supplyBoxes.Clone();
+            spareBoxes = (BoxDefinition[])other.spareBoxes.Clone();
         }
 
         /// <summary>Used by the editor builder to create the difficulty presets.</summary>
         internal void ConfigureDifficulty(string name, float patience, int supplyAfter, int bagChance,
             float walkSpeed, float betweenCustomers, int queue, bool tutorial, int returnChance,
-            int urgentChance, int forgotNumberChance, float shiftSeconds, int careerPercent)
+            int urgentChance, float shiftSeconds, int careerPercent)
         {
             careerPointsPercent = careerPercent;
             shiftDurationSeconds = shiftSeconds;
             returnChancePercent = returnChance;
             urgentChancePercent = urgentChance;
-            forgotNumberChancePercent = forgotNumberChance;
             queueLength = queue;
             showTutorial = tutorial;
             displayName = name;
@@ -139,17 +156,39 @@ namespace Pvz.Runtime
             customerWalkSpeed = walkSpeed;
             delayBetweenCustomers = betweenCustomers;
         }
+        /// <summary>
+        /// T044 (#84): the length and the pace of the shift — applied to existing presets too (the builder keeps the
+        /// rest of a preset as designers tuned it).
+        /// </summary>
+        internal void ConfigurePace(int orders, float interval, int queue)
+        {
+            ordersPerShift = Mathf.Max(1, orders);
+            arrivalInterval = Mathf.Max(1f, interval);
+            queueLength = Mathf.Clamp(queue, 1, 4);
+        }
+
+        public int OrdersPerShift => ordersPerShift;
+        public float ArrivalInterval => arrivalInterval;
+
         public int SupplyAfterOrders => supplyAfterOrders;
         public BoxDefinition[] SupplyBoxes => supplyBoxes;
+        public BoxDefinition[] SpareBoxes => spareBoxes ?? System.Array.Empty<BoxDefinition>();
         public bool HasSupply => supplyAfterOrders > 0 && supplyBoxes != null && supplyBoxes.Length > 0;
         public float DefaultCeilingHeight => defaultCeilingHeight;
         public int BagChancePercent => bagChancePercent;
         public int ReturnChancePercent => returnChancePercent;
+        public int RefusalChancePercent => refusalChancePercent;
+        public int LostChancePercent => lostChancePercent;
+
+        /// <summary>T047: how often an order misses a box — applied to existing presets too.</summary>
+        internal void ConfigureLost(int percent) => lostChancePercent = Mathf.Clamp(percent, 0, 100);
+
+        /// <summary>T045: how often customers refuse a box — applied to existing presets too.</summary>
+        internal void ConfigureRefusals(int percent) => refusalChancePercent = Mathf.Clamp(percent, 0, 100);
         public float ShiftDurationSeconds => shiftDurationSeconds;
         public int CareerPointsPercent => careerPointsPercent;
         public int UrgentChancePercent => urgentChancePercent;
         public float UrgentPatienceFactor => urgentPatienceFactor;
-        public int ForgotNumberChancePercent => forgotNumberChancePercent;
 
         public SupplyPlan CreateSupplyPlan() => !HasSupply
             ? SupplyPlan.None
@@ -180,7 +219,7 @@ namespace Pvz.Runtime
 
         public bool TryGetOrderNumber(BoxId id, out string orderNumber)
         {
-            foreach (var box in boxes)
+            foreach (var box in boxes.Concat(SpareBoxes))
             {
                 if (BoxId.TryParse(box.boxId, out var candidate) && candidate == id)
                 {

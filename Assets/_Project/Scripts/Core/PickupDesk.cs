@@ -30,6 +30,19 @@ namespace Pvz.Core
         /// <summary>The customer ran out of patience and left without the order.</summary>
         public event Action<Order> OrderAbandoned;
 
+        /// <summary>T047 (#86): the order at the counter was closed as lost — a box of it is not in the warehouse.</summary>
+        public event Action<Order> OrderLost;
+
+        /// <summary>T047: closes the order at the counter as lost (the caller checked a box of it is missing).</summary>
+        internal Order CloseAsLost()
+        {
+            if (!HasActiveOrder) return null;
+            var order = ActiveSession.Order;
+            ActiveSession = null;
+            OrderLost?.Invoke(order);
+            return order;
+        }
+
         /// <summary>The current customer leaves without the order; its boxes stay in the warehouse.</summary>
         public Order Abandon()
         {
@@ -57,6 +70,30 @@ namespace Pvz.Core
         /// <summary>Someone is at the counter (picking up an order or returning a box).</summary>
         public bool HasCustomer => HasActiveOrder || HasActiveReturn;
 
+        /// <summary>
+        /// T035: the customer shows a barcode on their phone and nothing is served until it is scanned (scans of their
+        /// boxes, handovers and bags wait for it). Off by default: plain Core rules and tests do not need it.
+        /// </summary>
+        public bool RequiresCustomerCode { get; set; }
+
+        /// <summary>The code of the customer at the counter was scanned (always true when codes are not required).</summary>
+        public bool IsCodeScanned { get; private set; }
+
+        /// <summary>Waits for the code of the customer at the counter.</summary>
+        public bool AwaitsCode => HasCustomer && !IsCodeScanned;
+
+        /// <summary>The customer's code was scanned: now they can be served.</summary>
+        public event Action CodeScanned;
+
+        /// <summary>Scans the barcode the customer at the counter shows. Returns whether it opened their service.</summary>
+        public bool ScanCustomerCode()
+        {
+            if (!AwaitsCode) return false;
+            IsCodeScanned = true;
+            CodeScanned?.Invoke();
+            return true;
+        }
+
         public void OpenOrder(Order order, double now)
         {
             if (order == null) throw new ArgumentNullException(nameof(order));
@@ -70,7 +107,8 @@ namespace Pvz.Core
                     throw new ArgumentException($"Box {box} belongs to order {record.OrderNumber}, not {order.Number}.", nameof(order));
             }
 
-            ActiveSession = new ServiceSession(order, now);
+            ActiveSession = new ServiceSession(order, now); // patience counts from here, before the code is scanned
+            IsCodeScanned = !RequiresCustomerCode;
             OrderOpened?.Invoke(order);
         }
 
@@ -82,11 +120,19 @@ namespace Pvz.Core
             if (_catalog.Contains(request.Box))
                 throw new ArgumentException($"Box {request.Box} is still in the warehouse; it cannot be returned.", nameof(request));
             ActiveReturn = request;
+            IsCodeScanned = !RequiresCustomerCode;
             ReturnOpened?.Invoke(request);
         }
 
         public ScanOutcome Scan(BoxId box)
         {
+            // Before the customer's code nothing about them is known: their box, the return or another order alike.
+            if (AwaitsCode && (_catalog.TryGet(box, out _) || (HasActiveReturn && ActiveReturn.Box == box)))
+            {
+                var waiting = new ScanOutcome(ScanStatus.CodeNotScanned, box, null);
+                BoxScanned?.Invoke(waiting);
+                return waiting;
+            }
             if (HasActiveReturn && ActiveReturn.Box == box)
             {
                 var request = ActiveReturn;
@@ -103,9 +149,14 @@ namespace Pvz.Core
             else if (!HasActiveOrder)
                 outcome = new ScanOutcome(ScanStatus.NoActiveOrder, box, record.OrderNumber);
             else if (ActiveSession.Requires(box))
-                outcome = new ScanOutcome(ScanStatus.Matches, box, record.OrderNumber);
+            {
+                ActiveSession.MarkScanned(box);
+                outcome = new ScanOutcome(ScanStatus.Matches, box, record.OrderNumber, false,
+                    ActiveSession.Order.Boxes.Count, ActiveSession.ScannedCount);
+            }
             else
-                outcome = new ScanOutcome(ScanStatus.OtherOrder, box, record.OrderNumber, IsLookAlikeTrap(record.OrderNumber));
+                outcome = new ScanOutcome(ScanStatus.OtherOrder, box, record.OrderNumber, IsLookAlikeTrap(record.OrderNumber),
+                    ActiveSession.Order.Boxes.Count, ActiveSession.ScannedCount);
 
             BoxScanned?.Invoke(outcome);
             return outcome;
@@ -117,6 +168,8 @@ namespace Pvz.Core
                 return RaiseHandover(new HandoverOutcome(HandoverStatus.UnknownBox, box, false));
             if (!HasActiveOrder)
                 return RaiseHandover(new HandoverOutcome(HandoverStatus.NoActiveOrder, box, false));
+            if (AwaitsCode)
+                return RaiseHandover(new HandoverOutcome(HandoverStatus.CodeNotScanned, box, false));
 
             var session = ActiveSession;
             if (!session.Requires(box))
@@ -143,12 +196,9 @@ namespace Pvz.Core
             return accepted;
         }
 
-        /// <summary>
-        /// A box of another order whose number is easy to mix up with the customer's. Not for a customer who forgot the
-        /// number: the warning would tell the player more than the customer did.
-        /// </summary>
+        /// <summary>A box of another order whose number is easy to mix up with the customer's.</summary>
         private bool IsLookAlikeTrap(string boxOrderNumber) =>
-            HasActiveOrder && !ActiveOrder.ForgotNumber && OrderNumbers.LookAlike(boxOrderNumber, ActiveOrder.Number);
+            HasActiveOrder && OrderNumbers.LookAlike(boxOrderNumber, ActiveOrder.Number);
 
         /// <summary>Gives the current customer a carrier bag.</summary>
         public BagStatus HandOverBag(double now)
@@ -157,6 +207,11 @@ namespace Pvz.Core
             {
                 BagHandedOver?.Invoke(BagStatus.NoActiveOrder);
                 return BagStatus.NoActiveOrder;
+            }
+            if (AwaitsCode)
+            {
+                BagHandedOver?.Invoke(BagStatus.CodeNotScanned);
+                return BagStatus.CodeNotScanned;
             }
 
             var session = ActiveSession;

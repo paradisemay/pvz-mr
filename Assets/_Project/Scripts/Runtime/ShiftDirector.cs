@@ -15,7 +15,6 @@ namespace Pvz.Runtime
     public sealed class ShiftDirector : MonoBehaviour
     {
         [SerializeField] private ShiftSettings settings;
-        [SerializeField] private QrBox[] boxes = Array.Empty<QrBox>();
         [SerializeField] private HandScanner scanner;
         [SerializeField] private HandoverZone handoverZone;
         [SerializeField] private Customer customerPrefab;
@@ -25,13 +24,16 @@ namespace Pvz.Runtime
         [SerializeField] private ShiftSummaryPanel summaryPanel;
         [SerializeField] private GameObject restartButton;
         [SerializeField] private FeedbackAudio feedback;
-        [SerializeField] private SupplyDrop supplyDrop;
+        [Tooltip("The supply hatch: the stock of every shift (and deliveries) drop out of it into a pile (T036).")]
+        [SerializeField] private SupplyHatch hatch;
         [Tooltip("Optional: buttons to pick the difficulty. Without them the shift starts at once with the default settings.")]
         [SerializeField] private DifficultyButton[] difficultyButtons = Array.Empty<DifficultyButton>();
         [Tooltip("Optional: everything shown before the shift (difficulty buttons, recenter button); hidden on start.")]
         [SerializeField] private GameObject startMenu;
         [Tooltip("Generic box prefab carried by customers who come to return something.")]
         [SerializeField] private QrBox returnBoxPrefab;
+        [Tooltip("T045: where returned and refused boxes are put; «Сдать возвраты» hands in what lies in it.")]
+        [SerializeField] private ReturnsBin returnsBin;
         [Tooltip("Optional: confetti over the handover zone when an order is done.")]
         [SerializeField] private FeedbackEffects effects;
         [Tooltip("Optional: the career between shifts (T022); a finished shift reports its score to it.")]
@@ -43,6 +45,7 @@ namespace Pvz.Runtime
         private ShiftPresenter _presenter;
         private int _customersSpawned;
         private int _supplySeed;
+        private int _deliveries;
         private bool _subscribed;
 
         public Shift Shift { get; private set; }
@@ -68,16 +71,33 @@ namespace Pvz.Runtime
         /// <summary>Sets the shift length, counted from the start of the shift (tests; 0 = no limit).</summary>
         internal void UseTimeLimit(double seconds) => Shift.TimeLimitSeconds = seconds;
 
-        /// <summary>Sets how often customers are in a hurry or forget the order number (tests).</summary>
-        internal void UseEventChances(int urgentPercent, int forgotNumberPercent)
-        {
-            Shift.UrgentChancePercent = urgentPercent;
-            Shift.ForgotNumberChancePercent = forgotNumberPercent;
-        }
+        /// <summary>Sets how often customers are in a hurry (tests).</summary>
+        internal void UseEventChances(int urgentPercent) => Shift.UrgentChancePercent = urgentPercent;
+
+        /// <summary>
+        /// Tests that are not about the customer's code: it is read as soon as the customer reaches the counter, as if the
+        /// player scanned the phone at once (T035).
+        /// </summary>
+        internal void UseAutoCustomerCode(bool on = true) => _autoCustomerCode = on;
+
+        private bool _autoCustomerCode;
 
         public IReadOnlyList<DifficultyButton> DifficultyButtons => difficultyButtons;
 
         public event Action ShiftEnded;
+
+        /// <summary>Raised once the shift has started (after the difficulty was chosen).</summary>
+        public event Action ShiftStarted;
+
+        /// <summary>
+        /// «Завершить смену» (T033): the shift ends as if the time ran out — the line goes home, the customer at the
+        /// counter is served to the end. Ignored before the start and after the end.
+        /// </summary>
+        public void EndShiftNow()
+        {
+            if (Shift == null || IsShiftOver || Shift.IsTimeUp) return;
+            Shift.EndNow(Now);
+        }
 
         private static double Now => Time.timeAsDouble;
 
@@ -90,12 +110,14 @@ namespace Pvz.Runtime
         private void OnEnable()
         {
             foreach (var button in difficultyButtons) if (button != null) button.Chosen += Begin;
+            if (counterPlacement != null) counterPlacement.Moved += RepositionLine;
             if (Shift != null) Subscribe();
         }
 
         private void OnDisable()
         {
             foreach (var button in difficultyButtons) if (button != null) button.Chosen -= Begin;
+            if (counterPlacement != null) counterPlacement.Moved -= RepositionLine;
             Unsubscribe();
         }
 
@@ -136,33 +158,44 @@ namespace Pvz.Runtime
             restartButton.SetActive(false);
             if (chosen != null) settings = chosen;
 
+            // T036: the warehouse is what drops out of the hatch — the shift's orders and a few spare boxes (other days' orders).
             var catalog = new BoxCatalog();
-            foreach (var box in boxes)
+            var pile = new List<string>();
+            foreach (var definition in settings.Boxes.Concat(settings.SpareBoxes))
             {
-                if (box == null) continue;
-                if (!settings.TryGetOrderNumber(box.Id, out var orderNumber))
-                {
-                    Debug.LogWarning($"[ShiftDirector] Box {box.RawId} has no order in {settings.name}; it is ignored.", box);
-                    continue;
-                }
-                if (!_registry.Register(box))
-                {
-                    Debug.LogWarning($"[ShiftDirector] Duplicate box {box.RawId}; it is ignored.", box);
-                    continue;
-                }
-                catalog.Add(new BoxRecord(box.Id, orderNumber));
+                if (string.IsNullOrEmpty(definition.boxId) || pile.Contains(definition.boxId)) continue;
+                catalog.Add(new BoxRecord(new BoxId(definition.boxId), definition.orderNumber));
+                pile.Add(definition.boxId);
             }
+            // T044 (#84): a longer shift — generated orders fill the stock up to the preset's number of orders.
+            var supply = settings.SupplyBoxes.Where(b => !string.IsNullOrEmpty(b.boxId))
+                .Select(b => new BoxRecord(new BoxId(b.boxId), b.orderNumber)).ToList();
+            var spares = new HashSet<string>(settings.SpareBoxes.Select(b => b.orderNumber));
+            var stockRandom = _stockSeed.HasValue ? new SystemRandomSource(_stockSeed.Value) : settings.CreateRandomSource();
+            foreach (var extra in StockPlan.Extra(catalog.Boxes, settings.HasSupply ? supply : null, spares, settings.OrdersPerShift,
+                         stockRandom))
+            {
+                catalog.Add(extra);
+                pile.Add(extra.Id.Value);
+            }
+            // T047 (#86): «потеряшки» — some orders miss a box: it stays in the order but never drops out of the hatch.
+            var missing = StockPlan.PickMissing(catalog.Boxes, spares, _lostChance ?? settings.LostChancePercent,
+                _stockSeed.HasValue ? new SystemRandomSource(_stockSeed.Value ^ 0x1057) : settings.CreateRandomSource());
+            foreach (var box in missing) pile.Remove(box.Value);
 
             Shift = new Shift(catalog, settings.CreateRandomSource(), settings.CreateScoringRules(), settings.CreateSupplyPlan(),
                 settings.BagChancePercent) {
                 PatienceSeconds = settings.PatienceSeconds,
                 QueueLength = settings.QueueLength,
                 ReturnChancePercent = settings.ReturnChancePercent,
+                RefusalChancePercent = settings.RefusalChancePercent, // T045
                 UrgentChancePercent = settings.UrgentChancePercent,
                 UrgentPatienceFactor = settings.UrgentPatienceFactor,
-                ForgotNumberChancePercent = settings.ForgotNumberChancePercent,
+                RequiresCustomerCode = true, // T035: the customer shows a barcode on the phone first
                 TimeLimitSeconds = settings.ShiftDurationSeconds,
             };
+            Shift.MarkNotForSale(settings.SpareBoxes.Select(b => b.orderNumber)); // nobody comes for the spare boxes
+            Shift.MarkMissing(missing);
             Shift.Start(Now);
             if (Shift.ReturnChancePercent > 0 && returnBoxPrefab == null)
             {
@@ -172,12 +205,39 @@ namespace Pvz.Runtime
             _presenter = new ShiftPresenter(Shift, board, scanner, feedback, effects, settings.ShowTutorial);
             _supplySeed = settings.CreateRandomSource().Range(1, int.MaxValue);
             Subscribe();
+            DropPile(pile);
 
             foreach (var button in difficultyButtons) if (button != null) button.gameObject.SetActive(false);
             if (startMenu != null) startMenu.SetActive(false);
             _presenter.ShowShiftStarting(settings.DisplayName);
             StartCoroutine(RunShift());
+            ShiftStarted?.Invoke();
         }
+
+        /// <summary>The stock of the shift falls out of the hatch in a mixed order (spares among the orders).</summary>
+        private void DropPile(List<string> ids)
+        {
+            if (hatch == null)
+            {
+                Debug.LogError("[ShiftDirector] No supply hatch: the shift has no boxes. Rebuild the scene.", this);
+                return;
+            }
+            var random = new System.Random(_supplySeed);
+            for (var i = ids.Count - 1; i > 0; i--)
+            {
+                var j = random.Next(i + 1);
+                (ids[i], ids[j]) = (ids[j], ids[i]);
+            }
+            StartCoroutine(hatch.Drop(ids, _supplySeed, settings.DefaultCeilingHeight));
+        }
+
+        private void OnBoxDropped(QrBox box)
+        {
+            if (box != null) _registry.Register(box);
+        }
+
+        /// <summary>The hatch the stock falls out of (T036).</summary>
+        public SupplyHatch Hatch => hatch;
 
         private void Subscribe()
         {
@@ -185,10 +245,17 @@ namespace Pvz.Runtime
             _subscribed = true;
             scanner.BoxScanned += OnBoxScanned;
             scanner.Missed += OnScanMissed;
+            if (hatch != null) hatch.BoxDropped += OnBoxDropped;
+            scanner.PhoneScanned += OnPhoneScanned;
+            Desk.CodeScanned += OnCodeScanned;
+            Shift.OrderAbandoned += OnOrderAbandoned;
             handoverZone.BoxEntered += OnBoxEnteredZone;
             handoverZone.BagEntered += OnBagEnteredZone;
             Desk.BagRequested += OnBagRequested;
             Desk.ReturnOpened += OnReturnOpened;
+            Desk.ReturnAccepted += OnReturnAcceptedBox;
+            Shift.BoxRefused += OnBoxRefused;
+            if (returnsBin != null) { returnsBin.BoxEntered += OnBoxEnteredBin; returnsBin.BoxLeft += OnBoxLeftBin; }
             Shift.TimeUp += OnTimeUp;
         }
 
@@ -198,10 +265,17 @@ namespace Pvz.Runtime
             _subscribed = false;
             scanner.BoxScanned -= OnBoxScanned;
             scanner.Missed -= OnScanMissed;
+            if (hatch != null) hatch.BoxDropped -= OnBoxDropped;
+            scanner.PhoneScanned -= OnPhoneScanned;
+            Desk.CodeScanned -= OnCodeScanned;
+            Shift.OrderAbandoned -= OnOrderAbandoned;
             handoverZone.BoxEntered -= OnBoxEnteredZone;
             handoverZone.BagEntered -= OnBagEnteredZone;
             Desk.BagRequested -= OnBagRequested;
             Desk.ReturnOpened -= OnReturnOpened;
+            Desk.ReturnAccepted -= OnReturnAcceptedBox;
+            Shift.BoxRefused -= OnBoxRefused;
+            if (returnsBin != null) { returnsBin.BoxEntered -= OnBoxEnteredBin; returnsBin.BoxLeft -= OnBoxLeftBin; }
             Shift.TimeUp -= OnTimeUp;
         }
 
@@ -210,6 +284,28 @@ namespace Pvz.Runtime
         {
             Shift.UseRandomSource(new SystemRandomSource(seed));
             _supplySeed = seed;
+        }
+
+        private int? _stockSeed;
+
+        /// <summary>
+        /// Fixes the generated part of the stock (T044) — call before <see cref="Begin()"/> (tests: the same pile every run).
+        /// </summary>
+        internal void UseStockSeed(int seed) => _stockSeed = seed;
+
+        private int? _lostChance;
+
+        /// <summary>Sets how often an order misses a box (T047) — call before <see cref="Begin()"/> (tests).</summary>
+        internal void UseLostChance(int percent) => _lostChance = percent;
+
+        /// <summary>
+        /// T047 (#86): «Не найден» on the computer — the order at the counter misses a box. True: closed as lost (the
+        /// customer leaves calmly); false: the box is in the warehouse (a penalty, the customer keeps waiting).
+        /// </summary>
+        public bool DeclareNotFound()
+        {
+            if (Shift == null || IsShiftOver || !Desk.HasActiveOrder || Desk.AwaitsCode) return false;
+            return Shift.DeclareNotFound();
         }
 
         /// <summary>Sets how often customers ask for a bag (tests).</summary>
@@ -239,7 +335,12 @@ namespace Pvz.Runtime
 
         private IEnumerator RunShift()
         {
-            yield return new WaitForSeconds(settings.FirstCustomerDelay);
+            yield return new WaitUntil(() => hatch == null || !hatch.IsDropping); // the pile is down before anyone comes
+            // T044 (#84): customers come by the clock (ArriveByTheClock); this loop only serves the front of the line.
+            _arrivals = new ArrivalClock(Now, settings.FirstCustomerDelay, settings.ArrivalInterval, settings.DelayBetweenCustomers,
+                ArrivalJitter, new SystemRandomSource(_supplySeed ^ 0x5eed));
+            _idleSince = null; // the first customer keeps to the first delay, not the shorter idle pause
+            StartCoroutine(ArriveByTheClock());
             while (!Shift.IsOver)
             {
                 if (Shift.TryTakeDueDelivery(out var delivery))
@@ -249,14 +350,21 @@ namespace Pvz.Runtime
                     continue;
                 }
 
-                yield return FillQueue();
-                if (Shift.IsOver) break; // the time ran out while the line was filling
                 if (_line.Count > 0)
                 {
+                    _idleSince = null;
                     yield return ServeFrontCustomer();
                     if (Shift.IsOver) break;
-                    _presenter.ShowWaitingForCustomer();
-                    yield return new WaitForSeconds(settings.DelayBetweenCustomers);
+                    if (_line.Count == 0)
+                    {
+                        _idleSince = Now; // nobody waits: the next one comes soon, not a whole interval later
+                        _presenter.ShowWaitingForCustomer();
+                    }
+                }
+                else if (Shift.HasUnreservedOrders)
+                {
+                    _idleSince ??= Now;
+                    yield return new WaitUntil(() => _line.Count > 0 || Shift.IsDeliveryDue || Shift.IsOver);
                 }
                 else
                 {
@@ -265,34 +373,74 @@ namespace Pvz.Runtime
                     yield return new WaitUntil(() => Shift.HasUnreservedOrders || Shift.IsDeliveryDue || Shift.IsOver);
                 }
             }
+            // T045: a shift that ended by itself (everything sold) waits for the returns still out of the bin — the last
+            // refusal or return must not be lost before the player can carry it there. «Завершить смену» or the clock end it.
+            if (HasReturnsOutsideTheBin && !Shift.IsTimeUp && !Shift.Clock.EndedEarly)
+            {
+                WaitingForReturns = true;
+                _presenter.ShowReturnsToStow(Shift.Returns.Pending - Shift.Returns.InBin);
+                yield return new WaitUntil(() => !HasReturnsOutsideTheBin || Shift.IsTimeUp || Shift.Clock.EndedEarly);
+                WaitingForReturns = false;
+            }
             EndShift();
         }
 
-        private void SpawnDelivery(IReadOnlyList<BoxRecord> delivery)
-        {
-            if (supplyDrop == null)
-            {
-                Debug.LogError("[ShiftDirector] A delivery arrived but there is no SupplyDrop in the scene.", this);
-                return;
-            }
-            var ids = delivery.Select(b => b.Id.Value).ToArray();
-            foreach (var box in supplyDrop.Drop(ids, _supplySeed, settings.DefaultCeilingHeight)) _registry.Register(box);
-        }
+        /// <summary>Arrivals are this share of the interval early or late, at random (not a metronome).</summary>
+        private const double ArrivalJitter = 0.2;
+
+        private ArrivalClock _arrivals;
+        private double? _idleSince;
 
         /// <summary>
-        /// Brings new customers one by one (so they do not walk inside each other) until the line is full.
+        /// T044 (#84): a new customer comes every <see cref="ShiftSettings.ArrivalInterval"/> whether the line moves or
+        /// not — a slow player sees it grow; with the line full, the newcomer does not stay (counted in the summary).
+        /// With nobody at the counter or in line, the next one comes after a short pause instead of a whole interval.
         /// Who comes and why (an order or a return) is decided by Core (<see cref="Shift.TryEnqueue"/>).
         /// </summary>
-        private IEnumerator FillQueue()
+        private IEnumerator ArriveByTheClock()
         {
-            while (Shift.TryEnqueue(out var visit))
+            while (!Shift.IsOver)
             {
-                var customer = Instantiate(customerPrefab, customerSpawnPoint.position, customerSpawnPoint.rotation);
-                customer.SetLook(_customersSpawned++);
-                _line.Add(new QueuedCustomer(customer, visit, visit.IsReturn ? SpawnReturnBox(customer, visit.Return) : null));
-                customer.GoTo(SlotPosition(_line.Count - 1), customerServicePoint.rotation, settings.CustomerWalkSpeed);
-                if (Shift.CanEnqueue) yield return new WaitForSeconds(QueueSpacing / settings.CustomerWalkSpeed + 0.2f);
+                // A served customer still saying thanks has left Core's line but still stands at the counter: the line is
+                // not shorter yet, nobody squeezes in as a fifth (whoever is due comes once they leave).
+                var leaving = _line.Count > Shift.QueuedVisits.Count;
+                var idle = _line.Count == 0 && !Desk.HasCustomer ? _idleSince : null;
+                if (!leaving && _arrivals.IsDue(Now, idle))
+                {
+                    if (Shift.TryEnqueue(out var visit))
+                    {
+                        _arrivals.Arrived(Now);
+                        _idleSince = null;
+                        var customer = Instantiate(customerPrefab, SpawnPositionFor(_line.Count), customerSpawnPoint.rotation);
+                        customer.SetLook(_customersSpawned++);
+                        _line.Add(new QueuedCustomer(customer, visit, visit.IsReturn ? SpawnReturnBox(customer, visit.Return) : null));
+                        customer.GoTo(SlotPosition(_line.Count - 1), customerServicePoint.rotation, settings.CustomerWalkSpeed);
+                        // The next one does not walk inside this one, however short the interval.
+                        yield return new WaitForSeconds(QueueSpacing / settings.CustomerWalkSpeed + 0.2f);
+                        continue;
+                    }
+                    if (Shift.IsLineFull)
+                    {
+                        Shift.TurnAway();
+                        _arrivals.Arrived(Now);
+                    }
+                    // Otherwise nothing is left to promise right now (the supply is not in yet): whoever comes, comes later.
+                }
+                yield return null;
             }
+        }
+
+        /// <summary>The arrival clock of the running shift (diagnostics, tests).</summary>
+        internal ArrivalClock Arrivals => _arrivals;
+
+        private void SpawnDelivery(IReadOnlyList<BoxRecord> delivery)
+        {
+            if (hatch == null)
+            {
+                Debug.LogError("[ShiftDirector] A delivery arrived but there is no supply hatch in the scene.", this);
+                return;
+            }
+            StartCoroutine(hatch.Drop(delivery.Select(b => b.Id.Value).ToArray(), _supplySeed + ++_deliveries, settings.DefaultCeilingHeight));
         }
 
         /// <summary>The box a returning customer carries: a generic box given the returned id and its QR.</summary>
@@ -327,12 +475,19 @@ namespace Pvz.Runtime
             }
 
             Shift.OpenNext(Now); // a return puts its box on the counter (OnReturnOpened)
+            if (Desk.AwaitsCode)
+            {
+                // T035: the customer holds out the phone; the order opens when its barcode is scanned (OnCodeScanned).
+                if (front.Customer.Phone != null) front.Customer.Phone.Show(Desk.HasActiveReturn ? "КОД ВОЗВРАТА" : "КОД ЗАКАЗА");
+                if (_autoCustomerCode) Shift.ScanCustomerCode();
+            }
             // Boxes the player prepared before the customer arrived are handed over at once (outside the
             // OrderOpened event, so Core never re-enters itself).
-            if (Desk.HasActiveOrder) HandOverBoxesAlreadyInZone();
+            else if (Desk.HasActiveOrder) HandOverBoxesAlreadyInZone();
 
             yield return new WaitUntil(() => !Desk.HasCustomer);
-            if (front.ReturnBox != null) Destroy(front.ReturnBox.gameObject); // taken back and written off
+            // T045: an accepted return stays on the counter for the returns bin; one never accepted (the customer left) goes.
+            if (front.ReturnBox != null && !front.ReturnBox.IsReturn) Destroy(front.ReturnBox.gameObject);
             CurrentReturnBox = null;
             yield return new WaitForSeconds(settings.ThanksDuration);
 
@@ -373,6 +528,18 @@ namespace Pvz.Runtime
         /// <summary>Place number <paramref name="index"/> in the line (0 = at the counter).</summary>
         private Vector3 SlotPosition(int index) => customerServicePoint.position + LineDirection * (QueueSpacing * index);
 
+        /// <summary>
+        /// Where a newcomer for slot <paramref name="index"/> appears: at the spawn point, or a place behind their slot when
+        /// a long line (T044) reaches past it — never inside the customer standing there.
+        /// </summary>
+        private Vector3 SpawnPositionFor(int index)
+        {
+            var spawn = customerSpawnPoint.position;
+            var behindSlot = SlotPosition(index + 1);
+            var spawnDistance = Vector3.Dot(spawn - customerServicePoint.position, LineDirection);
+            return spawnDistance >= QueueSpacing * (index + 1) ? spawn : behindSlot;
+        }
+
         private Vector3 ExitPosition => customerServicePoint.position + Vector3.Cross(Vector3.up, LineDirection) * 2.2f
                                         + LineDirection * 0.8f;
 
@@ -395,6 +562,11 @@ namespace Pvz.Runtime
 
         private void EndShift()
         {
+            // T045: what is in the returns bin is handed in, the returns left elsewhere are lost (before the summary).
+            SyncBin();
+            var (handed, lost) = Shift.CloseReturns();
+            RemoveReturnBoxes(handed);
+            RemoveReturnBoxes(lost);
             IsShiftOver = true;
             _presenter.ShowShiftOver();
             RecordResult? record = null;
@@ -407,7 +579,7 @@ namespace Pvz.Runtime
             catch (Exception e) { Debug.LogException(e, this); }
             try { record = _bestScores.Submit(settings.DifficultyId, Stats.Score); }
             catch (Exception e) { Debug.LogException(e, this); } // never leave the player without the summary and restart
-            summaryPanel.Show(Stats, OrdersTotal, record, settings.DisplayName, Shift.MaxQueueLength, Shift.IsTimeUp,
+            summaryPanel.Show(Stats, OrdersTotal, record, settings.DisplayName, Shift.MaxQueueLength, Shift.IsTimeUp && !Shift.Clock.EndedEarly,
                 careerLine);
             restartButton.SetActive(true);
             ShiftEnded?.Invoke();
@@ -420,12 +592,37 @@ namespace Pvz.Runtime
 
         private void OnScanMissed() => _presenter.ShowScanMissed();
 
+        /// <summary>The scanner read a phone: the code of the customer at the counter opens their order (T035).</summary>
+        private void OnPhoneScanned(CustomerPhone phone)
+        {
+            if (IsShiftOver || phone == null) return;
+            if (CurrentCustomer == null || phone.Owner != CurrentCustomer || !Desk.AwaitsCode)
+            {
+                _presenter.ShowNotThisCode();
+                return;
+            }
+            Shift.ScanCustomerCode();
+        }
+
+        /// <summary>The customer gave up (also before their code was scanned): the phone goes away at once.</summary>
+        private void OnOrderAbandoned(Order order)
+        {
+            if (CurrentCustomer != null && CurrentCustomer.Phone != null) CurrentCustomer.Phone.Hide();
+        }
+
+        /// <summary>The code is read: the phone goes away, boxes already waiting in the zone are handed over.</summary>
+        private void OnCodeScanned()
+        {
+            if (CurrentCustomer != null && CurrentCustomer.Phone != null) CurrentCustomer.Phone.Hide();
+            if (Desk.HasActiveOrder) HandOverBoxesAlreadyInZone();
+        }
+
         /// <summary>The returning customer at the counter puts their box next to the handover zone to be scanned.</summary>
         private void OnReturnOpened(ReturnRequest request)
         {
             var queued = _line.Find(q => q.Visit.Return == request);
             if (queued.ReturnBox == null) return;
-            var spot = handoverZone.ReturnSpot;
+            var spot = FreeReturnSpot(queued.ReturnBox); // T045: earlier returns may still lie on the counter
             queued.ReturnBox.PresentForScan(spot.position, spot.rotation);
             CurrentReturnBox = queued.ReturnBox;
         }
@@ -471,6 +668,11 @@ namespace Pvz.Runtime
 
         private void GiveToCustomer(QrBox box)
         {
+            if (_refused.Contains(box.Id))
+            {
+                PutBackAsReturn(box); // T045: the customer refused it as it was handed over
+                return;
+            }
             handoverZone.Forget(box);
             _registry.Unregister(box.Id);
             if (CurrentCustomer != null) CurrentCustomer.Take(box);
@@ -497,20 +699,167 @@ namespace Pvz.Runtime
 
         internal void ConfigureReturns(QrBox boxPrefab) => returnBoxPrefab = boxPrefab;
 
+        internal void ConfigureReturnsBin(ReturnsBin bin) => returnsBin = bin;
+
+        /// <summary>T045: the returns bin by the counter.</summary>
+        public ReturnsBin ReturnsBin => returnsBin;
+
+        /// <summary>Sets how often a customer refuses a box (tests).</summary>
+        internal void UseRefusalChance(int percent) => Shift.RefusalChancePercent = percent;
+
+        private readonly Dictionary<BoxId, QrBox> _returnBoxes = new Dictionary<BoxId, QrBox>();
+        private readonly HashSet<BoxId> _refused = new HashSet<BoxId>();
+
+        /// <summary>T045: a box that came back, lying loose to be carried to the bin (tests, the remote).</summary>
+        public bool TryGetReturnBox(BoxId id, out QrBox box) => _returnBoxes.TryGetValue(id, out box) && box != null;
+
+        public IEnumerable<QrBox> ReturnBoxes => _returnBoxes.Values.Where(b => b != null);
+
+        /// <summary>
+        /// T045: the customer checked a box and refused it. It is taken back from them if they already hold it;
+        /// otherwise (the last box, still on its way into their hands) <see cref="GiveToCustomer(QrBox)"/> keeps it.
+        /// </summary>
+        private void OnBoxRefused(BoxRecord record)
+        {
+            _refused.Add(record.Id);
+            if (CurrentCustomer == null) return;
+            foreach (var box in CurrentCustomer.GetComponentsInChildren<QrBox>(true))
+                if (box.Id == record.Id) { PutBackAsReturn(box); break; }
+        }
+
+        /// <summary>Where boxes of the room live (the lost-box check of a return measures reach from here).</summary>
+        private Transform BoxesRoot => hatch != null ? hatch.BoxesRoot : null;
+
+        /// <summary>T045: the shift sold everything and waits for returns still out of the returns bin.</summary>
+        public bool WaitingForReturns { get; private set; }
+
+        private bool HasReturnsOutsideTheBin
+        {
+            get
+            {
+                SyncBin();
+                return Shift.Returns.Pending > Shift.Returns.InBin;
+            }
+        }
+
+        /// <summary>
+        /// The returns bin as it is now: a return lies in it only if it is inside and nobody holds it (a box held over the
+        /// bin is not handed in out of the player's hand).
+        /// </summary>
+        private void SyncBin()
+        {
+            if (returnsBin == null) return;
+            foreach (var pair in _returnBoxes)
+            {
+                var box = pair.Value;
+                if (box == null) continue;
+                if (returnsBin.Contains(box) && !box.IsHeld) Shift.Returns.Stow(pair.Key);
+                else Shift.Returns.Unstow(pair.Key);
+            }
+        }
+
+        /// <summary>
+        /// T045: where a box coming back to the counter is put — the return spot, or on top of the returns already lying
+        /// there (two boxes never appear inside each other).
+        /// </summary>
+        private Pose FreeReturnSpot(QrBox box)
+        {
+            var spot = handoverZone.ReturnSpot;
+            var half = new Vector3(0.13f, 0.12f, 0.13f);
+            for (var level = 0; level < 12; level++)
+            {
+                var position = spot.position + Vector3.up * (0.26f * level);
+                var taken = false;
+                foreach (var other in Physics.OverlapBox(position + Vector3.up * 0.12f, half, spot.rotation, ~0, QueryTriggerInteraction.Ignore))
+                {
+                    var otherBox = other.GetComponentInParent<QrBox>();
+                    if (otherBox != null && otherBox != box) { taken = true; break; }
+                }
+                if (!taken) return new Pose(position, spot.rotation);
+            }
+            return spot;
+        }
+
+        private void PutBackAsReturn(QrBox box)
+        {
+            _refused.Remove(box.Id);
+            handoverZone.Forget(box);
+            _registry.Unregister(box.Id);
+            var spot = FreeReturnSpot(box);
+            box.BecomeReturn(spot.position + Vector3.up * 0.05f, spot.rotation, BoxesRoot, () => FreeReturnSpot(box).position + Vector3.up * 0.05f);
+            _returnBoxes[box.Id] = box;
+        }
+
+        /// <summary>T045: the returned box stays on the counter, to the returns bin — no longer written off.</summary>
+        private void OnReturnAcceptedBox(ReturnRequest request)
+        {
+            var box = CurrentReturnBox;
+            if (box == null || box.Id != request.Box) return;
+            box.BecomeReturn(box.transform.position, box.transform.rotation, BoxesRoot, () => FreeReturnSpot(box).position + Vector3.up * 0.05f);
+            _returnBoxes[box.Id] = box;
+        }
+
+        private void OnBoxEnteredBin(QrBox box)
+        {
+            if (box != null && box.IsReturn && !IsShiftOver) Shift.Returns.Stow(box.Id);
+        }
+
+        private void OnBoxLeftBin(QrBox box)
+        {
+            if (box != null && box.IsReturn && !IsShiftOver) Shift.Returns.Unstow(box.Id);
+        }
+
+        /// <summary>T045: «Сдать возвраты» — the boxes in the bin are taken away (points). Returns how many.</summary>
+        public int HandInReturns()
+        {
+            if (Shift == null || IsShiftOver) return 0;
+            SyncBin();
+            var handed = Shift.HandInReturns();
+            RemoveReturnBoxes(handed);
+            _presenter.ShowReturnsHandedIn(handed.Count, Shift.Returns.Pending);
+            return handed.Count;
+        }
+
+        private void RemoveReturnBoxes(IEnumerable<BoxId> ids)
+        {
+            foreach (var id in ids)
+            {
+                if (!_returnBoxes.TryGetValue(id, out var box)) continue;
+                _returnBoxes.Remove(id);
+                if (box == null) continue;
+                if (returnsBin != null) returnsBin.Forget(box);
+                Destroy(box.gameObject);
+            }
+        }
+
         internal void ConfigureEffects(FeedbackEffects feedbackEffects) => effects = feedbackEffects;
 
         internal void ConfigureCareer(CareerKeeper careerKeeper) => career = careerKeeper;
 
+        [Tooltip("Optional: the counter can be moved (T034); the line then walks to its new place.")]
+        [SerializeField] private PlacementKeeper counterPlacement;
+
+        internal void ConfigureCounterPlacement(PlacementKeeper keeper) => counterPlacement = keeper;
+
+        /// <summary>The counter moved: everyone in line walks to their place at it again.</summary>
+        public void RepositionLine()
+        {
+            for (var i = 0; i < _line.Count; i++)
+            {
+                if (_line[i].Customer != null)
+                    _line[i].Customer.GoTo(SlotPosition(i), customerServicePoint.rotation, settings.CustomerWalkSpeed);
+            }
+        }
+
         public FeedbackEffects Effects => effects;
 
-        internal void Configure(ShiftSettings shiftSettings, QrBox[] sceneBoxes, HandScanner handScanner, HandoverZone zone,
+        internal void Configure(ShiftSettings shiftSettings, HandScanner handScanner, HandoverZone zone,
             Customer prefab, Transform spawn, Transform service, CounterBoard counterBoard, ShiftSummaryPanel summary,
-            GameObject restart, FeedbackAudio audio, SupplyDrop supply, DifficultyButton[] difficulty)
+            GameObject restart, FeedbackAudio audio, SupplyHatch supplyHatch, DifficultyButton[] difficulty)
         {
-            supplyDrop = supply;
+            hatch = supplyHatch;
             difficultyButtons = difficulty ?? Array.Empty<DifficultyButton>();
             settings = shiftSettings;
-            boxes = sceneBoxes;
             scanner = handScanner;
             handoverZone = zone;
             customerPrefab = prefab;

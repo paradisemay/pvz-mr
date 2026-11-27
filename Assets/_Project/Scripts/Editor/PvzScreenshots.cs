@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using Pvz.Runtime;
 using TMPro;
 using UnityEditor;
@@ -40,10 +41,23 @@ namespace Pvz.Editor
                 new[] { ("Лёгкая", 450), ("Обычная", 525), ("Сложная", 0) });
             Capture("00_difficulty_menu", new Vector3(0f, 1.65f, -0.35f), new Vector3(-0.1f, 1.5f, 1.1f), 75f);
             Capture("16_how_to_play", new Vector3(-0.75f, 1.8f, -0.3f), new Vector3(-1.2f, 2.14f, 1.08f), 45f);
-            foreach (var button in Object.FindObjectsByType<DifficultyButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
-            foreach (var button in Object.FindObjectsByType<RecenterButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false); // start menu is hidden during play
-            foreach (var button in Object.FindObjectsByType<ResetWarehouseButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
-            foreach (var button in Object.FindObjectsByType<ThemeButton>(FindObjectsSortMode.None)) button.gameObject.SetActive(false);
+
+            // The counter computer (T033): its screens and the keys each one shows.
+            var computer = Object.FindFirstObjectByType<PvzComputer>();
+            computer.Preview(PvzComputer.Screen.Menu, PvzComputer.MenuText, beforeShift: true);
+            Capture("17_computer_menu", ComputerCameraFrom, ComputerCameraAt, 48f);
+            // T041: the headset gave no room mesh (the room was not scanned): the menu says what to do.
+            computer.Preview(PvzComputer.Screen.Menu, PvzComputer.MenuText + "\n\n" + RoomMesh.MissingText, beforeShift: true);
+            Capture("26_room_not_scanned", ComputerCameraFrom, ComputerCameraAt, 48f);
+            computer.Preview(PvzComputer.Screen.Settings, PvzComputer.SettingsText, beforeShift: true);
+            Capture("18_computer_settings", ComputerCameraFrom, ComputerCameraAt, 48f);
+            // Moving the counter (T034): the orange handle above its front edge and the moving screen.
+            var handle = Object.FindFirstObjectByType<PlacementMover>().Handle.gameObject;
+            handle.SetActive(true);
+            computer.Preview(PvzComputer.Screen.Moving, PvzComputer.MovingText, beforeShift: true);
+            Capture("21_counter_move", new Vector3(-0.95f, 1.85f, -0.55f), new Vector3(0.05f, 1.25f, 0.75f), 60f);
+            handle.SetActive(false);
+            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen("2781", 2, 1, false, null, 2, 263, false, scanned: 2), beforeShift: false);
 
             // Stage a moment of play: a customer at the counter asking for an order.
             var customerPrefab = AssetDatabase.LoadAssetAtPath<Customer>(PvzAssetFactory.PrefabsDir + "/Customer.prefab");
@@ -61,14 +75,22 @@ namespace Pvz.Editor
 
             HideEditorOnlyClutter();
             Object.FindFirstObjectByType<BagDispenser>().Refill(); // a bag lies on the counter as in play mode
+            var pile = StagePile(); // T036: the stock of the shift lies in a pile under the supply hatch
 
             Capture("01_overview", new Vector3(-2.6f, 2.5f, -2.9f), new Vector3(0.1f, 0.8f, 0.6f), 55f);
             Capture("02_player_view", new Vector3(0f, 1.6f, -0.2f), new Vector3(0.1f, 1.62f, 1.6f), 72f);
+            Capture("23_hatch_pile", new Vector3(0.35f, 1.6f, -0.7f), new Vector3(-1.35f, 1.05f, 0.45f), 72f);
+            var shelved = StageShelf(); // T037: boxes the player put on the rack
+            Capture("24_shelf_rack", new Vector3(0.05f, 1.62f, -0.45f), new Vector3(1.45f, 0.85f, 0.35f), 68f);
+            foreach (var shelvedBox in shelved) Object.DestroyImmediate(shelvedBox.gameObject);
+            Capture("19_computer_shift", ComputerCameraFrom, ComputerCameraAt, 48f);
             Capture("03_counter_closeup", new Vector3(0.35f, 1.55f, 0.15f), new Vector3(0.15f, 1.2f, 1.1f), 60f);
 
             var box = Object.FindFirstObjectByType<QrBox>();
             Capture("04_box_qr", box.transform.position + new Vector3(0.35f, 0.35f, -0.45f), box.transform.position, 45f);
             Capture("05_scanner", scanner.transform.position + new Vector3(-0.18f, 0.22f, -0.25f), scanner.transform.position, 40f);
+            var holder = Object.FindFirstObjectByType<ScannerHolder>().transform; // T038: the scanner in its holder
+            Capture("25_scanner_holder", holder.position + new Vector3(0.12f, 0.32f, -0.42f), holder.position + new Vector3(0f, 0.03f, 0f), 42f);
 
             // «Похожие заказы»: the customer wants №2781, the scanner caught a box of №2718.
             var (lookAlikeText, lookAlikeColor) = ShiftPresenter.ScanResultText(new Pvz.Core.ScanOutcome(Pvz.Core.ScanStatus.OtherOrder, new Pvz.Core.BoxId("BOX-103"), "2718", looksLikeTheWantedOrder: true));
@@ -76,6 +98,11 @@ namespace Pvz.Editor
             // Straight at the scanner screen (TMP text reads from behind its forward axis).
             var screen = scanner.GetComponentInChildren<TMP_Text>(true).transform;
             Capture("13_lookalike", screen.position - screen.forward * 0.2f, screen.position, 35f, screen.up);
+            // T043 (#83): the right box, and how much of the order the scanner has found — also said aloud.
+            var (countText, countColor) = ShiftPresenter.ScanResultText(new Pvz.Core.ScanOutcome(Pvz.Core.ScanStatus.Matches,
+                new Pvz.Core.BoxId("BOX-002"), "2781", false, itemsInOrder: 3, itemsScanned: 2));
+            scanner.ShowResult(countText, countColor);
+            Capture("27_scanner_count", screen.position - screen.forward * 0.2f, screen.position, 35f, screen.up);
             scanner.ShowResult("Заказ №2781\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
 
             // Two-box order handed over; the customer now asks for a bag.
@@ -108,10 +135,10 @@ namespace Pvz.Editor
             Object.DestroyImmediate(demoCustomer.gameObject);
             customer.gameObject.SetActive(true);
 
-            // A line of customers (hard difficulty: three).
+            // A line of customers grown while the player was busy (T044: up to four).
             var lineDirection = (PvzSceneBuilder.CustomerSpawnPosition - PvzSceneBuilder.CustomerServicePosition).normalized;
             var queued = new System.Collections.Generic.List<Customer>();
-            for (var i = 1; i <= 2; i++)
+            for (var i = 1; i <= 3; i++)
             {
                 var waiting = Object.Instantiate(customerPrefab, PvzSceneBuilder.CustomerServicePosition + lineDirection * (0.65f * i),
                     Quaternion.Euler(0, 180, 0));
@@ -135,16 +162,44 @@ namespace Pvz.Editor
             board.ShowStatus("Отсканируйте коробку клиента на стойке", CounterBoard.Neutral);
             scanner.ShowResult("Заказ №1435\nВОЗВРАТ ПРИНЯТ", CounterBoard.Good);
             Capture("10_return", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.25f, 1.25f, 1.3f), 70f);
+
+            // T045 (#85): the customer checked a box and refused it — it is back on the counter, for the returns bin.
+            customer.Say(ShiftPresenter.RefusalLine);
+            board.ShowHeadline("Выдан с отказом", CounterBoard.Accent);
+            board.ShowStatus("Коробку — в ящик возвратов", CounterBoard.Neutral);
+            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen(null, 0, 0, false, null, 2, 198, false)
+                + PvzComputer.ReturnsLine(1, 2), beforeShift: false);
+            var bin = Object.FindFirstObjectByType<ReturnsBin>().transform;
+            var stowed = Object.Instantiate(returnPrefab, bin.position + new Vector3(0f, 0.14f, 0f), bin.rotation * Quaternion.Euler(0f, 20f, 0f));
+            stowed.AssignId("BOX-002", QrTextures.Create("BOX-002"));
+            Capture("28_refusal", new Vector3(0.1f, 1.7f, -0.75f), new Vector3(0.5f, 0.7f, 0.85f), 76f);
+            Capture("29_returns_bin", bin.position + new Vector3(-0.35f, 1.0f, -0.9f), bin.position + new Vector3(0f, 0.2f, 0f), 50f);
+            Object.DestroyImmediate(stowed.gameObject);
             Object.DestroyImmediate(returnBox.gameObject);
+
+            // T047 (#86): the order's box is nowhere — «Не найден» on the computer, the customer leaves calmly.
+            customer.Say(ShiftPresenter.LostOrderLine);
+            board.ShowHeadline("Потеряшка: заказ №7316", CounterBoard.Accent);
+            board.ShowStatus("+30 очков за честность", CounterBoard.Good);
+            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen("7316", 1, 0, false, null, 1, 154, false), beforeShift: false);
+            Capture("30_lost_order", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.1f, 1.55f, 1.3f), 70f);
+            Capture("31_not_found_key", ComputerCameraFrom, ComputerCameraAt, 48f);
             customer.ShowPatience(0.55);
 
-            // Random events: an urgent customer who forgot the order number.
-            customer.Say("Срочно, опаздываю!\nЗабыл номер… кончается на 81");
+            // An urgent customer holds out the phone with the order's barcode (T035: the order opens when it is scanned).
+            customer.Say("Срочно, опаздываю!\nВот мой код");
             customer.ShowPatience(0.3);
-            board.ShowHeadline("СРОЧНО: заказ №••81", CounterBoard.Bad);
-            board.ShowStatus("Найдите коробку сканером", CounterBoard.Neutral);
-            scanner.ShowResult("Заказ №2781\nНУЖНАЯ КОРОБКА", CounterBoard.Good);
+            customer.Phone.Show("КОД ЗАКАЗА");
+            board.ShowHeadline("СРОЧНО: клиент у стойки", CounterBoard.Bad);
+            board.ShowStatus(ShiftPresenter.ScanCodeText, CounterBoard.Neutral);
+            scanner.ShowResult("Наведите на QR\nи нажмите курок", CounterBoard.Neutral);
+            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen(null, 0, 0, false, null, 1, 241, false, awaitingCode: true), beforeShift: false);
             Capture("11_events", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.1f, 1.55f, 1.3f), 70f);
+            var phonePoint = customer.Phone.GetComponentInChildren<Collider>(true).bounds.center;
+            Capture("22_customer_phone", phonePoint + new Vector3(-0.12f, 0.1f, -0.6f), phonePoint, 45f);
+            scanner.ShowResult("Заказ №2781\nКОД ПРИНЯТ", CounterBoard.Good);
+            customer.Phone.Hide();
+            computer.Preview(PvzComputer.Screen.Shift, PvzComputer.OrderScreen("2781", 2, 1, false, null, 2, 263, false, scanned: 2), beforeShift: false);
             customer.ShowPatience(0.55);
 
             // An order handed over: confetti over the handover zone (T018).
@@ -157,12 +212,16 @@ namespace Pvz.Editor
             Capture("14_confetti", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.3f, 1.35f, 1.1f), 70f);
             confetti.Clear(true);
 
-            // Career theme «Мята» (T022).
+            // T048 (#87): the three themes of the pickup point — colours and the name on the sign and the computer.
             var skin = Object.FindFirstObjectByType<CounterSkin>();
             var themes = AssetDatabase.LoadAssetAtPath<CounterThemeCatalog>(PvzSceneBuilder.ThemeCatalogPath);
-            skin.Apply(themes.Find("mint"));
-            Capture("15_theme_mint", new Vector3(-1.2f, 1.8f, -0.9f), new Vector3(0.1f, 1.3f, 1.0f), 62f);
-            skin.Apply(themes.Find("classic"));
+            foreach (var (id, frame) in new[] { ("azot", "15_theme_azot"), ("razbory", "32_theme_razbory"), ("rynok", "33_theme_rynok") })
+            {
+                skin.Apply(themes.Find(id));
+                computer.Preview(PvzComputer.Screen.Menu, PvzComputer.MenuText, beforeShift: true);
+                Capture(frame, new Vector3(-1.2f, 1.8f, -0.9f), new Vector3(0.1f, 1.3f, 1.0f), 62f);
+            }
+            skin.Apply(themes.Find("azot"));
 
             // Shift timer: the time ran out, the last customer is still served.
             customer.Say("Здравствуйте!\nЗаказ №2781");
@@ -172,13 +231,24 @@ namespace Pvz.Editor
             Capture("12_time_up", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.1f, 1.55f, 1.3f), 70f);
             board.ShowScore(150, 1, 3);
 
-            // Supply delivery: boxes just appeared under the ceiling.
-            var supply = Object.FindFirstObjectByType<SupplyDrop>();
-            var dropped = supply.Drop(new[] { "BOX-101", "BOX-102", "BOX-103" }, 7, 2.4f);
+            // Supply delivery (T036): the hatch is open, the boxes fall out of it in a stream onto the pile.
+            var hatch = Object.FindFirstObjectByType<SupplyHatch>();
+            var doors = hatch.GetComponentsInChildren<Transform>(true).Where(t => t.name.StartsWith("Door")).ToArray();
+            foreach (var door in doors) door.localRotation = Quaternion.Euler(0f, 0f, door.name.EndsWith("Left") ? -80f : 80f);
+            var boxPrefab = AssetDatabase.LoadAssetAtPath<QrBox>(PvzAssetFactory.PrefabsDir + "/Box_Supply.prefab");
+            var dropped = new System.Collections.Generic.List<QrBox>();
+            var deliveryIds = new[] { "BOX-101", "BOX-102", "BOX-103" };
+            for (var i = 0; i < deliveryIds.Length; i++)
+            {
+                var falling = Object.Instantiate(boxPrefab, hatch.DropPoint - Vector3.up * (0.45f * i), Quaternion.Euler(10f * i, 40f * i, 5f));
+                falling.AssignId(deliveryIds[i], QrTextures.Create(deliveryIds[i]));
+                dropped.Add(falling);
+            }
             board.ShowHeadline("ПОСТАВКА!", CounterBoard.Accent);
             board.ShowStatus("Отсканируйте новые коробки: 0/3", CounterBoard.Neutral);
-            Capture("07_supply", new Vector3(-2.9f, 1.9f, -3.1f), new Vector3(0f, 1.3f, 0f), 62f);
+            Capture("07_supply", new Vector3(0.6f, 1.55f, -0.9f), new Vector3(-1.35f, 1.3f, 0.45f), 75f);
             foreach (var droppedBox in dropped) Object.DestroyImmediate(droppedBox.gameObject);
+            foreach (var door in doors) door.localRotation = Quaternion.identity;
 
             customer.Say("Спасибо!\nХорошего дня!");
             var summary = Object.FindFirstObjectByType<ShiftSummaryPanel>();
@@ -188,6 +258,9 @@ namespace Pvz.Editor
                 summary.Show(stats, 3);
                 SetSummaryDemoText(summary);
                 Capture("06_shift_summary", new Vector3(0f, 1.6f, -0.4f), new Vector3(0f, 1.75f, 1.1f), 65f);
+                computer.Preview(PvzComputer.Screen.Summary,
+                    "Смена завершена\nОчки: 1220\nВыдано заказов: 5\n\n«Новая смена» — сыграть ещё.", beforeShift: false);
+                Capture("20_computer_summary", ComputerCameraFrom, ComputerCameraAt, 48f);
             }
 
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -221,14 +294,61 @@ namespace Pvz.Editor
         private static void SetSummaryDemoText(ShiftSummaryPanel summary)
         {
             var text = summary.GetComponentInChildren<TMP_Text>(true);
-            text.text = "<b>СМЕНА ЗАВЕРШЕНА</b>\nОбслужено клиентов: 5/5\nОбработано товаров: 6\nМакс. очередь: 2\nОшибочных выдач: 1\nНеверных сканирований: 2\n" +
-                        "Среднее время выдачи: 24.6 с\nОчки: 525\nРейтинг смены: <b>Хорошо</b>\n<b>НОВЫЙ РЕКОРД!</b> Было: 450";
+            text.text = "<b>СМЕНА ЗАВЕРШЕНА</b>\nОбслужено клиентов: 9/10\nОбработано товаров: 13\nМакс. очередь: 4\nОшибочных выдач: 1\nНеверных сканирований: 2\n" +
+                        "Не дождались очереди: 2\nСреднее время выдачи: 31.2 с\nОчки: 1180\nРейтинг смены: <b>Хорошо</b>\n<b>НОВЫЙ РЕКОРД!</b> Было: 960";
         }
 
         private static void HideEditorOnlyClutter()
         {
             var simulator = GameObject.Find("XR Interaction Simulator");
             if (simulator != null) simulator.SetActive(false);
+        }
+
+        /// <summary>Where the player stands looking down at the computer and its keys.</summary>
+        private static readonly Vector3 ComputerCameraFrom = new Vector3(-0.12f, 1.62f, 0.38f);
+        private static readonly Vector3 ComputerCameraAt = new Vector3(-0.14f, 1.16f, 1.0f);
+
+        /// <summary>
+        /// The pile under the supply hatch as play mode leaves it (no physics in the editor: stacked by hand) — the stock and
+        /// the spare boxes of the default settings.
+        /// </summary>
+        /// <summary>A few boxes laid out on the shelves of the rack, as a player sorts them.</summary>
+        private static System.Collections.Generic.List<QrBox> StageShelf()
+        {
+            var rack = GameObject.Find("Shelf Rack").transform;
+            var prefab = AssetDatabase.LoadAssetAtPath<QrBox>(PvzAssetFactory.PrefabsDir + "/Box_Supply.prefab");
+            var places = new[] { (0.5f, -0.25f, "BOX-101"), (0.5f, 0.22f, "BOX-102"), (0.95f, -0.2f, "BOX-103"), (1.4f, 0.1f, "BOX-104"), (0.05f, -0.2f, "BOX-201") };
+            var boxes = new System.Collections.Generic.List<QrBox>();
+            foreach (var (shelf, x, id) in places)
+            {
+                var box = Object.Instantiate(prefab, rack.TransformPoint(new Vector3(x, shelf + 0.13f, 0f)), rack.rotation);
+                box.AssignId(id, QrTextures.Create(id));
+                boxes.Add(box);
+            }
+            return boxes;
+        }
+
+        private static System.Collections.Generic.List<QrBox> StagePile()
+        {
+            var hatch = Object.FindFirstObjectByType<SupplyHatch>();
+            var settings = AssetDatabase.LoadAssetAtPath<ShiftSettings>(PvzSceneBuilder.SettingsPath);
+            var prefab = AssetDatabase.LoadAssetAtPath<QrBox>(PvzAssetFactory.PrefabsDir + "/Box_Supply.prefab");
+            var ids = settings.Boxes.Concat(settings.SpareBoxes).Select(b => b.boxId).ToArray();
+            var floor = hatch.transform.position;
+            var spots = new[]
+            {
+                new Vector3(-0.2f, 0.13f, -0.05f), new Vector3(0.18f, 0.13f, 0.08f), new Vector3(0.02f, 0.13f, -0.38f),
+                new Vector3(-0.05f, 0.4f, -0.1f), new Vector3(0.1f, 0.13f, 0.42f),
+            };
+            var boxes = new System.Collections.Generic.List<QrBox>();
+            for (var i = 0; i < ids.Length; i++)
+            {
+                var spot = floor + spots[i % spots.Length] + Vector3.up * (0.27f * (i / spots.Length));
+                var box = Object.Instantiate(prefab, spot, Quaternion.Euler(0f, 25f * i - 30f, i == 3 ? 8f : 0f));
+                box.AssignId(ids[i], QrTextures.Create(ids[i]));
+                boxes.Add(box);
+            }
+            return boxes;
         }
 
         private static void Capture(string name, Vector3 from, Vector3 lookAt, float fov, Vector3? up = null)

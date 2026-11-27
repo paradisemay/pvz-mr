@@ -28,6 +28,7 @@ namespace Pvz.Editor
             "com.unity.openxr.feature.arfoundation-meta-plane",
             "com.unity.openxr.feature.arfoundation-meta-anchor",
             "com.unity.openxr.feature.arfoundation-meta-raycast",
+            "com.unity.openxr.feature.arfoundation-meta-mesh", // T041: the room mesh as colliders
             "com.unity.openxr.feature.meta-display-utilities",
         };
 

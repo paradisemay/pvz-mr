@@ -18,8 +18,8 @@ namespace Pvz.Editor
 
         private readonly TMP_FontAsset _font;
 
-        private Material _cardboard, _tape, _counterBody, _counterTop, _accent, _boardBack, _zone, _scannerBody,
-            _scannerAccent, _screen, _beam, _skin, _shirt, _eyes, _bubble, _button;
+        private Material _itmoCardboard, _itmoLabel, _hatLeather, _hatBand, _hatBuckle, _counterBody, _counterTop,
+            _accent, _boardBack, _zone, _scannerBody, _scannerAccent, _screen, _beam, _skin, _shirt, _eyes, _bubble, _button;
 
         public PvzPrefabBuilder(TMP_FontAsset font)
         {
@@ -29,8 +29,17 @@ namespace Pvz.Editor
 
         private void CreateMaterials()
         {
-            _cardboard = Lit("Cardboard", new Color(0.76f, 0.6f, 0.42f));
-            _tape = Lit("Tape", new Color(0.88f, 0.82f, 0.66f), 0.5f);
+            _itmoCardboard = Lit("ITMO_Cardboard", Color.white);
+            _itmoLabel = Lit("ITMO_Label", Color.white);
+            _itmoCardboard.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>($"{Root}/Resources/ITMO/Cardboard.png"));
+            _itmoLabel.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>($"{Root}/Resources/ITMO/Label.png"));
+            EditorUtility.SetDirty(_itmoCardboard);
+            EditorUtility.SetDirty(_itmoLabel);
+            _hatLeather = Lit("CowboyLeather", Color.white);
+            _hatLeather.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>($"{Root}/Resources/Hats/Hat_0.png"));
+            EditorUtility.SetDirty(_hatLeather);
+            _hatBand = Lit("CowboyBand", new Color(0.095f, 0.055f, 0.035f));
+            _hatBuckle = Lit("CowboyBuckle", new Color(0.72f, 0.5f, 0.18f));
             _counterBody = Lit("CounterBody", new Color(0.2f, 0.24f, 0.3f));
             _counterTop = Lit("CounterTop", new Color(0.86f, 0.76f, 0.6f), 0.35f);
             _accent = Lit("Accent", new Color(0.95f, 0.55f, 0.15f));
@@ -60,19 +69,28 @@ namespace Pvz.Editor
             rb.interpolation = RigidbodyInterpolation.Interpolate;
             var collider = root.AddComponent<BoxCollider>();
             collider.size = BoxSize;
+            // T037: carried fast by the hand a box must still hit the others (no passing through them), and cardboard grips
+            // the shelves and the other boxes.
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            collider.sharedMaterial = PhysicMaterialAsset("Cardboard", 0.6f, 0.8f, 0.05f);
 
-            Primitive(PrimitiveType.Cube, "Body", root.transform, Vector3.zero, BoxSize, _cardboard);
-            Primitive(PrimitiveType.Cube, "Tape", root.transform, new Vector3(0, BoxSize.y / 2f, 0),
-                new Vector3(BoxSize.x + 0.002f, 0.004f, 0.07f), _tape);
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>($"{Root}/Resources/ITMO/ITMO_Box.fbx");
+            if (model == null) throw new System.IO.FileNotFoundException("The ITMO box model is missing.");
+            var visual = (GameObject)PrefabUtility.InstantiatePrefab(model, root.transform);
+            visual.name = "ITMO_Visual";
+            visual.transform.localPosition = Vector3.zero;
+            visual.transform.localRotation = Quaternion.identity;
+            foreach (var renderer in visual.GetComponentsInChildren<MeshRenderer>())
+                renderer.sharedMaterial = renderer.name.Contains("ITMO") ? _itmoLabel : _itmoCardboard;
 
             var label = 0.15f;
             var hx = BoxSize.x / 2f + 0.002f;
             var hy = BoxSize.y / 2f + 0.003f;
             var hz = BoxSize.z / 2f + 0.002f;
             var labels = new System.Collections.Generic.List<Renderer>();
-            labels.Add(Primitive(PrimitiveType.Quad, "QR_Top", root.transform, new Vector3(0.09f, hy, 0.06f), Vector3.one * label * 0.8f, qrMat,
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Top", root.transform, new Vector3(0.115f, hy + 0.018f, 0.095f), Vector3.one * label * 0.48f, qrMat,
                 localRot: Quaternion.Euler(90, 0, 0)).GetComponent<Renderer>());
-            labels.Add(Primitive(PrimitiveType.Quad, "QR_Front", root.transform, new Vector3(0, 0, -hz), Vector3.one * label, qrMat).GetComponent<Renderer>());
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Front", root.transform, new Vector3(0.115f, 0.075f, -hz - 0.009f), Vector3.one * label * 0.48f, qrMat).GetComponent<Renderer>());
             labels.Add(Primitive(PrimitiveType.Quad, "QR_Back", root.transform, new Vector3(0, 0, hz), Vector3.one * label, qrMat,
                 localRot: Quaternion.Euler(0, 180, 0)).GetComponent<Renderer>());
             labels.Add(Primitive(PrimitiveType.Quad, "QR_Left", root.transform, new Vector3(-hx, 0, 0), Vector3.one * label, qrMat,
@@ -135,11 +153,43 @@ namespace Pvz.Editor
             beam.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             beam.enabled = false;
 
+            // T043 (#83): the scanner speaks Russian (clips recorded by tools/make-voice.ps1), from the hand that holds it.
+            var voiceSource = root.AddComponent<AudioSource>();
+            voiceSource.playOnAwake = false;
+            voiceSource.spatialBlend = 1f;
+            voiceSource.minDistance = 0.4f;
+            voiceSource.maxDistance = 8f;
+            voiceSource.dopplerLevel = 0f; // a swung scanner must not wobble the voice's pitch
+            static AudioClip Voice(string key)
+            {
+                var path = $"{VoiceDir}/{key}.wav";
+                // Loaded with the scene, decoded once: no hitch on Quest at the first scans.
+                if (AssetImporter.GetAtPath(path) is AudioImporter importer)
+                {
+                    var sample = importer.defaultSampleSettings;
+                    if (!sample.preloadAudioData || sample.loadType != AudioClipLoadType.DecompressOnLoad)
+                    {
+                        sample.preloadAudioData = true;
+                        sample.loadType = AudioClipLoadType.DecompressOnLoad;
+                        importer.defaultSampleSettings = sample;
+                        importer.SaveAndReimport();
+                    }
+                }
+                var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+                if (clip == null) throw new System.InvalidOperationException($"Voice clip {key}.wav is missing in {VoiceDir} (tools/make-voice.ps1)");
+                return clip;
+            }
+            root.AddComponent<ScannerVoice>().Configure(voiceSource, Voice("match"), Voice("other"), Voice("done"), Voice("of"),
+                Enumerable.Range(0, 21).Select(n => Voice("n" + n)).ToArray(), Enumerable.Range(0, 21).Select(n => Voice("g" + n)).ToArray());
+
             var grab = root.AddComponent<XRGrabInteractable>();
             grab.attachTransform = attach;
             grab.useDynamicAttach = false;
             grab.movementType = XRBaseInteractable.MovementType.VelocityTracking;
             grab.throwOnDetach = false;
+            // Picked up by the ray from afar, the scanner comes to the hand like a real handheld one (T033: it used to hang
+            // a metre ahead on the ray, awkward to aim and easy to bump into the computer).
+            grab.farAttachMode = UnityEngine.XR.Interaction.Toolkit.Attachment.InteractableFarAttachMode.Near;
 
             var scanner = root.AddComponent<HandScanner>();
             scanner.Configure(muzzle, beam, screenText);
@@ -199,9 +249,9 @@ namespace Pvz.Editor
                 new Vector3(1.4f, 0.08f, 0.004f), _accent);
             Primitive(PrimitiveType.Cube, "StripeBack", root.transform, new Vector3(0, 0.8f, 0.276f),
                 new Vector3(1.4f, 0.08f, 0.004f), _accent);
-            Text("SignFront", root.transform, new Vector3(0, 0.5f, -0.28f), new Vector2(1.2f, 0.3f), "ПУНКТ ВЫДАЧИ",
+            Text("SignFront", root.transform, new Vector3(0, 0.5f, -0.28f), new Vector2(1.2f, 0.3f), CounterSkin.SignText(PvzComputer.DefaultBrand),
                 _font, new Color(0.95f, 0.95f, 0.95f), 3f);
-            Text("SignBack", root.transform, new Vector3(0, 0.5f, 0.28f), new Vector2(1.2f, 0.3f), "ПУНКТ ВЫДАЧИ",
+            Text("SignBack", root.transform, new Vector3(0, 0.5f, 0.28f), new Vector2(1.2f, 0.3f), CounterSkin.SignText(PvzComputer.DefaultBrand),
                 _font, new Color(0.95f, 0.95f, 0.95f), 3f, localRot: Quaternion.Euler(0, 180, 0));
 
             // Handover zone (right side of the counter top, from the player's view)
@@ -260,16 +310,7 @@ namespace Pvz.Editor
             summaryGo.AddComponent<ShiftSummaryPanel>().Configure(summaryRoot, summaryText);
             summaryRoot.SetActive(false);
 
-            // Restart button (player side of the counter top)
-            var button = new GameObject("RestartButton");
-            button.transform.SetParent(root.transform, false);
-            button.transform.localPosition = new Vector3(-0.15f, CounterHeight + 0.03f, -0.2f);
-            Primitive(PrimitiveType.Cube, "Cap", button.transform, Vector3.zero, new Vector3(0.24f, 0.06f, 0.14f), _button, true);
-            Text("Label", button.transform, new Vector3(0, 0.032f, 0), new Vector2(0.22f, 0.11f), "НОВАЯ\nСМЕНА", _font,
-                Color.white, 0.6f, localRot: Quaternion.Euler(90, 0, 0));
-            button.AddComponent<XRSimpleInteractable>();
-            button.AddComponent<RestartButton>();
-            button.SetActive(false);
+            // «Новая смена» and the other menu keys live on the counter computer (T033, PvzSceneBuilder.CreateComputer).
 
             var audio = root.AddComponent<AudioSource>();
             audio.playOnAwake = false;
@@ -280,7 +321,8 @@ namespace Pvz.Editor
             Renderer[] Named(Transform under, params string[] names) => under.GetComponentsInChildren<Renderer>(true)
                 .Where(r => System.Array.IndexOf(names, r.name) >= 0).ToArray();
             root.AddComponent<CounterSkin>().Configure(Named(root.transform, "Body", "Post"), Named(root.transform, "Top"),
-                Named(root.transform, "StripeFront", "StripeBack", "Frame"));
+                Named(root.transform, "StripeFront", "StripeBack", "Frame"),
+                root.GetComponentsInChildren<TMPro.TMP_Text>(true).Where(t => t.name == "SignFront" || t.name == "SignBack").ToArray()); // T048: the name of the pickup point
             return SavePrefab(root, "PickupCounter");
         }
 
@@ -297,9 +339,34 @@ namespace Pvz.Editor
             var armR = Primitive(PrimitiveType.Capsule, "ArmR", body, new Vector3(0.27f, 1.05f, 0.05f), new Vector3(0.11f, 0.3f, 0.11f), _shirt,
                 localRot: Quaternion.Euler(-20, 0, -8));
             Primitive(PrimitiveType.Sphere, "Head", body, new Vector3(0, 1.62f, 0), Vector3.one * 0.26f, _skin);
-            Primitive(PrimitiveType.Sphere, "EyeL", body, new Vector3(-0.055f, 1.66f, 0.115f), Vector3.one * 0.035f, _eyes);
-            Primitive(PrimitiveType.Sphere, "EyeR", body, new Vector3(0.055f, 1.66f, 0.115f), Vector3.one * 0.035f, _eyes);
-            Primitive(PrimitiveType.Cube, "Smile", body, new Vector3(0, 1.57f, 0.122f), new Vector3(0.07f, 0.012f, 0.01f), _eyes);
+            var faceModel = AssetDatabase.LoadAssetAtPath<GameObject>($"{Root}/Resources/Faces/FaceParts.fbx");
+            if (faceModel == null) throw new System.IO.FileNotFoundException("The customer face model is missing.");
+            var face = (GameObject)PrefabUtility.InstantiatePrefab(faceModel, body);
+            face.name = "FaceParts";
+            face.transform.localPosition = new Vector3(0, 1.62f, 0);
+            face.transform.localRotation = Quaternion.identity;
+            var faceWhite = Lit("FaceWhite", new Color(0.94f, 0.92f, 0.86f));
+            var faceIris = Lit("FaceIris", new Color(0.08f, 0.055f, 0.045f));
+            var (mouthStyle, noseStyle, eyeStyle, earStyle, _) = Pvz.Runtime.Customer.FaceStyles(0);
+            foreach (var renderer in face.GetComponentsInChildren<MeshRenderer>())
+            {
+                renderer.sharedMaterial = renderer.name.Contains("White") ? faceWhite
+                    : renderer.name.Contains("Iris") ? faceIris : _skin;
+                var parts = renderer.name.Split('_');
+                var style = parts[0] == "Mouth" ? mouthStyle : parts[0] == "Nose" ? noseStyle
+                    : parts[0] == "Eyes" ? eyeStyle : earStyle;
+                renderer.gameObject.SetActive(parts.Length > 1 && int.TryParse(parts[1], out var index) && index == style);
+            }
+
+            var hatModel = AssetDatabase.LoadAssetAtPath<GameObject>($"{Root}/Resources/Hats/CowboyHat.fbx");
+            if (hatModel == null) throw new System.IO.FileNotFoundException("The cowboy hat model is missing.");
+            var hat = (GameObject)PrefabUtility.InstantiatePrefab(hatModel, body);
+            hat.name = "CowboyHat";
+            hat.transform.localPosition = new Vector3(0, 1.65f, 0);
+            hat.transform.localRotation = Quaternion.identity;
+            foreach (var renderer in hat.GetComponentsInChildren<MeshRenderer>())
+                renderer.sharedMaterial = renderer.name.Contains("Band") ? _hatBand
+                    : renderer.name.Contains("Buckle") ? _hatBuckle : _hatLeather;
 
             var carry = new GameObject("CarryAnchor").transform;
             carry.SetParent(body, false);
@@ -307,7 +374,7 @@ namespace Pvz.Editor
 
             var bubbleGo = new GameObject("SpeechBubble");
             bubbleGo.transform.SetParent(root.transform, false);
-            bubbleGo.transform.localPosition = new Vector3(-0.47f, 1.68f, 0); // beside the head, below the counter board
+            bubbleGo.transform.localPosition = new Vector3(-0.62f, 1.68f, 0); // beside the hat, below the counter board
             // Customers face the player, so the bubble is turned around to read correctly before the billboard kicks in.
             bubbleGo.transform.localRotation = Quaternion.Euler(0, 180, 0);
             var bubbleRoot = new GameObject("Content");
@@ -320,8 +387,31 @@ namespace Pvz.Editor
             bubble.Configure(bubbleRoot, bubbleText);
             bubbleRoot.SetActive(false);
 
+            // The phone with the order's barcode (T035): held out in the right hand, the screen to the player.
+            var phoneRoot = new GameObject("Phone");
+            phoneRoot.transform.SetParent(body, false);
+            phoneRoot.transform.localPosition = new Vector3(-0.24f, 1.32f, 0.4f); // the player sees it right of the computer, not behind it
+            phoneRoot.transform.localRotation = Quaternion.Euler(-12f, 180f, 0f); // its front (-Z) faces the player (+Z of the customer)
+            var phoneBody = new GameObject("Body");
+            phoneBody.transform.SetParent(phoneRoot.transform, false);
+            Primitive(PrimitiveType.Cube, "Case", phoneBody.transform, Vector3.zero, new Vector3(0.08f, 0.155f, 0.01f),
+                Lit("PhoneCase", new Color(0.12f, 0.12f, 0.14f), 0.7f));
+            Primitive(PrimitiveType.Quad, "Screen", phoneBody.transform, new Vector3(0f, 0.012f, -0.0056f), new Vector3(0.07f, 0.12f, 1f),
+                Unlit("PhoneScreen", new Color(0.95f, 0.96f, 0.98f)));
+            Primitive(PrimitiveType.Quad, "Barcode", phoneBody.transform, new Vector3(0f, -0.012f, -0.0058f), new Vector3(0.062f, 0.032f, 1f),
+                Unlit("Barcode", Color.white, BarcodeTexture()));
+            var phoneCaption = Text("Caption", phoneBody.transform, new Vector3(0f, 0.035f, -0.006f), new Vector2(0.064f, 0.04f),
+                "КОД ЗАКАЗА", _font, new Color(0.1f, 0.1f, 0.12f), 0.12f);
+            // Generous hit box, so the scanner ray catches the phone easily; it exists only while the phone is shown.
+            var phoneHit = phoneBody.AddComponent<BoxCollider>();
+            phoneHit.size = new Vector3(0.13f, 0.21f, 0.05f);
+            var phone = phoneRoot.AddComponent<CustomerPhone>();
+            phone.Configure(phoneBody, phoneCaption);
+            phoneBody.SetActive(false);
+
             var customer = root.AddComponent<Customer>();
             customer.Configure(bubble, carry, body, new[] { torso.GetComponent<Renderer>(), armL.GetComponent<Renderer>(), armR.GetComponent<Renderer>() });
+            customer.ConfigurePhone(phone);
             // Voice from where the customer stands: 3D sound, heard across a room.
             var voiceSource = root.AddComponent<AudioSource>();
             voiceSource.playOnAwake = false;
@@ -336,7 +426,7 @@ namespace Pvz.Editor
             // Patience bar above the head (hidden until the customer is at the counter and patience is ticking).
             var barGo = new GameObject("PatienceBar");
             barGo.transform.SetParent(root.transform, false);
-            barGo.transform.localPosition = new Vector3(0, 1.88f, 0);
+            barGo.transform.localPosition = new Vector3(0, 2.08f, 0);
             barGo.transform.localRotation = Quaternion.Euler(0, 180, 0);
             var barRoot = new GameObject("Content");
             barRoot.transform.SetParent(barGo.transform, false);
@@ -364,24 +454,45 @@ namespace Pvz.Editor
             root.AddComponent<BoxCollider>().size = size;
 
             var bagMat = Lit("Bag", new Color(0.96f, 0.96f, 0.93f), 0.5f);
-            Primitive(PrimitiveType.Cube, "Body", root.transform, Vector3.zero, size, bagMat);
+            var bagSide = Lit("BagSide", new Color(0.02f, 0.48f, 0.75f), 0.5f);
+            var print = AssetDatabase.LoadAssetAtPath<Texture2D>($"{TexturesDir}/ITMO_Bag.png");
+            if (print == null) throw new System.IO.FileNotFoundException("The ITMO bag texture is missing.");
+            var backPrint = Unlit("BagPrint", Color.white, print);
+            var frontPrint = Unlit("BagPrintFront", Color.white, print);
+            frontPrint.SetTextureScale("_BaseMap", new Vector2(-1f, 1f));
+            frontPrint.SetTextureOffset("_BaseMap", new Vector2(1f, 0f));
+            Primitive(PrimitiveType.Cube, "Body", root.transform, Vector3.zero, size, bagSide);
+            Primitive(PrimitiveType.Quad, "PrintFront", root.transform, new Vector3(0f, 0f, -size.z / 2f - 0.001f),
+                new Vector3(size.x, size.y, 1f), frontPrint, localRot: Quaternion.Euler(0f, 180f, 0f));
+            Primitive(PrimitiveType.Quad, "PrintBack", root.transform, new Vector3(0f, 0f, size.z / 2f + 0.001f),
+                new Vector3(size.x, size.y, 1f), backPrint);
             Primitive(PrimitiveType.Cube, "HandleL", root.transform, new Vector3(-0.06f, size.y / 2f + 0.03f, 0f), new Vector3(0.015f, 0.06f, 0.015f), bagMat);
             Primitive(PrimitiveType.Cube, "HandleR", root.transform, new Vector3(0.06f, size.y / 2f + 0.03f, 0f), new Vector3(0.015f, 0.06f, 0.015f), bagMat);
             Primitive(PrimitiveType.Cube, "HandleTop", root.transform, new Vector3(0f, size.y / 2f + 0.06f, 0f), new Vector3(0.135f, 0.015f, 0.015f), bagMat);
-            Primitive(PrimitiveType.Cube, "Stripe", root.transform, new Vector3(0f, -0.06f, 0f), new Vector3(size.x + 0.002f, 0.04f, size.z + 0.002f), _accent);
-            Text("Logo", root.transform, new Vector3(0, 0.04f, -size.z / 2f - 0.002f), new Vector2(0.24f, 0.08f), "ПАКЕТ", _font,
-                new Color(0.2f, 0.24f, 0.3f), 0.5f);
-
             var grab = root.AddComponent<XRGrabInteractable>();
             grab.useDynamicAttach = true;
             grab.movementType = XRBaseInteractable.MovementType.VelocityTracking;
             grab.throwOnDetach = false;
+            // Let go anywhere, a bag stays in the room: it does not go back under the dispenser and ride with the counter (T034).
+            grab.retainTransformParent = false;
 
             root.AddComponent<ParcelBag>().Configure(grab, rb);
             return SavePrefab(root, "ParcelBag");
         }
 
         /// <summary>Invisible plane with a collider so virtual boxes can rest on real tables/floor detected by the headset.</summary>
+        /// <summary>T041: one chunk of the room mesh — an invisible collider of the real furniture (no renderer).</summary>
+        public string RoomMeshChunk()
+        {
+            var root = new GameObject("RoomMeshChunk");
+            var layer = LayerMask.NameToLayer(RoomMesh.LayerName); // the game's own checks skip the furniture mesh
+            if (layer < 0) throw new System.InvalidOperationException("Layer RoomMesh is missing (ProjectSettings/TagManager.asset)");
+            root.layer = layer;
+            root.AddComponent<MeshFilter>();
+            root.AddComponent<MeshCollider>();
+            return SavePrefab(root, "RoomMeshChunk");
+        }
+
         public string ArPlane()
         {
             var root = new GameObject("ARPlane");

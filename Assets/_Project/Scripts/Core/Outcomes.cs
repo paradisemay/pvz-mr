@@ -14,17 +14,28 @@ namespace Pvz.Core
         Received,
         /// <summary>The box a returning customer brought was scanned: the return is accepted.</summary>
         ReturnAccepted,
+        /// <summary>A customer is at the counter but their code (the barcode on their phone) is not scanned yet (T035).</summary>
+        CodeNotScanned,
     }
 
     public readonly struct ScanOutcome
     {
-        public ScanOutcome(ScanStatus status, BoxId box, string boxOrderNumber, bool looksLikeTheWantedOrder = false)
+        public ScanOutcome(ScanStatus status, BoxId box, string boxOrderNumber, bool looksLikeTheWantedOrder = false,
+            int itemsInOrder = 0, int itemsScanned = 0)
         {
             Status = status;
             Box = box;
             BoxOrderNumber = boxOrderNumber;
             LooksLikeTheWantedOrder = status == ScanStatus.OtherOrder && looksLikeTheWantedOrder;
+            ItemsInOrder = itemsInOrder;
+            ItemsScanned = itemsScanned;
         }
+
+        /// <summary>T043 (#83): items in the order of the customer at the counter (0 — no order there).</summary>
+        public int ItemsInOrder { get; }
+
+        /// <summary>T043 (#83): of them, found by the scanner (or already handed over), this scan included.</summary>
+        public int ItemsScanned { get; }
 
         public ScanStatus Status { get; }
         public BoxId Box { get; }
@@ -67,6 +78,8 @@ namespace Pvz.Core
         TooEarly,
         /// <summary>No customer is waiting at the desk.</summary>
         NoActiveOrder,
+        /// <summary>The customer's code is not scanned yet (T035).</summary>
+        CodeNotScanned,
     }
 
     public enum HandoverStatus
@@ -79,6 +92,8 @@ namespace Pvz.Core
         UnknownBox,
         /// <summary>No customer is waiting at the desk.</summary>
         NoActiveOrder,
+        /// <summary>The customer's code is not scanned yet: the box stays where it is, no mistake (T035).</summary>
+        CodeNotScanned,
     }
 
     public readonly struct HandoverOutcome

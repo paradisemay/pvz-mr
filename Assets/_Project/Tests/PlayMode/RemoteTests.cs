@@ -16,18 +16,28 @@ namespace Pvz.Runtime.Tests
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
-            WarehouseLayoutKeeper.StoreOverride = new Pvz.Core.MemoryTextStore();
+            PlacementKeeper.StoreOverride = new Pvz.Core.MemoryTextStore(); // nor the saved place of the counter
             CareerKeeper.StoreOverride = (new Pvz.Core.MemoryScoreStore(), new Pvz.Core.MemoryTextStore());
             yield return SceneManager.LoadSceneAsync("Game", LoadSceneMode.Single);
             yield return null;
         }
+
+        private static (UnityEngine.InputSystem.InputSettings.EditorInputBehaviorInPlayMode editor,
+            UnityEngine.InputSystem.InputSettings.BackgroundBehavior background)? _savedInput;
 
         [UnityTearDown]
         public IEnumerator Forget()
         {
             if (PvzRemote.Instance != null) Object.Destroy(PvzRemote.Instance.gameObject);
             Time.timeScale = 1f;
-            WarehouseLayoutKeeper.StoreOverride = null;
+            if (_savedInput.HasValue)
+            {
+                var settings = UnityEngine.InputSystem.InputSystem.settings;
+                settings.editorInputBehaviorInPlayMode = _savedInput.Value.editor;
+                settings.backgroundBehavior = _savedInput.Value.background;
+                _savedInput = null;
+            }
+            PlacementKeeper.StoreOverride = null;
             CareerKeeper.StoreOverride = null;
             yield return null;
         }
@@ -54,6 +64,31 @@ namespace Pvz.Runtime.Tests
             Assert.AreEqual(0, stats.OrdersAbandoned, "nobody waits too long");
             StringAssert.Contains("no shift to play", remote.Execute("autoplay on"), "the shift is over: nothing to autoplay");
             StringAssert.Contains("\"autoplay\":false", remote.Execute("state"));
+        }
+
+        /// <summary>
+        /// #106: a hard shift by the autopilot — a long stock (T044), a delivery, returns and refusals (T045): no order is sold twice, and
+        /// the summary never says more customers were served than the shift had.
+        /// </summary>
+        [UnityTest, Timeout(300000)]
+        public IEnumerator Autoplay_AHardShift_SellsEveryOrderOnce()
+        {
+            var remote = PvzRemote.Launch(0);
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.UseScoreStore(new Pvz.Core.MemoryScoreStore());
+            director.UseStockSeed(777);
+            StringAssert.Contains("\"ok\":true", remote.Execute("begin hard"));
+            var sold = new System.Collections.Generic.List<string>();
+            director.Desk.OrderCompleted += r => sold.Add(r.Order.Number);
+            remote.Execute("timescale 4");
+            remote.Execute("autoplay on");
+
+            var deadline = Time.realtimeSinceStartup + 240f;
+            while (!director.IsShiftOver && Time.realtimeSinceStartup < deadline) yield return null;
+            var log = string.Join(", ", sold);
+            Assert.IsTrue(director.IsShiftOver, log);
+            CollectionAssert.AllItemsAreUnique(sold, "an order sold twice: " + log);
+            Assert.LessOrEqual(director.Stats.OrdersCompleted, director.OrdersTotal, log);
         }
 
         [UnityTest]
@@ -107,6 +142,69 @@ namespace Pvz.Runtime.Tests
             Assert.AreEqual("{\"ok\":true,\"auth\":true}", auth);
             Assert.AreEqual("{\"ok\":true,\"pong\":true}", reply);
             StringAssert.Contains("token", refused, "another app on the headset without the token is refused");
+        }
+
+        /// <summary>
+        /// T032 (#75): the virtual controller goes through the real XRI path — the ray grabs the scanner, the hand aims it,
+        /// the trigger scans the box of the customer's order. No shortcut (<c>scan</c>) is used.
+        /// </summary>
+        [UnityTest, Timeout(120000)]
+        public IEnumerator VirtualHand_GrabsTheScanner_AndScansTheOrderBox()
+        {
+            // Batch-mode editor: the Game view has no focus, and the Input System would drop device input without this.
+            // Restored in the tear-down, which runs after a failure or a timeout too.
+            var settings = UnityEngine.InputSystem.InputSystem.settings;
+            _savedInput = (settings.editorInputBehaviorInPlayMode, settings.backgroundBehavior);
+            settings.editorInputBehaviorInPlayMode = UnityEngine.InputSystem.InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
+            settings.backgroundBehavior = UnityEngine.InputSystem.InputSettings.BackgroundBehavior.IgnoreFocus;
+
+            var remote = PvzRemote.Launch(0);
+            var director = Object.FindFirstObjectByType<ShiftDirector>();
+            director.UseLostChance(0); // the order box is in the room: the hand aims at it (T047)
+            director.UseScoreStore(new Pvz.Core.MemoryScoreStore());
+            remote.Execute("begin normal");
+            StringAssert.Contains("\"hand\":true", remote.Execute("hand on"));
+
+            remote.Execute("hand aim scanner");
+            yield return WaitUntilStill(remote);
+            remote.Execute("hand grip on");
+            yield return WaitFrames(10);
+            Assert.IsTrue(director.Scanner.IsHeld, remote.Execute("hand debug"));
+
+            var deadline = Time.realtimeSinceStartup + 40f;
+            while (!director.Desk.HasActiveOrder && Time.realtimeSinceStartup < deadline) yield return null;
+            Assert.IsTrue(director.Desk.HasActiveOrder, "a customer came to the counter");
+            var box = director.Desk.ActiveOrder.Boxes[0].Value;
+
+            // T035: first the code on the customer's phone, with the same scanner and trigger.
+            remote.Execute("hand aim phone");
+            yield return WaitUntilStill(remote);
+            remote.Execute("hand trigger on");
+            yield return WaitFrames(5);
+            remote.Execute("hand trigger off");
+            yield return WaitFrames(5);
+            Assert.IsFalse(director.Desk.AwaitsCode, "the phone was scanned: " + remote.Execute("hand"));
+
+            remote.Execute($"hand aim {box}");
+            yield return WaitUntilStill(remote);
+            remote.Execute("hand trigger on");
+            yield return WaitFrames(5);
+            remote.Execute("hand trigger off");
+            yield return WaitFrames(5);
+            var status = remote.Execute("hand debug") + " box@" + director.TryGetBox(new Pvz.Core.BoxId(box), out var target) + " " + target.transform.position;
+            StringAssert.Contains("НУЖНАЯ КОРОБКА", director.Scanner.ScreenText, status);
+        }
+
+        private static IEnumerator WaitUntilStill(PvzRemote remote)
+        {
+            yield return WaitFrames(3);
+            var deadline = Time.realtimeSinceStartup + 20f;
+            while (remote.Execute("hand").Contains("\"moving\":true") && Time.realtimeSinceStartup < deadline) yield return null;
+        }
+
+        private static IEnumerator WaitFrames(int frames)
+        {
+            for (var i = 0; i < frames; i++) yield return null;
         }
     }
 }

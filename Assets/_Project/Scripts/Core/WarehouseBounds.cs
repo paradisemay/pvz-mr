@@ -1,9 +1,8 @@
 namespace Pvz.Core
 {
     /// <summary>
-    /// Where a box may be in the warehouse, in the play area's coordinates (the boxes' root): one rule for saved places
-    /// (<see cref="BoxPlacement"/>) and for noticing a lost box (thrown out of reach) in the game. A rule about valid
-    /// data, not a tuning knob — so it is here, not in the difficulty settings.
+    /// Where a box may be in the room, in the play area's coordinates: the rule for noticing a lost box (fallen through
+    /// the floor or thrown out of reach). A rule about valid data, not a tuning knob — so it is here, not in the difficulty settings.
     /// </summary>
     public static class WarehouseBounds
     {
