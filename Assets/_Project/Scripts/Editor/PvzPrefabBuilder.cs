@@ -343,7 +343,7 @@ namespace Pvz.Editor
             var face = (GameObject)PrefabUtility.InstantiatePrefab(faceModel, body);
             face.name = "FaceParts";
             face.transform.localPosition = new Vector3(0, 1.62f, 0);
-            face.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            face.transform.localRotation = Quaternion.identity;
             var faceWhite = Lit("FaceWhite", new Color(0.94f, 0.92f, 0.86f));
             var faceIris = Lit("FaceIris", new Color(0.08f, 0.055f, 0.045f));
             var (mouthStyle, noseStyle, eyeStyle, earStyle, _) = Pvz.Runtime.Customer.FaceStyles(0);
@@ -361,8 +361,8 @@ namespace Pvz.Editor
             if (hatModel == null) throw new System.IO.FileNotFoundException("The cowboy hat model is missing.");
             var hat = (GameObject)PrefabUtility.InstantiatePrefab(hatModel, body);
             hat.name = "CowboyHat";
-            hat.transform.localPosition = new Vector3(0, 1.75f, 0);
-            hat.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            hat.transform.localPosition = new Vector3(0, 1.65f, 0);
+            hat.transform.localRotation = Quaternion.identity;
             foreach (var renderer in hat.GetComponentsInChildren<MeshRenderer>())
                 renderer.sharedMaterial = renderer.name.Contains("Band") ? _hatBand
                     : renderer.name.Contains("Buckle") ? _hatBuckle : _hatLeather;
@@ -453,14 +453,21 @@ namespace Pvz.Editor
             root.AddComponent<BoxCollider>().size = size;
 
             var bagMat = Lit("Bag", new Color(0.96f, 0.96f, 0.93f), 0.5f);
-            Primitive(PrimitiveType.Cube, "Body", root.transform, Vector3.zero, size, bagMat);
+            var bagSide = Lit("BagSide", new Color(0.02f, 0.48f, 0.75f), 0.5f);
+            var print = AssetDatabase.LoadAssetAtPath<Texture2D>($"{TexturesDir}/ITMO_Bag.png");
+            if (print == null) throw new System.IO.FileNotFoundException("The ITMO bag texture is missing.");
+            var backPrint = Unlit("BagPrint", Color.white, print);
+            var frontPrint = Unlit("BagPrintFront", Color.white, print);
+            frontPrint.SetTextureScale("_BaseMap", new Vector2(-1f, 1f));
+            frontPrint.SetTextureOffset("_BaseMap", new Vector2(1f, 0f));
+            Primitive(PrimitiveType.Cube, "Body", root.transform, Vector3.zero, size, bagSide);
+            Primitive(PrimitiveType.Quad, "PrintFront", root.transform, new Vector3(0f, 0f, -size.z / 2f - 0.001f),
+                new Vector3(size.x, size.y, 1f), frontPrint, localRot: Quaternion.Euler(0f, 180f, 0f));
+            Primitive(PrimitiveType.Quad, "PrintBack", root.transform, new Vector3(0f, 0f, size.z / 2f + 0.001f),
+                new Vector3(size.x, size.y, 1f), backPrint);
             Primitive(PrimitiveType.Cube, "HandleL", root.transform, new Vector3(-0.06f, size.y / 2f + 0.03f, 0f), new Vector3(0.015f, 0.06f, 0.015f), bagMat);
             Primitive(PrimitiveType.Cube, "HandleR", root.transform, new Vector3(0.06f, size.y / 2f + 0.03f, 0f), new Vector3(0.015f, 0.06f, 0.015f), bagMat);
             Primitive(PrimitiveType.Cube, "HandleTop", root.transform, new Vector3(0f, size.y / 2f + 0.06f, 0f), new Vector3(0.135f, 0.015f, 0.015f), bagMat);
-            Primitive(PrimitiveType.Cube, "Stripe", root.transform, new Vector3(0f, -0.06f, 0f), new Vector3(size.x + 0.002f, 0.04f, size.z + 0.002f), _accent);
-            Text("Logo", root.transform, new Vector3(0, 0.04f, -size.z / 2f - 0.002f), new Vector2(0.24f, 0.08f), "ПАКЕТ", _font,
-                new Color(0.2f, 0.24f, 0.3f), 0.5f);
-
             var grab = root.AddComponent<XRGrabInteractable>();
             grab.useDynamicAttach = true;
             grab.movementType = XRBaseInteractable.MovementType.VelocityTracking;
