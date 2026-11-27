@@ -78,7 +78,7 @@
   просматривайте кадры перед публикацией); список команд — `./tools/pvz-remote.ps1 help`.
 
 ## Документация
-- [docs/REPORT.md](docs/REPORT.md) — **итоговый отчёт**: что сделано, как проверено, ограничения, бэклог
+- [docs/REPORT.md](docs/REPORT.md) — **итоговый отчёт**: что сделано (раздел 0 — версия 2.0 по #73), как проверено, ограничения, бэклог
 - [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) — исходный план (исторический; реализация от него отличается, актуально — docs/context/)
 - [docs/context/](docs/context/) — контекст проекта (Context-Driven Development): продукт, стек, архитектура, процесс, треки
 
