@@ -59,8 +59,8 @@
   Исходники: `tools/create-customer-faces.py` и `tools/CustomerFaces.blend` с пятью круглыми головами для просмотра.
   Игра сочетает детали по номеру посетителя и окрашивает голову и части лица одним из пяти оттенков кожи.
 - Интерфейс использует приложенный шрифт Tiny5 Duo; его лицензия находится в `Assets/_Project/Art/Fonts/Tiny5Duo-OFL.txt`.
-- В `Assets/_Project/Resources/Audio/` лежат приложенные звуки: `Scan.mp3` звучит при считывании коробки сканером,
-  `Payment.mp3` — при завершении заказа и начислении очков. Остальные сигналы остаются синтезированными.
+- При считывании коробки звучит прежний короткий сигнал сканера. `Assets/_Project/Resources/Audio/Payment.mp3`
+  звучит при завершении заказа и начислении очков. Остальные сигналы остаются синтезированными.
 - Пересобрать сцену и ассеты: меню **PVZ → Build Scene And Assets** или
   `./tools/run-unity.ps1 -Method Pvz.Editor.PvzSceneBuilder.BuildAll`
 - Тесты: `./tools/run-unity.ps1 -Method Pvz.Editor.PvzTestRunner.RunEditMode -NoQuit -Extra '-pvzResults','Logs/editmode.xml'`

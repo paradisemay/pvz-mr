@@ -121,14 +121,11 @@ namespace Pvz.Editor.Tests
         }
 
         [Test]
-        public void SuppliedScanAndPaymentSoundsAreAvailable()
+        public void SuppliedPaymentSoundIsAvailable()
         {
-            foreach (var name in new[] { "Scan", "Payment" })
-            {
-                var clip = Resources.Load<AudioClip>($"Audio/{name}");
-                Assert.IsNotNull(clip, $"missing {name} sound");
-                Assert.Greater(clip.length, 0.1f, $"{name} sound is empty");
-            }
+            var clip = Resources.Load<AudioClip>("Audio/Payment");
+            Assert.IsNotNull(clip, "missing payment sound");
+            Assert.Greater(clip.length, 0.1f, "payment sound is empty");
         }
 
         /// <summary>T036: no box stands in the room before the shift; the stock drops out of the supply hatch.</summary>
