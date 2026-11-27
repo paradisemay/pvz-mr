@@ -59,11 +59,12 @@ namespace Pvz.Runtime.Tests
             Assert.AreEqual(4, _rack.GetComponentsInChildren<Transform>().Count(t => t != _rack && t.name.StartsWith("Shelf ")), "four shelves");
             var box = _director.RemainingBoxes.First();
             var shelfTop = _rack.TransformPoint(new Vector3(0f, 0.95f, 0f)); // the third shelf
-            Put(box, shelfTop + Vector3.up * 0.16f, _rack.rotation);
+            var height = box.GetComponent<BoxCollider>().size.y;
+            Put(box, shelfTop + Vector3.up * (height / 2f + 0.06f), _rack.rotation);
             yield return new WaitForSeconds(3f);
 
             var local = _rack.InverseTransformPoint(box.transform.position);
-            Assert.AreEqual(0.95f + 0.13f, local.y, 0.04f, "the box lies on the shelf, not fallen through or off it");
+            Assert.AreEqual(0.95f + height / 2f, local.y, 0.04f, "the box lies on the shelf, not fallen through or off it");
             Assert.Less(Mathf.Abs(local.x), 0.5f);
             Assert.Less(Mathf.Abs(local.z), 0.25f, "it did not slide off the shelf");
         }
@@ -73,13 +74,15 @@ namespace Pvz.Runtime.Tests
         {
             var boxes = _director.RemainingBoxes.Take(2).ToArray();
             var floor = _rack.TransformPoint(new Vector3(0f, 0.05f, 0f)); // the bottom shelf
-            Put(boxes[0], floor + Vector3.up * 0.14f, _rack.rotation);
+            var lowerHeight = boxes[0].GetComponent<BoxCollider>().size.y;
+            var upperHeight = boxes[1].GetComponent<BoxCollider>().size.y;
+            Put(boxes[0], floor + Vector3.up * (lowerHeight / 2f + 0.01f), _rack.rotation);
             yield return new WaitForSeconds(1f);
-            Put(boxes[1], boxes[0].transform.position + Vector3.up * 0.45f, _rack.rotation);
+            Put(boxes[1], boxes[0].transform.position + Vector3.up * ((lowerHeight + upperHeight) / 2f + 0.15f), _rack.rotation);
             yield return new WaitForSeconds(2f);
 
             var gap = boxes[1].transform.position.y - boxes[0].transform.position.y;
-            Assert.Greater(gap, 0.24f, "the boxes do not pass through each other");
+            Assert.Greater(gap, (lowerHeight + upperHeight) / 2f - 0.03f, "the boxes do not pass through each other");
         }
 
         [UnityTest, Timeout(30000)]

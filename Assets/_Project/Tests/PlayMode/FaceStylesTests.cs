@@ -6,7 +6,7 @@ namespace Pvz.Runtime.Tests
     public class FaceStylesTests
     {
         [Test]
-        public void FirstFiveVisitorsUseEveryFeatureAndSkinTone()
+        public void FirstFiveVisitorsUseEveryFeatureAndFirstSixUseEverySkinTone()
         {
             var faces = Enumerable.Range(0, 5).Select(Customer.FaceStyles).ToArray();
             var variants = Enumerable.Range(0, 5).ToArray();
@@ -14,7 +14,7 @@ namespace Pvz.Runtime.Tests
             CollectionAssert.AreEquivalent(variants, faces.Select(f => f.nose));
             CollectionAssert.AreEquivalent(variants, faces.Select(f => f.eyes));
             CollectionAssert.AreEquivalent(variants, faces.Select(f => f.ears));
-            CollectionAssert.AreEquivalent(variants, faces.Select(f => f.skin));
+            CollectionAssert.AreEquivalent(Enumerable.Range(0, 6), Enumerable.Range(0, 6).Select(i => Customer.FaceStyles(i).skin));
             Assert.AreNotEqual(Customer.FaceStyles(0), Customer.FaceStyles(5));
         }
     }

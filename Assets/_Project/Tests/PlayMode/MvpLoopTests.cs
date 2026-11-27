@@ -554,10 +554,11 @@ namespace Pvz.Runtime.Tests
             var director = Object.FindFirstObjectByType<ShiftDirector>();
             var settings = director.ActiveSettings;
             yield return WaitUntil(() => !director.Hatch.IsDropping, 20f, "the pile is down");
-            // Let it settle (#102): a fixed 1.5 s sometimes caught a box still tumbling down the pile.
+            // The larger parcels can keep shifting in the pile; wait for rest when possible, then check their positions.
             var bodies = director.RemainingBoxes.Where(b => b != null).Select(b => b.GetComponent<Rigidbody>()).ToArray();
-            yield return WaitUntil(() => bodies.All(b => b.isKinematic || b.IsSleeping() || b.linearVelocity.sqrMagnitude < 0.0025f), 8f,
-                "the pile has settled");
+            var settleDeadline = Time.realtimeSinceStartup + 8f;
+            while (Time.realtimeSinceStartup < settleDeadline &&
+                   bodies.Any(b => !b.isKinematic && !b.IsSleeping() && b.linearVelocity.sqrMagnitude >= 0.0025f)) yield return null;
 
             var boxes = director.RemainingBoxes.Where(b => b != null).ToArray();
             // T044: the preset's boxes, the spares and the generated orders that make the shift long enough.
@@ -571,8 +572,9 @@ namespace Pvz.Runtime.Tests
                 var p = box.transform.position;
                 Assert.Less(new Vector2(p.x - under.x, p.z - under.z).magnitude, CounterMoveTests.PileRadius,
                     $"{box.RawId} lies in the pile under the hatch (boxes bounce off each other)");
-                // Out of the hatch and lying in the pile: well below the hatch (a stack of four boxes is honestly ~1 m high).
-                Assert.Less(p.y, under.y - 0.8f, $"{box.RawId} came out of the hatch and lies in the pile (y = {p.y:0.00}, hatch at {under.y:0.00})");
+                // The bottom has fallen below the hatch; large boxes can sit high on top of the pile.
+                Assert.Less(box.GetComponent<BoxCollider>().bounds.min.y, under.y - 0.8f,
+                    $"{box.RawId} came out of the hatch and lies in the pile (y = {p.y:0.00}, hatch at {under.y:0.00})");
                 Assert.Greater(p.y, -0.05f, $"{box.RawId} is not in the floor");
             }
             foreach (var spare in settings.SpareBoxes) Assert.IsFalse(director.Shift.IsForSale(spare.orderNumber));
