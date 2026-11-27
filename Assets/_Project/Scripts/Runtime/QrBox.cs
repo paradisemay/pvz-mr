@@ -170,6 +170,7 @@ namespace Pvz.Runtime
         public void AssignId(string id, Texture2D qrTexture)
         {
             boxId = new BoxId(id).Value;
+            ApplyShape();
             if (qrTexture == null) return;
             ReleaseRuntimeTexture();
             _runtimeTexture = qrTexture;
@@ -181,6 +182,37 @@ namespace Pvz.Runtime
                 block.SetTexture(BaseMap, qrTexture);
                 label.SetPropertyBlock(block);
             }
+        }
+
+        private void ApplyShape()
+        {
+            // The last digit keeps each order's parcel shape stable across deliveries and returns.
+            var last = boxId[boxId.Length - 1];
+            var size = last == '2' || last == '7' ? new Vector3(0.25f, 0.22f, 0.62f) :
+                       last == '3' || last == '8' ? new Vector3(0.48f, 0.12f, 0.40f) :
+                       last == '4' || last == '9' ? new Vector3(0.58f, 0.60f, 0.50f) :
+                       last == '5' || last == '0' ? new Vector3(0.30f, 0.44f, 0.32f) :
+                       new Vector3(0.34f, 0.26f, 0.34f);
+            var collider = GetComponent<BoxCollider>();
+            if (collider != null) collider.size = size;
+            var visual = transform.Find("ITMO_Visual");
+            if (visual != null) visual.localScale = new Vector3(size.x / 0.34f, size.y / 0.26f, size.z / 0.34f);
+            if (body != null) body.mass = 1.2f * size.x * size.y * size.z / (0.34f * 0.26f * 0.34f);
+
+            var label = Mathf.Min(0.072f, size.y * 0.7f);
+            PlaceLabel("QR_Top", new Vector3(size.x * 0.34f, size.y / 2f + 0.021f, size.z * 0.28f), label);
+            PlaceLabel("QR_Front", new Vector3(size.x * 0.34f, Mathf.Min(size.y * 0.29f, (size.y - label) / 2f), -size.z / 2f - 0.011f), label);
+            PlaceLabel("QR_Back", new Vector3(0f, 0f, size.z / 2f + 0.002f), label);
+            PlaceLabel("QR_Left", new Vector3(-size.x / 2f - 0.002f, 0f, 0f), label);
+            PlaceLabel("QR_Right", new Vector3(size.x / 2f + 0.002f, 0f, 0f), label);
+        }
+
+        private void PlaceLabel(string name, Vector3 position, float size)
+        {
+            var label = transform.Find(name);
+            if (label == null) return;
+            label.localPosition = position;
+            label.localScale = Vector3.one * size;
         }
 
         /// <summary>Releases the box from the player's hand and attaches it to the customer.</summary>
