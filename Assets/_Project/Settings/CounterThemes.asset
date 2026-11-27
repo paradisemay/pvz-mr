@@ -13,31 +13,30 @@ MonoBehaviour:
   m_Name: CounterThemes
   m_EditorClassIdentifier: Pvz.Runtime::Pvz.Runtime.CounterThemeCatalog
   themes:
-  - id: classic
-    displayName: "\u041A\u043B\u0430\u0441\u0441\u0438\u043A\u0430"
+  - id: azot
+    displayName: "\u0410\u0437\u043E\u0442"
     unlockPoints: 0
-    recolor: 0
-    body: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    top: {r: 1, g: 1, b: 1, a: 1}
-    accent: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  - id: mint
-    displayName: "\u041C\u044F\u0442\u0430"
-    unlockPoints: 1000
     recolor: 1
-    body: {r: 0.14, g: 0.34, b: 0.31, a: 1}
-    top: {r: 0.88, g: 0.95, b: 0.9, a: 1}
-    accent: {r: 0.35, g: 0.85, b: 0.7, a: 1}
-  - id: night
-    displayName: "\u041D\u043E\u0447\u044C"
-    unlockPoints: 2500
+    body: {r: 0.1, g: 0.22, b: 0.55, a: 1}
+    top: {r: 0.86, g: 0.91, b: 1, a: 1}
+    accent: {r: 1, g: 0.36, b: 0.66, a: 1}
+    brand: "\u0410\u0437\u043E\u0442"
+    computer: {r: 0.8, g: 0.86, b: 0.96, a: 1}
+  - id: razbory
+    displayName: "\u0420\u0430\u0437\u0431\u043E\u0440\u044B"
+    unlockPoints: 0
     recolor: 1
-    body: {r: 0.08, g: 0.08, b: 0.15, a: 1}
-    top: {r: 0.3, g: 0.32, b: 0.42, a: 1}
-    accent: {r: 0.58, g: 0.46, b: 1, a: 1}
-  - id: gold
-    displayName: "\u0417\u043E\u043B\u043E\u0442\u043E"
-    unlockPoints: 5000
+    body: {r: 0.4, g: 0.15, b: 0.55, a: 1}
+    top: {r: 0.97, g: 0.96, b: 0.99, a: 1}
+    accent: {r: 0.97, g: 0.9, b: 1, a: 1}
+    brand: "\u0420\u0430\u0437\u0431\u043E\u0440\u044B"
+    computer: {r: 0.97, g: 0.96, b: 0.99, a: 1}
+  - id: rynok
+    displayName: "\u0420\u044B\u043D\u043E\u043A"
+    unlockPoints: 0
     recolor: 1
-    body: {r: 0.27, g: 0.19, b: 0.08, a: 1}
-    top: {r: 0.95, g: 0.86, b: 0.58, a: 1}
-    accent: {r: 1, g: 0.8, b: 0.2, a: 1}
+    body: {r: 0.98, g: 0.52, b: 0.1, a: 1}
+    top: {r: 1, g: 0.86, b: 0.32, a: 1}
+    accent: {r: 0.85, g: 0.13, b: 0.1, a: 1}
+    brand: "\u0420\u044B\u043D\u043E\u043A"
+    computer: {r: 0.99, g: 0.93, b: 0.8, a: 1}

@@ -212,12 +212,16 @@ namespace Pvz.Editor
             Capture("14_confetti", new Vector3(0.1f, 1.6f, -0.25f), new Vector3(0.3f, 1.35f, 1.1f), 70f);
             confetti.Clear(true);
 
-            // Career theme «Мята» (T022).
+            // T048 (#87): the three themes of the pickup point — colours and the name on the sign and the computer.
             var skin = Object.FindFirstObjectByType<CounterSkin>();
             var themes = AssetDatabase.LoadAssetAtPath<CounterThemeCatalog>(PvzSceneBuilder.ThemeCatalogPath);
-            skin.Apply(themes.Find("mint"));
-            Capture("15_theme_mint", new Vector3(-1.2f, 1.8f, -0.9f), new Vector3(0.1f, 1.3f, 1.0f), 62f);
-            skin.Apply(themes.Find("classic"));
+            foreach (var (id, frame) in new[] { ("azot", "15_theme_azot"), ("razbory", "32_theme_razbory"), ("rynok", "33_theme_rynok") })
+            {
+                skin.Apply(themes.Find(id));
+                computer.Preview(PvzComputer.Screen.Menu, PvzComputer.MenuText, beforeShift: true);
+                Capture(frame, new Vector3(-1.2f, 1.8f, -0.9f), new Vector3(0.1f, 1.3f, 1.0f), 62f);
+            }
+            skin.Apply(themes.Find("azot"));
 
             // Shift timer: the time ran out, the last customer is still served.
             customer.Say("Здравствуйте!\nЗаказ №2781");

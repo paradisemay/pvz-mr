@@ -42,27 +42,33 @@ namespace Pvz.Runtime.Tests
             Assert.AreEqual(ShiftPresenter.HowToPlayText(), Object.FindFirstObjectByType<CounterBoard>().HowToPlay, "written by the presenter");
         }
 
+        /// <summary>T048 (#87): three themes of the pickup point, open from the start; each names the pickup point.</summary>
         [UnityTest]
-        public IEnumerator ThemeButton_PaintsTheCounter_InAThemeTheCareerOpened()
+        public IEnumerator ThemeButton_SwitchesAzotRazboryRynok_AndTheNameOfThePickupPoint()
         {
-            // A player with 1200 career points: «Мята» is open.
-            var points = new Pvz.Core.MemoryScoreStore();
-            points.Set(Pvz.Core.Career.PointsKey, 1200);
-            CareerKeeper.StoreOverride = (points, new Pvz.Core.MemoryTextStore());
+            var choice = new Pvz.Core.MemoryTextStore();
+            CareerKeeper.StoreOverride = (new Pvz.Core.MemoryScoreStore(), choice); // a new player, no career points
             yield return SceneManager.LoadSceneAsync("Game", LoadSceneMode.Single);
             yield return null;
 
             var keeper = Object.FindFirstObjectByType<CareerKeeper>();
             var button = Object.FindFirstObjectByType<ThemeButton>(FindObjectsInactive.Include); // on the settings screen of the computer
+            var computer = Object.FindFirstObjectByType<PvzComputer>();
+            var sign = GameObject.Find("SignFront").GetComponent<TMPro.TMP_Text>();
             Assert.IsNotNull(button, "the computer settings have a theme key");
-            Assert.AreEqual("classic", keeper.Skin.ThemeId, "nothing chosen yet");
-            StringAssert.Contains("до темы «Ночь»", Object.FindFirstObjectByType<CounterBoard>().Footer);
+            Assert.AreEqual("azot", keeper.Skin.ThemeId, "«Азот» first");
+            StringAssert.Contains("АЗОТ", sign.text);
+            Assert.AreEqual("Азот", computer.Brand);
 
-            button.Press();
-            Assert.AreEqual("mint", keeper.Skin.ThemeId);
-            StringAssert.Contains("МЯТА", button.Label);
-            button.Press();
-            Assert.AreEqual("classic", keeper.Skin.ThemeId, "«Ночь» is still closed: back to the classic look");
+            foreach (var (id, name) in new[] { ("razbory", "РАЗБОРЫ"), ("rynok", "РЫНОК"), ("azot", "АЗОТ") })
+            {
+                button.Press();
+                Assert.AreEqual(id, keeper.Skin.ThemeId, "every theme is open without career points");
+                StringAssert.Contains(name, button.Label);
+                StringAssert.Contains(name, sign.text, "the counter's sign names the pickup point");
+                StringAssert.StartsWith(name, PvzComputer.TitleFor(computer.Current, computer.Brand));
+                Assert.AreEqual(id, choice.Load(Pvz.Core.Career.ThemeKey), "the choice is saved");
+            }
         }
 
         [UnityTest]
