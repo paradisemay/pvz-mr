@@ -185,27 +185,26 @@ namespace Pvz.Editor
 
         // ---------- Font ----------
 
-        /// <summary>Dynamic TMP font asset from Liberation Sans with Cyrillic glyphs pre-baked.</summary>
+        /// <summary>Dynamic TMP font asset from the bundled Tiny5 Duo font with Cyrillic glyphs pre-baked.</summary>
         public static TMP_FontAsset CyrillicFont()
         {
-            var path = $"{FontsDir}/PvzSans SDF.asset";
+            var path = $"{FontsDir}/Tiny5 Duo SDF.asset";
             var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
             if (existing != null) return existing;
 
-            var source = AssetDatabase.LoadAssetAtPath<Font>("Assets/TextMesh Pro/Fonts/LiberationSans.ttf");
+            var source = AssetDatabase.LoadAssetAtPath<Font>($"{FontsDir}/Tiny5Duo-Regular.ttf");
             if (source == null)
             {
-                Debug.LogWarning("[PvzAssetFactory] LiberationSans.ttf not found; using TMP default font.");
-                return TMP_Settings.defaultFontAsset;
+                throw new System.IO.FileNotFoundException("The bundled Tiny5 Duo font is missing.", $"{FontsDir}/Tiny5Duo-Regular.ttf");
             }
 
             var font = TMP_FontAsset.CreateFontAsset(source, 72, 7, GlyphRenderMode.SDFAA, 2048, 2048,
                 AtlasPopulationMode.Dynamic, false);
-            font.name = "PvzSans SDF";
+            font.name = "Tiny5 Duo SDF";
             AssetDatabase.CreateAsset(font, path);
-            font.atlasTextures[0].name = "PvzSans Atlas";
+            font.atlasTextures[0].name = "Tiny5 Duo Atlas";
             AssetDatabase.AddObjectToAsset(font.atlasTextures[0], font);
-            font.material.name = "PvzSans Material";
+            font.material.name = "Tiny5 Duo Material";
             AssetDatabase.AddObjectToAsset(font.material, font);
 
             if (!font.TryAddCharacters(FontCharacters, out var missing))

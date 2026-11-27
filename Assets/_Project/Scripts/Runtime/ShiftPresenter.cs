@@ -428,7 +428,7 @@ namespace Pvz.Runtime
 
         private void OnBoxScanned(ScanOutcome outcome)
         {
-            PlaySound(FeedbackAudio.Sound.Beep);
+            PlaySound(FeedbackAudio.Sound.Scan);
             var (text, color) = ScanResultText(outcome);
             _scanner.ShowResult(text, color);
             if (_voice != null) _voice.SayScan(outcome);
@@ -472,7 +472,7 @@ namespace Pvz.Runtime
             switch (outcome.Status)
             {
                 case HandoverStatus.Accepted:
-                    PlaySound(FeedbackAudio.Sound.Success);
+                    if (!outcome.OrderCompleted) PlaySound(FeedbackAudio.Sound.Success);
                     if (outcome.OrderCompleted || !_shift.Desk.HasActiveOrder) break;
                     var left = _shift.Desk.ActiveSession.RemainingCount;
                     if (left > 0) _board.ShowStatus(BoxesLeftText(left, _shift.Desk.ActiveOrder.Boxes.Count), CounterBoard.Neutral);
@@ -501,8 +501,11 @@ namespace Pvz.Runtime
             switch (status)
             {
                 case BagStatus.Accepted:
-                    PlaySound(FeedbackAudio.Sound.Success);
-                    if (_shift.Desk.HasActiveOrder) _board.ShowStatus("Пакет выдан", CounterBoard.Good);
+                    if (_shift.Desk.HasActiveOrder)
+                    {
+                        PlaySound(FeedbackAudio.Sound.Success);
+                        _board.ShowStatus("Пакет выдан", CounterBoard.Good);
+                    }
                     break;
                 case BagStatus.NotNeeded:
                     Say("Пакет не нужен,\nспасибо");
@@ -577,6 +580,7 @@ namespace Pvz.Runtime
         {
             if (_voice != null) _voice.SayOrderDone();
             _step = TutorialStep.Off; // the player has done it once
+            PlaySound(FeedbackAudio.Sound.Payment);
 
             // T045: the customer checked a box and refused it — it is back on the counter, for the returns bin.
             var refused = _shift.WasRefused(result.Order.Number);

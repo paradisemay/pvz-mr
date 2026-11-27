@@ -8,6 +8,7 @@
         "Unity.XR.CoreUtils",
         "Pvz.Editor",
         "Unity.XR.Interaction.Toolkit",
+        "Unity.TextMeshPro",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

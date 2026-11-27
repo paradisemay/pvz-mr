@@ -1,6 +1,7 @@
 using System.Linq;
 using NUnit.Framework;
 using Pvz.Runtime;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -71,6 +72,62 @@ namespace Pvz.Editor.Tests
                     if (it.propertyType == SerializedPropertyType.ObjectReference)
                         Assert.IsNotNull(it.objectReferenceValue, $"{component.GetType().Name}.{it.propertyPath} is not assigned");
                 }
+            }
+        }
+
+        [Test]
+        public void ItmoArtKeepsTheScannableQrBoxes()
+        {
+            var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/_Project/Art/Fonts/Tiny5 Duo SDF.asset");
+            Assert.IsNotNull(font);
+            Assert.AreEqual("Assets/_Project/Art/Fonts/Tiny5Duo-Regular.ttf",
+                AssetDatabase.GetAssetPath(new SerializedObject(font).FindProperty("m_SourceFontFile").objectReferenceValue));
+
+            var model = Resources.Load<GameObject>("ITMO/ITMO_Box");
+            Assert.IsNotNull(model);
+            Assert.IsTrue(model.GetComponentsInChildren<MeshRenderer>().Any(r => r.name.Contains("ITMO_Front")));
+
+            var box = AssetDatabase.LoadAssetAtPath<QrBox>("Assets/_Project/Prefabs/Box_Supply.prefab");
+            Assert.IsNotNull(box);
+            foreach (var face in new[] { "Top", "Front", "Back", "Left", "Right" })
+                Assert.IsNotNull(box.transform.Find($"QR_{face}"), $"missing QR_{face}");
+        }
+
+        [Test]
+        public void FiveCustomerLooksHaveTexturedCowboyHats()
+        {
+            var hat = Resources.Load<GameObject>("Hats/CowboyHat");
+            Assert.IsNotNull(hat);
+            var parts = hat.GetComponentsInChildren<MeshRenderer>().Select(r => r.name).ToArray();
+            foreach (var part in new[] { "Brim", "Crown", "Band", "Buckle" })
+                Assert.IsTrue(parts.Any(name => name.Contains(part)), $"missing cowboy hat {part}");
+            for (var i = 0; i < 5; i++)
+                Assert.IsNotNull(Resources.Load<Texture2D>($"Hats/Hat_{i}"), $"missing hat texture {i}");
+        }
+
+        [Test]
+        public void CustomerFaceModelHasFiveShapesForEveryFeature()
+        {
+            var face = Resources.Load<GameObject>("Faces/FaceParts");
+            Assert.IsNotNull(face);
+            var names = face.GetComponentsInChildren<MeshRenderer>().Select(r => r.name).ToArray();
+            for (var i = 0; i < 5; i++)
+            {
+                foreach (var part in new[] { "Mouth", "Nose", "Ears" })
+                    Assert.Contains($"{part}_{i}", names);
+                Assert.Contains($"Eyes_{i}_White", names);
+                Assert.Contains($"Eyes_{i}_Iris", names);
+            }
+        }
+
+        [Test]
+        public void SuppliedScanAndPaymentSoundsAreAvailable()
+        {
+            foreach (var name in new[] { "Scan", "Payment" })
+            {
+                var clip = Resources.Load<AudioClip>($"Audio/{name}");
+                Assert.IsNotNull(clip, $"missing {name} sound");
+                Assert.Greater(clip.length, 0.1f, $"{name} sound is empty");
             }
         }
 
