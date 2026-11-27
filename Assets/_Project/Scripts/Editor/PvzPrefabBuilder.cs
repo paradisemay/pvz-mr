@@ -18,8 +18,8 @@ namespace Pvz.Editor
 
         private readonly TMP_FontAsset _font;
 
-        private Material _cardboard, _tape, _counterBody, _counterTop, _accent, _boardBack, _zone, _scannerBody,
-            _scannerAccent, _screen, _beam, _skin, _shirt, _eyes, _bubble, _button;
+        private Material _itmoCardboard, _itmoLabel, _hatLeather, _hatBand, _hatBuckle, _counterBody, _counterTop,
+            _accent, _boardBack, _zone, _scannerBody, _scannerAccent, _screen, _beam, _skin, _shirt, _eyes, _bubble, _button;
 
         public PvzPrefabBuilder(TMP_FontAsset font)
         {
@@ -29,8 +29,17 @@ namespace Pvz.Editor
 
         private void CreateMaterials()
         {
-            _cardboard = Lit("Cardboard", new Color(0.76f, 0.6f, 0.42f));
-            _tape = Lit("Tape", new Color(0.88f, 0.82f, 0.66f), 0.5f);
+            _itmoCardboard = Lit("ITMO_Cardboard", Color.white);
+            _itmoLabel = Lit("ITMO_Label", Color.white);
+            _itmoCardboard.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>($"{Root}/Resources/ITMO/Cardboard.png"));
+            _itmoLabel.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>($"{Root}/Resources/ITMO/Label.png"));
+            EditorUtility.SetDirty(_itmoCardboard);
+            EditorUtility.SetDirty(_itmoLabel);
+            _hatLeather = Lit("CowboyLeather", Color.white);
+            _hatLeather.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>($"{Root}/Resources/Hats/Hat_0.png"));
+            EditorUtility.SetDirty(_hatLeather);
+            _hatBand = Lit("CowboyBand", new Color(0.095f, 0.055f, 0.035f));
+            _hatBuckle = Lit("CowboyBuckle", new Color(0.72f, 0.5f, 0.18f));
             _counterBody = Lit("CounterBody", new Color(0.2f, 0.24f, 0.3f));
             _counterTop = Lit("CounterTop", new Color(0.86f, 0.76f, 0.6f), 0.35f);
             _accent = Lit("Accent", new Color(0.95f, 0.55f, 0.15f));
@@ -65,18 +74,23 @@ namespace Pvz.Editor
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             collider.sharedMaterial = PhysicMaterialAsset("Cardboard", 0.6f, 0.8f, 0.05f);
 
-            Primitive(PrimitiveType.Cube, "Body", root.transform, Vector3.zero, BoxSize, _cardboard);
-            Primitive(PrimitiveType.Cube, "Tape", root.transform, new Vector3(0, BoxSize.y / 2f, 0),
-                new Vector3(BoxSize.x + 0.002f, 0.004f, 0.07f), _tape);
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>($"{Root}/Resources/ITMO/ITMO_Box.fbx");
+            if (model == null) throw new System.IO.FileNotFoundException("The ITMO box model is missing.");
+            var visual = (GameObject)PrefabUtility.InstantiatePrefab(model, root.transform);
+            visual.name = "ITMO_Visual";
+            visual.transform.localPosition = Vector3.zero;
+            visual.transform.localRotation = Quaternion.identity;
+            foreach (var renderer in visual.GetComponentsInChildren<MeshRenderer>())
+                renderer.sharedMaterial = renderer.name.Contains("ITMO") ? _itmoLabel : _itmoCardboard;
 
             var label = 0.15f;
             var hx = BoxSize.x / 2f + 0.002f;
             var hy = BoxSize.y / 2f + 0.003f;
             var hz = BoxSize.z / 2f + 0.002f;
             var labels = new System.Collections.Generic.List<Renderer>();
-            labels.Add(Primitive(PrimitiveType.Quad, "QR_Top", root.transform, new Vector3(0.09f, hy, 0.06f), Vector3.one * label * 0.8f, qrMat,
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Top", root.transform, new Vector3(0.115f, hy + 0.018f, 0.095f), Vector3.one * label * 0.48f, qrMat,
                 localRot: Quaternion.Euler(90, 0, 0)).GetComponent<Renderer>());
-            labels.Add(Primitive(PrimitiveType.Quad, "QR_Front", root.transform, new Vector3(0, 0, -hz), Vector3.one * label, qrMat).GetComponent<Renderer>());
+            labels.Add(Primitive(PrimitiveType.Quad, "QR_Front", root.transform, new Vector3(0.115f, 0.075f, -hz - 0.009f), Vector3.one * label * 0.48f, qrMat).GetComponent<Renderer>());
             labels.Add(Primitive(PrimitiveType.Quad, "QR_Back", root.transform, new Vector3(0, 0, hz), Vector3.one * label, qrMat,
                 localRot: Quaternion.Euler(0, 180, 0)).GetComponent<Renderer>());
             labels.Add(Primitive(PrimitiveType.Quad, "QR_Left", root.transform, new Vector3(-hx, 0, 0), Vector3.one * label, qrMat,
@@ -324,9 +338,34 @@ namespace Pvz.Editor
             var armR = Primitive(PrimitiveType.Capsule, "ArmR", body, new Vector3(0.27f, 1.05f, 0.05f), new Vector3(0.11f, 0.3f, 0.11f), _shirt,
                 localRot: Quaternion.Euler(-20, 0, -8));
             Primitive(PrimitiveType.Sphere, "Head", body, new Vector3(0, 1.62f, 0), Vector3.one * 0.26f, _skin);
-            Primitive(PrimitiveType.Sphere, "EyeL", body, new Vector3(-0.055f, 1.66f, 0.115f), Vector3.one * 0.035f, _eyes);
-            Primitive(PrimitiveType.Sphere, "EyeR", body, new Vector3(0.055f, 1.66f, 0.115f), Vector3.one * 0.035f, _eyes);
-            Primitive(PrimitiveType.Cube, "Smile", body, new Vector3(0, 1.57f, 0.122f), new Vector3(0.07f, 0.012f, 0.01f), _eyes);
+            var faceModel = AssetDatabase.LoadAssetAtPath<GameObject>($"{Root}/Resources/Faces/FaceParts.fbx");
+            if (faceModel == null) throw new System.IO.FileNotFoundException("The customer face model is missing.");
+            var face = (GameObject)PrefabUtility.InstantiatePrefab(faceModel, body);
+            face.name = "FaceParts";
+            face.transform.localPosition = new Vector3(0, 1.62f, 0);
+            face.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            var faceWhite = Lit("FaceWhite", new Color(0.94f, 0.92f, 0.86f));
+            var faceIris = Lit("FaceIris", new Color(0.08f, 0.055f, 0.045f));
+            var (mouthStyle, noseStyle, eyeStyle, earStyle, _) = Customer.FaceStyles(0);
+            foreach (var renderer in face.GetComponentsInChildren<MeshRenderer>())
+            {
+                renderer.sharedMaterial = renderer.name.Contains("White") ? faceWhite
+                    : renderer.name.Contains("Iris") ? faceIris : _skin;
+                var parts = renderer.name.Split('_');
+                var style = parts[0] == "Mouth" ? mouthStyle : parts[0] == "Nose" ? noseStyle
+                    : parts[0] == "Eyes" ? eyeStyle : earStyle;
+                renderer.gameObject.SetActive(parts.Length > 1 && int.TryParse(parts[1], out var index) && index == style);
+            }
+
+            var hatModel = AssetDatabase.LoadAssetAtPath<GameObject>($"{Root}/Resources/Hats/CowboyHat.fbx");
+            if (hatModel == null) throw new System.IO.FileNotFoundException("The cowboy hat model is missing.");
+            var hat = (GameObject)PrefabUtility.InstantiatePrefab(hatModel, body);
+            hat.name = "CowboyHat";
+            hat.transform.localPosition = new Vector3(0, 1.75f, 0);
+            hat.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            foreach (var renderer in hat.GetComponentsInChildren<MeshRenderer>())
+                renderer.sharedMaterial = renderer.name.Contains("Band") ? _hatBand
+                    : renderer.name.Contains("Buckle") ? _hatBuckle : _hatLeather;
 
             var carry = new GameObject("CarryAnchor").transform;
             carry.SetParent(body, false);
@@ -334,7 +373,7 @@ namespace Pvz.Editor
 
             var bubbleGo = new GameObject("SpeechBubble");
             bubbleGo.transform.SetParent(root.transform, false);
-            bubbleGo.transform.localPosition = new Vector3(-0.47f, 1.68f, 0); // beside the head, below the counter board
+            bubbleGo.transform.localPosition = new Vector3(-0.62f, 1.68f, 0); // beside the hat, below the counter board
             // Customers face the player, so the bubble is turned around to read correctly before the billboard kicks in.
             bubbleGo.transform.localRotation = Quaternion.Euler(0, 180, 0);
             var bubbleRoot = new GameObject("Content");
@@ -386,7 +425,7 @@ namespace Pvz.Editor
             // Patience bar above the head (hidden until the customer is at the counter and patience is ticking).
             var barGo = new GameObject("PatienceBar");
             barGo.transform.SetParent(root.transform, false);
-            barGo.transform.localPosition = new Vector3(0, 1.88f, 0);
+            barGo.transform.localPosition = new Vector3(0, 2.08f, 0);
             barGo.transform.localRotation = Quaternion.Euler(0, 180, 0);
             var barRoot = new GameObject("Content");
             barRoot.transform.SetParent(barGo.transform, false);

@@ -19,6 +19,7 @@ namespace Pvz.Runtime
         [SerializeField] private float lostBelowY = -1f;
 
         private static readonly int BaseMap = Shader.PropertyToID("_BaseMap");
+        private static Material cardboardMaterial, itmoMaterial;
 
         private Vector3 _startLocalPosition;
         private Quaternion _startLocalRotation;
@@ -82,7 +83,56 @@ namespace Pvz.Runtime
             }
         }
 
-        private void Awake() => RememberStartPose();
+        private void Awake()
+        {
+            RememberStartPose();
+            AddItmoVisual();
+        }
+
+        private void AddItmoVisual()
+        {
+            if (transform.Find("ITMO_Visual") != null) return;
+            var model = Resources.Load<GameObject>("ITMO/ITMO_Box");
+            if (model == null) return;
+
+            var oldBody = transform.Find("Body");
+            if (oldBody != null) oldBody.gameObject.SetActive(false);
+            var oldTape = transform.Find("Tape");
+            if (oldTape != null) oldTape.gameObject.SetActive(false);
+
+            var topQr = transform.Find("QR_Top");
+            if (topQr != null)
+            {
+                topQr.localPosition = new Vector3(0.115f, 0.151f, 0.095f);
+                topQr.localScale = Vector3.one * 0.072f;
+            }
+            var frontQr = transform.Find("QR_Front");
+            if (frontQr != null)
+            {
+                frontQr.localPosition = new Vector3(0.115f, 0.075f, -0.181f);
+                frontQr.localScale = Vector3.one * 0.072f;
+            }
+
+            if (cardboardMaterial == null)
+                cardboardMaterial = BoxMaterial("ITMO/Cardboard");
+            if (itmoMaterial == null)
+                itmoMaterial = BoxMaterial("ITMO/Label");
+
+            var visual = Instantiate(model, transform);
+            visual.name = "ITMO_Visual";
+            visual.transform.localPosition = Vector3.zero;
+            visual.transform.localRotation = Quaternion.identity;
+            foreach (var renderer in visual.GetComponentsInChildren<MeshRenderer>())
+                renderer.sharedMaterial = renderer.name.Contains("ITMO") ? itmoMaterial : cardboardMaterial;
+        }
+
+        private static Material BoxMaterial(string texturePath)
+        {
+            var material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            material.SetTexture(BaseMap, Resources.Load<Texture2D>(texturePath));
+            material.SetColor("_BaseColor", Color.white);
+            return material;
+        }
 
         private void Update()
         {
